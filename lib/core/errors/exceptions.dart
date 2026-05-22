@@ -1,4 +1,4 @@
-/// Custom exceptions for the data layer.
+// Core exceptions thrown by data sources.
 
 class ServerException implements Exception {
   final String message;

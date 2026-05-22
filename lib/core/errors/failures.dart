@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-/// Base failure class for error handling via Either<Failure, T>.
+/// Base failure class for error handling via `Either<Failure, T>`.
 abstract class Failure extends Equatable {
   final String message;
   final int? code;
