@@ -19,18 +19,12 @@ class HomeLoaded extends HomeState {
   final int totalPlants;
   final ConnectionStatus lgStatus;
 
-  const HomeLoaded({
-    required this.totalPlants,
-    required this.lgStatus,
-  });
+  const HomeLoaded({required this.totalPlants, required this.lgStatus});
 
   @override
   List<Object?> get props => [totalPlants, lgStatus];
 
-  HomeLoaded copyWith({
-    int? totalPlants,
-    ConnectionStatus? lgStatus,
-  }) {
+  HomeLoaded copyWith({int? totalPlants, ConnectionStatus? lgStatus}) {
     return HomeLoaded(
       totalPlants: totalPlants ?? this.totalPlants,
       lgStatus: lgStatus ?? this.lgStatus,

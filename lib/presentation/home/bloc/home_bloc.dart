@@ -9,10 +9,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final PowerPlantRepository powerPlantRepository;
   final LGService lgService;
 
-  HomeBloc({
-    required this.powerPlantRepository,
-    required this.lgService,
-  }) : super(const HomeInitial()) {
+  HomeBloc({required this.powerPlantRepository, required this.lgService})
+    : super(const HomeInitial()) {
     on<HomeLoadRequested>(_onLoadRequested);
   }
 
@@ -26,13 +24,12 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
 
     plantsResult.fold(
       (failure) => emit(HomeError(failure.message)),
-      (plants) => emit(HomeLoaded(
-        totalPlants: plants.length,
-        lgStatus: lgService.connectionStatus,
-      )),
+      (plants) => emit(
+        HomeLoaded(
+          totalPlants: plants.length,
+          lgStatus: lgService.connectionStatus,
+        ),
+      ),
     );
   }
 }
-
-
-

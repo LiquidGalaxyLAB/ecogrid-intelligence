@@ -69,16 +69,13 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   Timer? _debounceTimer;
 
   SearchBloc({required this.powerPlantRepository})
-      : super(const SearchState()) {
+    : super(const SearchState()) {
     on<SearchQueryChanged>(_onQueryChanged);
     on<_SearchTriggered>(_onSearchTriggered);
     on<SearchCleared>(_onCleared);
   }
 
-  void _onQueryChanged(
-    SearchQueryChanged event,
-    Emitter<SearchState> emit,
-  ) {
+  void _onQueryChanged(SearchQueryChanged event, Emitter<SearchState> emit) {
     // 1. Immediately update UI to show loading state if we have a query
     final bool willSearch = event.query.trim().isNotEmpty;
     emit(state.copyWith(query: event.query, isSearching: willSearch));
@@ -111,17 +108,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     final results = await Future.wait([plantFuture, regionFuture]);
     final plantResult = results[0] as dartz.Either<dynamic, List<PowerPlant>>;
     final regionResult = results[1] as dartz.Either<dynamic, List<Region>>;
-    
+
     // Only emit if the state query is still the same as the one we just searched for
     if (state.query == event.query) {
       final plants = plantResult.fold((_) => <PowerPlant>[], (p) => p);
       final regions = regionResult.fold((_) => <Region>[], (r) => r);
-      
-      emit(state.copyWith(
-        results: plants,
-        regionResults: regions,
-        isSearching: false,
-      ));
+
+      emit(
+        state.copyWith(
+          results: plants,
+          regionResults: regions,
+          isSearching: false,
+        ),
+      );
     }
   }
 
