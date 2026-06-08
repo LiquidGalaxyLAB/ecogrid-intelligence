@@ -174,8 +174,9 @@ class PowerPlantLocalDataSource {
           (plant.countryLong?.toLowerCase().contains(lowerQuery) ?? false)) {
         matchingCountries.add(plant.countryLong ?? plant.country);
       }
-      if (matchingCountries.length > 10)
+      if (matchingCountries.length > 10) {
         break; // Limit to avoid long processing
+      }
     }
 
     // Build dynamic regions for matched countries
@@ -184,8 +185,9 @@ class PowerPlantLocalDataSource {
       // Check if it's already covered by a quick region exact match to avoid duplicates
       if (matchedQuickRegions.any(
         (r) => r.countries?.contains(countryName) == true,
-      ))
+      )) {
         continue;
+      }
 
       final countryPlants = all
           .where(

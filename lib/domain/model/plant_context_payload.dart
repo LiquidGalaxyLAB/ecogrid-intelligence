@@ -100,8 +100,9 @@ class PlantContextPayload {
     final buffer = StringBuffer();
     buffer.writeln('**Plant:** $plantName');
     buffer.writeln('**Type:** $fuelType');
-    if (capacityMw != null)
+    if (capacityMw != null) {
       buffer.writeln('**Capacity:** ${capacityMw!.toStringAsFixed(0)} MW');
+    }
     buffer.writeln(
       '**Location:** ${countryLong ?? country} (${latitude.toStringAsFixed(2)}°, ${longitude.toStringAsFixed(2)}°)',
     );

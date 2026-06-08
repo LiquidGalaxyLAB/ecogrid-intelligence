@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:ecogrid_intelligence/config/theme.dart';
 
 /// Risk classification based on Climate Vulnerability Score (CVS).
 enum RiskLevel {
-  low(0, 33, 'LOW', AppTheme.riskLow),
-  medium(34, 66, 'MEDIUM', AppTheme.riskMedium),
-  high(67, 100, 'HIGH', AppTheme.riskHigh);
+  low(0, 33, 'LOW', Color(0xFF00E5A0)),
+  medium(34, 66, 'MEDIUM', Color(0xFFFFB020)),
+  high(67, 100, 'HIGH', Color(0xFFFF4D4D));
 
   final int minScore;
   final int maxScore;
