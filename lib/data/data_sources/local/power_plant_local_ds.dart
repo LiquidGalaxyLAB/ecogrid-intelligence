@@ -69,7 +69,8 @@ class PowerPlantLocalDataSource {
       final countrySet = region.countries!.map((c) => c.toLowerCase()).toSet();
       return all.where((p) {
         return countrySet.contains(p.country.toLowerCase()) ||
-            (p.countryLong != null && countrySet.contains(p.countryLong!.toLowerCase()));
+            (p.countryLong != null &&
+                countrySet.contains(p.countryLong!.toLowerCase()));
       }).toList();
     }
 
@@ -110,21 +111,27 @@ class PowerPlantLocalDataSource {
     final bbox = GeoUtils.boundingBox(lat, lon, radiusKm);
     final candidates = all.where((p) {
       return GeoUtils.isInBoundingBox(
-        p.latitude, p.longitude,
-        bbox['minLat']!, bbox['minLon']!,
-        bbox['maxLat']!, bbox['maxLon']!,
+        p.latitude,
+        p.longitude,
+        bbox['minLat']!,
+        bbox['minLon']!,
+        bbox['maxLat']!,
+        bbox['maxLon']!,
       );
     }).toList();
 
     // Precise Haversine filter + sort by distance
-    final withDistance = candidates
-        .map((p) => MapEntry(
-              p,
-              GeoUtils.haversineDistance(lat, lon, p.latitude, p.longitude),
-            ))
-        .where((entry) => entry.value <= radiusKm)
-        .toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+    final withDistance =
+        candidates
+            .map(
+              (p) => MapEntry(
+                p,
+                GeoUtils.haversineDistance(lat, lon, p.latitude, p.longitude),
+              ),
+            )
+            .where((entry) => entry.value <= radiusKm)
+            .toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
 
     return withDistance.take(limit).map((e) => e.key).toList();
   }
@@ -137,9 +144,12 @@ class PowerPlantLocalDataSource {
     final lowerQuery = query.toLowerCase().trim();
     if (lowerQuery.isEmpty) return [];
 
-    return all.where((plant) {
-      return plant.searchKey.contains(lowerQuery);
-    }).take(limit).toList();
+    return all
+        .where((plant) {
+          return plant.searchKey.contains(lowerQuery);
+        })
+        .take(limit)
+        .toList();
   }
 
   /// Search for regions (countries) matching the query and dynamically compute their bounding boxes.
@@ -150,8 +160,11 @@ class PowerPlantLocalDataSource {
 
     // First check against quick regions
     final matchedQuickRegions = Region.quickRegions
-        .where((r) => r.name.toLowerCase().contains(lowerQuery) || 
-                      (r.displayName?.toLowerCase().contains(lowerQuery) ?? false))
+        .where(
+          (r) =>
+              r.name.toLowerCase().contains(lowerQuery) ||
+              (r.displayName?.toLowerCase().contains(lowerQuery) ?? false),
+        )
         .toList();
 
     // Then find distinct countries matching the query
@@ -161,16 +174,24 @@ class PowerPlantLocalDataSource {
           (plant.countryLong?.toLowerCase().contains(lowerQuery) ?? false)) {
         matchingCountries.add(plant.countryLong ?? plant.country);
       }
-      if (matchingCountries.length > 10) break; // Limit to avoid long processing
+      if (matchingCountries.length > 10)
+        break; // Limit to avoid long processing
     }
 
     // Build dynamic regions for matched countries
     final dynamicRegions = <Region>[];
     for (final countryName in matchingCountries) {
       // Check if it's already covered by a quick region exact match to avoid duplicates
-      if (matchedQuickRegions.any((r) => r.countries?.contains(countryName) == true)) continue;
+      if (matchedQuickRegions.any(
+        (r) => r.countries?.contains(countryName) == true,
+      ))
+        continue;
 
-      final countryPlants = all.where((p) => p.countryLong == countryName || p.country == countryName).toList();
+      final countryPlants = all
+          .where(
+            (p) => p.countryLong == countryName || p.country == countryName,
+          )
+          .toList();
       if (countryPlants.isEmpty) continue;
 
       double minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
@@ -185,19 +206,21 @@ class PowerPlantLocalDataSource {
         sumLon += p.longitude;
       }
 
-      dynamicRegions.add(Region(
-        id: 'country_${countryName.toLowerCase().replaceAll(' ', '_')}',
-        name: countryName,
-        displayName: countryName,
-        centerLat: sumLat / countryPlants.length,
-        centerLon: sumLon / countryPlants.length,
-        minLat: minLat,
-        minLon: minLon,
-        maxLat: maxLat,
-        maxLon: maxLon,
-        countries: [countryName],
-        defaultZoom: 5.0,
-      ));
+      dynamicRegions.add(
+        Region(
+          id: 'country_${countryName.toLowerCase().replaceAll(' ', '_')}',
+          name: countryName,
+          displayName: countryName,
+          centerLat: sumLat / countryPlants.length,
+          centerLon: sumLon / countryPlants.length,
+          minLat: minLat,
+          minLon: minLon,
+          maxLat: maxLat,
+          maxLon: maxLon,
+          countries: [countryName],
+          defaultZoom: 5.0,
+        ),
+      );
     }
 
     return [...matchedQuickRegions, ...dynamicRegions];
@@ -243,9 +266,7 @@ class PowerPlantLocalDataSource {
     } catch (e, stackTrace) {
       debugPrint('[EcoGrid] CSV parsing error: $e');
       debugPrint('[EcoGrid] $stackTrace');
-      throw ParseException(
-        message: 'Failed to parse power plant dataset: $e',
-      );
+      throw ParseException(message: 'Failed to parse power plant dataset: $e');
     }
   }
 
@@ -268,7 +289,7 @@ class PowerPlantLocalDataSource {
     // Parse the CSV string into rows. We use standard split to be extremely fast.
     // The CsvToListConverter is robust but too slow for 35k rows.
     final rawLines = csvString.split('\n');
-    
+
     if (rawLines.isEmpty || rawLines.length == 1) {
       stopwatch.stop();
       return _IngestionResult(
@@ -290,11 +311,11 @@ class PowerPlantLocalDataSource {
     for (int i = 1; i < rawLines.length; i++) {
       final line = rawLines[i].trim();
       if (line.isEmpty) continue;
-      
+
       totalRows++;
-      
+
       // Simple split is safe here because our CSV doesn't use complex quotes
-      // for the data we actually extract, except maybe names. 
+      // for the data we actually extract, except maybe names.
       // We will handle basic splitting.
       final row = line.split(',');
 
@@ -372,10 +393,11 @@ class PowerPlantLocalDataSource {
       // ── Create entity ───────────────────────────
       final id = _generateId(country, name, i);
       final primaryFuel = PlantType.fromCsvFuel(fuelStr);
-      
+
       // Pre-compute the searchable string to eliminate O(N) allocations during runtime search
-      final searchKey = '${name.toLowerCase()} ${country.toLowerCase()} ${countryLong.toLowerCase()} ${primaryFuel.displayName.toLowerCase()}';
-      
+      final searchKey =
+          '${name.toLowerCase()} ${country.toLowerCase()} ${countryLong.toLowerCase()} ${primaryFuel.displayName.toLowerCase()}';
+
       final plant = PowerPlant(
         id: id,
         name: name,
@@ -430,8 +452,9 @@ class PowerPlantLocalDataSource {
         .replaceAll(RegExp(r'[^a-z0-9]'), '_')
         .replaceAll(RegExp(r'_+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
-    final truncated =
-        sanitizedName.length > 40 ? sanitizedName.substring(0, 40) : sanitizedName;
+    final truncated = sanitizedName.length > 40
+        ? sanitizedName.substring(0, 40)
+        : sanitizedName;
     return '${country.toLowerCase()}_${truncated}_$rowIndex';
   }
 
@@ -471,4 +494,3 @@ class _IngestionResult {
   final IngestionReport report;
   const _IngestionResult({required this.plants, required this.report});
 }
-

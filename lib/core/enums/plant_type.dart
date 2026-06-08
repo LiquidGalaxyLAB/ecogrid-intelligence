@@ -34,7 +34,8 @@ enum PlantType {
     if (lower.contains('biomass')) return PlantType.biomass;
     if (lower.contains('geothermal')) return PlantType.geothermal;
     if (lower.contains('waste')) return PlantType.waste;
-    if (lower.contains('wave') || lower.contains('tidal')) return PlantType.wave;
+    if (lower.contains('wave') || lower.contains('tidal'))
+      return PlantType.wave;
     if (lower.contains('storage')) return PlantType.storage;
     if (lower.contains('cogeneration')) return PlantType.cogeneration;
     if (lower.contains('petcoke')) return PlantType.petcoke;

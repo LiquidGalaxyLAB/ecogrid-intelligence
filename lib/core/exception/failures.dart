@@ -33,10 +33,7 @@ class ParseFailure extends Failure {
 
 /// Network connectivity failure.
 class NetworkFailure extends Failure {
-  const NetworkFailure({
-    super.message = 'No internet connection',
-    super.code,
-  });
+  const NetworkFailure({super.message = 'No internet connection', super.code});
 }
 
 /// Unknown/unexpected failure.

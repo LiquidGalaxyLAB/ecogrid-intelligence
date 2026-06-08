@@ -25,7 +25,8 @@ class PowerPlantRepositoryImpl implements PowerPlantRepository {
 
   @override
   Future<Either<Failure, List<PowerPlant>>> getPlantsByRegion(
-      Region region) async {
+    Region region,
+  ) async {
     try {
       final plants = await localDataSource.getPlantsByRegion(region);
       return Right(plants);
@@ -59,8 +60,7 @@ class PowerPlantRepositoryImpl implements PowerPlantRepository {
     try {
       final plant = await localDataSource.getPlantById(id);
       if (plant == null) {
-        return const Left(
-            ParseFailure(message: 'Power plant not found'));
+        return const Left(ParseFailure(message: 'Power plant not found'));
       }
       return Right(plant);
     } catch (e) {

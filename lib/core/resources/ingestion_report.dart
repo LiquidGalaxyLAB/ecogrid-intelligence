@@ -27,8 +27,7 @@ class IngestionReport {
   int get totalSkipped =>
       skippedMissingCoordinates + skippedMissingName + skippedMalformed;
 
-  double get successRate =>
-      totalRows > 0 ? (validPlants / totalRows) * 100 : 0;
+  double get successRate => totalRows > 0 ? (validPlants / totalRows) * 100 : 0;
 
   @override
   String toString() {
@@ -44,10 +43,8 @@ class IngestionReport {
       ..writeln('  Skipped (malformed):     $skippedMalformed')
       ..writeln('  Duplicates detected:     $duplicatesDetected')
       ..writeln('  ─────────────────────────────────────────────')
-      ..writeln(
-          '  Success rate:            ${successRate.toStringAsFixed(1)}%')
-      ..writeln(
-          '  Elapsed:                 ${elapsed.inMilliseconds}ms')
+      ..writeln('  Success rate:            ${successRate.toStringAsFixed(1)}%')
+      ..writeln('  Elapsed:                 ${elapsed.inMilliseconds}ms')
       ..writeln('═══════════════════════════════════════════════');
 
     if (warnings.isNotEmpty) {
