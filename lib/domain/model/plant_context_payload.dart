@@ -60,9 +60,18 @@ class PlantContextPayload {
         // Simple proxy: average of available metrics normalised to 0-100
         double sum = 0;
         int count = 0;
-        if (d.temperature != null) { sum += d.temperature!.clamp(0, 50) * 2; count++; }
-        if (d.precipitation != null) { sum += (100 - d.precipitation!.clamp(0, 100)); count++; }
-        if (d.windSpeed != null) { sum += d.windSpeed!.clamp(0, 50) * 2; count++; }
+        if (d.temperature != null) {
+          sum += d.temperature!.clamp(0, 50) * 2;
+          count++;
+        }
+        if (d.precipitation != null) {
+          sum += (100 - d.precipitation!.clamp(0, 100));
+          count++;
+        }
+        if (d.windSpeed != null) {
+          sum += d.windSpeed!.clamp(0, 50) * 2;
+          count++;
+        }
         return count > 0 ? (sum / count).clamp(0.0, 100.0) : 50.0;
       }).toList();
     }
@@ -91,22 +100,34 @@ class PlantContextPayload {
     final buffer = StringBuffer();
     buffer.writeln('**Plant:** $plantName');
     buffer.writeln('**Type:** $fuelType');
-    if (capacityMw != null) buffer.writeln('**Capacity:** ${capacityMw!.toStringAsFixed(0)} MW');
-    buffer.writeln('**Location:** ${countryLong ?? country} (${latitude.toStringAsFixed(2)}°, ${longitude.toStringAsFixed(2)}°)');
-    buffer.writeln('**Climate Vulnerability Score (CVS):** ${cvsScore.toStringAsFixed(1)}/100');
+    if (capacityMw != null) {
+      buffer.writeln('**Capacity:** ${capacityMw!.toStringAsFixed(0)} MW');
+    }
+    buffer.writeln(
+      '**Location:** ${countryLong ?? country} (${latitude.toStringAsFixed(2)}°, ${longitude.toStringAsFixed(2)}°)',
+    );
+    buffer.writeln(
+      '**Climate Vulnerability Score (CVS):** ${cvsScore.toStringAsFixed(1)}/100',
+    );
     buffer.writeln('**Risk Level:** ${riskLevel.label}');
-    buffer.writeln('**Temperature Stress:** ${temperatureStress.toStringAsFixed(1)}%');
+    buffer.writeln(
+      '**Temperature Stress:** ${temperatureStress.toStringAsFixed(1)}%',
+    );
     buffer.writeln('**Water Stress:** ${waterStress.toStringAsFixed(1)}%');
     buffer.writeln('**Wind Stress:** ${windStress.toStringAsFixed(1)}%');
 
     if (historicalScores != null && historicalScores!.isNotEmpty) {
-      buffer.writeln('**Historical Trend (yearly risk proxy):** ${historicalScores!.map((s) => s.toStringAsFixed(1)).join(', ')}');
+      buffer.writeln(
+        '**Historical Trend (yearly risk proxy):** ${historicalScores!.map((s) => s.toStringAsFixed(1)).join(', ')}',
+      );
     }
 
     if (activeScenarioType != null) {
       buffer.writeln('**Active Scenario:** $activeScenarioType');
       if (scenarioProjectedCvs != null) {
-        buffer.writeln('**Projected CVS Under Scenario:** ${scenarioProjectedCvs!.toStringAsFixed(1)}/100');
+        buffer.writeln(
+          '**Projected CVS Under Scenario:** ${scenarioProjectedCvs!.toStringAsFixed(1)}/100',
+        );
       }
     }
 

@@ -15,7 +15,7 @@ class PowerPlant extends Equatable {
   final String? owner;
   final String? source;
   final String? url;
-  
+
   /// Pre-computed lowercase string combining name, country, and fuel for O(1) searches.
   final String searchKey;
 
