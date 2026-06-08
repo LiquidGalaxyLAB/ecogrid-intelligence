@@ -22,8 +22,7 @@ class CachedData<T> {
       DateTime.now().difference(cachedAt) > staleDuration && !isExpired;
 
   /// Whether data has exceeded its maximum lifetime.
-  bool get isExpired =>
-      DateTime.now().difference(cachedAt) > expireDuration;
+  bool get isExpired => DateTime.now().difference(cachedAt) > expireDuration;
 
   /// Whether data is within its fresh window.
   bool get isFresh => !isStale && !isExpired;
@@ -62,7 +61,9 @@ class CachedData<T> {
   }
 
   /// Serialize to map for Hive storage.
-  Map<String, dynamic> toStorageMap(Map<String, dynamic> Function(T) dataSerializer) {
+  Map<String, dynamic> toStorageMap(
+    Map<String, dynamic> Function(T) dataSerializer,
+  ) {
     return {
       'data': dataSerializer(data),
       'cachedAt': cachedAt.toIso8601String(),
@@ -91,10 +92,4 @@ class CachedData<T> {
 }
 
 /// Cache freshness status for BLoC consumption.
-enum CacheStatus {
-  fresh,
-  stale,
-  expired,
-  offline,
-  loading,
-}
+enum CacheStatus { fresh, stale, expired, offline, loading }

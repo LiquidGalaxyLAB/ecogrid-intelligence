@@ -11,7 +11,6 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
-
   # State Management
   flutter_bloc: ^9.1.0
   equatable: ^2.0.7
@@ -23,8 +22,9 @@ dependencies:
   dio: ^5.8.0+1
   
   # Local Storage / Cache
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
+  drift: ^2.22.0
+  sqlite3_flutter_libs: ^0.5.4
+  path: ^1.9.0
 
   # SSH (Liquid Galaxy)
   dartssh2: ^2.9.0+2
@@ -34,8 +34,6 @@ dependencies:
 
   # Maps
   google_maps_flutter: ^2.12.1
-
-  google_generative_ai: any
 
   # TTS
   flutter_tts: ^4.2.0
@@ -56,19 +54,36 @@ dependencies:
   intl: ^0.20.2
   cached_network_image: ^3.4.1
   uuid: ^4.5.1
-
+  flutter_dotenv: ^6.0.1
+  shared_preferences: ^2.5.5
+  speech_to_text: ^7.4.0
+  lucide_icons_flutter: ^3.1.14+2
+  fluentui_system_icons: ^1.1.273
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: any
-  hive_generator: any
+  drift_dev: ^2.22.0
 
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/
+    - assets/images/regions/dark/india.png
+    - assets/images/regions/dark/europe.png
+    - assets/images/regions/dark/usa.png
+    - assets/images/regions/dark/china.png
+    - assets/images/regions/dark/africa.png
+    - assets/images/regions/dark/spain.png
+    - assets/images/regions/light/india.png
+    - assets/images/regions/light/europe.png
+    - assets/images/regions/light/usa.png
+    - assets/images/regions/light/china.png
+    - assets/images/regions/light/africa.png
+    - assets/images/regions/light/spain.png
     - assets/data/
+    - .env
 
 
