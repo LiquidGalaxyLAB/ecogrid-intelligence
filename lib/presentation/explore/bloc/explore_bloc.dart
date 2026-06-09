@@ -226,10 +226,12 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
         .map((p) => cvsRepository.getUnifiedScore(p))
         .toList();
     final risks = batchPlants.map((p) {
-      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.high) > 0)
+      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.high) > 0) {
         return RiskLevel.high;
-      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.medium) > 0)
+      }
+      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.medium) > 0) {
         return RiskLevel.medium;
+      }
       return RiskLevel.low;
     }).toList();
 

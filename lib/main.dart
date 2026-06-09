@@ -5,6 +5,7 @@ import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
 import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
 import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
 import 'package:ecogrid_intelligence/di/di.dart';
+import 'package:ecogrid_intelligence/core/network/api_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class EcoGridApp extends StatelessWidget {
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, currentThemeMode, _) {
         return MaterialApp(
+          navigatorKey: ApiClient.alice.getNavigatorKey(),
           title: 'EcoGrid Intelligence',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,

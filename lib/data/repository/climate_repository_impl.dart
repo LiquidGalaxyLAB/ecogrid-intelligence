@@ -80,12 +80,14 @@ class ClimateRepositoryImpl implements ClimateRepository {
 
       return Right(_parseHistoricalData(response, lat, lon));
     } on ServerException catch (e) {
-      if (cached != null)
+      if (cached != null) {
         return Right(_parseHistoricalData(cached.data, lat, lon));
+      }
       return Left(ServerFailure(message: e.message));
     } catch (e) {
-      if (cached != null)
+      if (cached != null) {
         return Right(_parseHistoricalData(cached.data, lat, lon));
+      }
       return Left(UnknownFailure(message: e.toString()));
     }
   }
@@ -170,12 +172,14 @@ class ClimateRepositoryImpl implements ClimateRepository {
 
       return Right(_parseMultiYearHistoricalData(response, lat, lon));
     } on ServerException catch (e) {
-      if (cached != null)
+      if (cached != null) {
         return Right(_parseMultiYearHistoricalData(cached.data, lat, lon));
+      }
       return Left(ServerFailure(message: e.message));
     } catch (e) {
-      if (cached != null)
+      if (cached != null) {
         return Right(_parseMultiYearHistoricalData(cached.data, lat, lon));
+      }
       return Left(UnknownFailure(message: e.toString()));
     }
   }

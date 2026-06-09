@@ -5,14 +5,13 @@ import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
 import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
 import 'package:ecogrid_intelligence/config/theme/region_asset_resolver.dart';
 import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
 import 'package:ecogrid_intelligence/domain/model/region.dart';
 import 'package:ecogrid_intelligence/di/di.dart';
 import 'package:ecogrid_intelligence/presentation/home/bloc/home_bloc.dart';
 import 'package:ecogrid_intelligence/presentation/home/bloc/home_event.dart';
-import 'package:ecogrid_intelligence/presentation/home/bloc/home_state.dart';
 import 'package:ecogrid_intelligence/presentation/components/app_search_bar.dart';
 import 'package:ecogrid_intelligence/presentation/components/atmospheric_globe_painter.dart';
+import 'package:ecogrid_intelligence/presentation/components/lg_connection_pill.dart';
 
 const Color bgWhite = Color(0xFFF6FAFD); // screen background
 const Color deepNavy = Color(0xFF0A1931); // card base
@@ -180,91 +179,7 @@ class _HeaderSection extends StatelessWidget {
               ),
             ],
           ),
-          BlocBuilder<HomeBloc, HomeState>(
-            builder: (context, state) {
-              final status = state is HomeLoaded
-                  ? state.lgStatus
-                  : ConnectionStatus.disconnected;
-              final isConnected = status == ConnectionStatus.connected;
-
-              return GestureDetector(
-                onTap: () => Navigator.pushNamed(context, AppRoutes.lgSettings),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF131920), // Always #131920
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                    border: Border.all(
-                      color: isConnected
-                          ? const Color(0xFF00C853).withValues(alpha: 0.4)
-                          : const Color(0xFFFF1744).withValues(alpha: 0.4),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isConnected
-                              ? const Color(0xFF00C853)
-                              : const Color(0xFFFF1744),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  (isConnected
-                                          ? const Color(0xFF00C853)
-                                          : const Color(0xFFFF1744))
-                                      .withValues(alpha: 0.6),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Liquid Galaxy',
-                            style: AppTheme.caption.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                            ),
-                          ),
-                          Text(
-                            status.label,
-                            style: AppTheme.labelSmall.copyWith(
-                              color: Colors.white,
-                              fontSize: 11,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.settings_input_antenna,
-                        size: 20,
-                        color: isConnected
-                            ? const Color(0xFF00C853)
-                            : const Color(0xFFFF1744),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+          const LgConnectionPill(),
         ],
       ),
     );
@@ -645,11 +560,7 @@ class _GlobalOverviewButtonState extends State<_GlobalOverviewButton>
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
       child: GestureDetector(
         onTap: () {
-          Navigator.pushNamed(
-            context,
-            AppRoutes.explore,
-            arguments: {'global': true},
-          );
+          Navigator.pushNamed(context, AppRoutes.infrastructureMap);
         },
         child: AnimatedBuilder(
           animation: _shimmerController,
@@ -710,7 +621,7 @@ class _GlobalOverviewButtonState extends State<_GlobalOverviewButton>
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'View Global Overview',
+                      'Show Infrastructure Map',
                       style: AppTheme.labelLarge.copyWith(
                         color: isDark ? Colors.white : snowWhite,
                         fontSize: 16,

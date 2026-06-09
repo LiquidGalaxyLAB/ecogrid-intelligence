@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,11 +34,11 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _initSpeech() async {
     try {
       _speechEnabled = await _speechToText.initialize(
-        onError: (error) => print('Speech Error: ${error.errorMsg}'),
-        onStatus: (status) => print('Speech Status: $status'),
+        onError: (error) => debugPrint('Speech Error: ${error.errorMsg}'),
+        onStatus: (status) => debugPrint('Speech Status: $status'),
       );
     } catch (e) {
-      print('Speech init exception: $e');
+      debugPrint('Speech init exception: $e');
     }
     if (mounted) {
       setState(() {});

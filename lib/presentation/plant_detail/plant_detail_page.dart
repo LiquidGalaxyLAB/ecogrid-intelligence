@@ -13,6 +13,7 @@ import 'package:ecogrid_intelligence/presentation/components/historical_trends_s
 import 'package:ecogrid_intelligence/domain/model/cvs_result.dart';
 import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
 import 'package:ecogrid_intelligence/presentation/components/plant_chat_bottom_sheet.dart';
+import 'package:ecogrid_intelligence/presentation/components/lg_connection_pill.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -222,34 +223,7 @@ class _PlantDetailBody extends StatelessWidget {
               ),
             ],
           ),
-          // Connected Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-              border: Border.all(color: AppTheme.cardBorder),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppTheme.connectedGreen,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Liquid Galaxy\nConnected',
-                  style: AppTheme.caption.copyWith(fontSize: 9, height: 1.1),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.cast_connected, color: AppTheme.secondary, size: 16),
-              ],
-            ),
-          ),
+          const LgConnectionPill(),
         ],
       ),
     );

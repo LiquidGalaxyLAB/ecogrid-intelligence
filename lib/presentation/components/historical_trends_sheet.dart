@@ -200,8 +200,9 @@ class HistoricalTrendsSheet extends StatelessWidget {
                             reservedSize: 30,
                             interval: 2, // Label every 2 years
                             getTitlesWidget: (value, meta) {
-                              if (value < 0 || value >= validData.length)
+                              if (value < 0 || value >= validData.length) {
                                 return const SizedBox.shrink();
+                              }
                               final date = validData[value.toInt()].timestamp;
                               return Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
@@ -275,8 +276,9 @@ class HistoricalTrendsSheet extends StatelessWidget {
                 // ── AI Trend Explanation (button-triggered only) ──
                 BlocBuilder<PlantDetailBloc, PlantDetailState>(
                   builder: (context, state) {
-                    if (state is! PlantDetailLoaded)
+                    if (state is! PlantDetailLoaded) {
                       return const SizedBox.shrink();
+                    }
 
                     if (state.isLoadingTrendInsight) {
                       return Padding(

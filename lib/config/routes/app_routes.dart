@@ -12,6 +12,8 @@ import 'package:ecogrid_intelligence/presentation/lg_connection/lg_connection_pa
 import 'package:ecogrid_intelligence/presentation/lg_visualization/lg_visualization_page.dart';
 import 'package:ecogrid_intelligence/presentation/home/search_screen.dart';
 import 'package:ecogrid_intelligence/presentation/home/bloc/search_bloc.dart';
+import 'package:ecogrid_intelligence/presentation/about/about_screen.dart';
+import 'package:ecogrid_intelligence/presentation/infrastructure_map/infrastructure_map_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:ecogrid_intelligence/di/di.dart';
 
@@ -30,6 +32,8 @@ class AppRoutes {
   static const String lgSettings = '/lg-settings';
   static const String lgVisualization = '/lg-visualization';
   static const String search = '/search';
+  static const String about = '/about';
+  static const String infrastructureMap = '/infrastructure-map';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -84,6 +88,10 @@ class AppRoutes {
           ),
           settings,
         );
+      case about:
+        return _buildRoute(const AboutScreen(), settings);
+      case infrastructureMap:
+        return _buildRoute(const InfrastructureMapScreen(), settings);
       default:
         return _buildRoute(const HomePage(), settings);
     }

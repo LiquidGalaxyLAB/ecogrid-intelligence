@@ -39,6 +39,30 @@ class LGSettingsSaveRequested extends LGConnectionEvent {
   List<Object?> get props => [settings];
 }
 
+class LGRebootRequested extends LGConnectionEvent {
+  const LGRebootRequested();
+}
+
+class LGPowerOffRequested extends LGConnectionEvent {
+  const LGPowerOffRequested();
+}
+
+class LGRelaunchRequested extends LGConnectionEvent {
+  const LGRelaunchRequested();
+}
+
+class LGClearKmlRequested extends LGConnectionEvent {
+  const LGClearKmlRequested();
+}
+
+class LGShowLogosRequested extends LGConnectionEvent {
+  const LGShowLogosRequested();
+}
+
+class LGClearLogosRequested extends LGConnectionEvent {
+  const LGClearLogosRequested();
+}
+
 /// Internal event — fired by the SSHService connection stream.
 /// Not intended to be dispatched from UI code.
 class _LGConnectionStatusChanged extends LGConnectionEvent {
@@ -105,6 +129,12 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     on<LGDisconnectRequested>(_onDisconnect);
     on<LGSettingsSaveRequested>(_onSaveSettings);
     on<_LGConnectionStatusChanged>(_onConnectionStatusChanged);
+    on<LGRebootRequested>(_onReboot);
+    on<LGPowerOffRequested>(_onPowerOff);
+    on<LGRelaunchRequested>(_onRelaunch);
+    on<LGClearKmlRequested>(_onClearKml);
+    on<LGShowLogosRequested>(_onShowLogos);
+    on<LGClearLogosRequested>(_onClearLogos);
 
     // Subscribe to the SSH service's connection stream
     _connectionSubscription = sshService.connectionStream.listen((isConnected) {
@@ -174,13 +204,59 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     if (event.isConnected) {
       emit(state.copyWith(status: ConnectionStatus.connected, error: null));
     } else {
-      // Only transition to disconnected if we were previously connected
-      // to avoid overriding an explicit error state
       if (state.status == ConnectionStatus.connected ||
           state.status == ConnectionStatus.connecting) {
         emit(state.copyWith(status: ConnectionStatus.disconnected));
       }
     }
+  }
+
+  Future<void> _onReboot(
+    LGRebootRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Reboot
+    debugPrint('[EcoGrid] LG Reboot Requested (Placeholder)');
+  }
+
+  Future<void> _onPowerOff(
+    LGPowerOffRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Power Off
+    debugPrint('[EcoGrid] LG Power Off Requested (Placeholder)');
+  }
+
+  Future<void> _onRelaunch(
+    LGRelaunchRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Relaunch
+    debugPrint('[EcoGrid] LG Relaunch Requested (Placeholder)');
+  }
+
+  Future<void> _onClearKml(
+    LGClearKmlRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Clear KML
+    debugPrint('[EcoGrid] LG Clear KML Requested (Placeholder)');
+  }
+
+  Future<void> _onShowLogos(
+    LGShowLogosRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Show Logos
+    debugPrint('[EcoGrid] LG Show Logos Requested (Placeholder)');
+  }
+
+  Future<void> _onClearLogos(
+    LGClearLogosRequested event,
+    Emitter<LGConnectionState> emit,
+  ) async {
+    // Placeholder for Clear Logos
+    debugPrint('[EcoGrid] LG Clear Logos Requested (Placeholder)');
   }
 
   @override

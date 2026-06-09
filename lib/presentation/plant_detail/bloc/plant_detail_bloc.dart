@@ -566,8 +566,9 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     final currentState = state as PlantDetailLoaded;
 
     // Don't re-fetch if we already have trend data
-    if (currentState.trendData.isNotEmpty || currentState.isLoadingTrend)
+    if (currentState.trendData.isNotEmpty || currentState.isLoadingTrend) {
       return;
+    }
 
     emit(currentState.copyWith(isLoadingTrend: true));
 
