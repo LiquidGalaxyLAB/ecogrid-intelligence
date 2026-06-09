@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
+
+enum ConnectionStatus { connected, disconnected }
 
 abstract class HomeState extends Equatable {
   const HomeState();

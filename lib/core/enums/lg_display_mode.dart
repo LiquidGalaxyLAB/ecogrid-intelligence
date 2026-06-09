@@ -1,1 +1,1 @@
-enum LGDisplayMode { none, regionOverview, plantPlacemarks, plantDetail }
+﻿enum LGDisplayMode { none, regionOverview, plantPlacemarks }

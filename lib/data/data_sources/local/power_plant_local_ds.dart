@@ -136,7 +136,7 @@ class PowerPlantLocalDataSource {
     return withDistance.take(limit).map((e) => e.key).toList();
   }
 
-  /// Search plants by name, country, or fuel type using a custom fuzzy match.
+  /// Search plants by name, country, or fuel type.
   ///
   /// Returns at most [limit] results to prevent UI lag on broad queries.
   Future<List<PowerPlant>> searchPlants(String query, {int limit = 50}) async {
@@ -144,16 +144,12 @@ class PowerPlantLocalDataSource {
     final lowerQuery = query.toLowerCase().trim();
     if (lowerQuery.isEmpty) return [];
 
-    final scoredPlants = <MapEntry<PowerPlant, int>>[];
-    for (final plant in all) {
-      final score = _fuzzyScore(lowerQuery, plant.searchKey);
-      if (score > -10000) {
-        scoredPlants.add(MapEntry(plant, score));
-      }
-    }
-
-    scoredPlants.sort((a, b) => b.value.compareTo(a.value));
-    return scoredPlants.take(limit).map((e) => e.key).toList();
+    return all
+        .where((plant) {
+          return plant.searchKey.contains(lowerQuery);
+        })
+        .take(limit)
+        .toList();
   }
 
   /// Search for regions (countries) matching the query and dynamically compute their bounding boxes.
@@ -162,24 +158,20 @@ class PowerPlantLocalDataSource {
     final lowerQuery = query.toLowerCase().trim();
     if (lowerQuery.isEmpty) return [];
 
-    // First check against quick regions using fuzzy match
+    // First check against quick regions
     final matchedQuickRegions = Region.quickRegions
         .where(
           (r) =>
-              _fuzzyScore(lowerQuery, r.name.toLowerCase()) > -10000 ||
-              (r.displayName != null &&
-                  _fuzzyScore(lowerQuery, r.displayName!.toLowerCase()) >
-                      -10000),
+              r.name.toLowerCase().contains(lowerQuery) ||
+              (r.displayName?.toLowerCase().contains(lowerQuery) ?? false),
         )
         .toList();
 
-    // Then find distinct countries matching the query via fuzzy match
+    // Then find distinct countries matching the query
     final matchingCountries = <String>{};
     for (final plant in all) {
-      if (_fuzzyScore(lowerQuery, plant.country.toLowerCase()) > -10000 ||
-          (plant.countryLong != null &&
-              _fuzzyScore(lowerQuery, plant.countryLong!.toLowerCase()) >
-                  -10000)) {
+      if (plant.country.toLowerCase().contains(lowerQuery) ||
+          (plant.countryLong?.toLowerCase().contains(lowerQuery) ?? false)) {
         matchingCountries.add(plant.countryLong ?? plant.country);
       }
       if (matchingCountries.length > 10) {
@@ -494,37 +486,6 @@ class PowerPlantLocalDataSource {
       }
     }
     return matches / (la.length > lb.length ? la.length : lb.length);
-  }
-
-  /// Calculate a fuzzy score for subsequence matching.
-  ///
-  /// Returns a higher positive score for better matches (especially consecutive).
-  /// Returns -10000 if not a match.
-  static int _fuzzyScore(String query, String target) {
-    if (query.isEmpty) return 100;
-    int qIdx = 0;
-    int tIdx = 0;
-    int score = 0;
-    int consecutiveMatches = 0;
-
-    final qLen = query.length;
-    final tLen = target.length;
-
-    while (qIdx < qLen && tIdx < tLen) {
-      if (query[qIdx] == target[tIdx]) {
-        score += 10 + (consecutiveMatches * 5);
-        consecutiveMatches++;
-        qIdx++;
-      } else {
-        consecutiveMatches = 0;
-      }
-      tIdx++;
-    }
-
-    if (qIdx == qLen) {
-      return score - tLen; // Penalty for longer non-matching tails
-    }
-    return -10000;
   }
 }
 
