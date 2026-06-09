@@ -20,6 +20,7 @@ dependencies:
 
   # Networking
   dio: ^5.8.0+1
+  alice: ^1.0.0
   
   # Local Storage / Cache
   drift: ^2.22.0
@@ -59,6 +60,7 @@ dependencies:
   speech_to_text: ^7.4.0
   lucide_icons_flutter: ^3.1.14+2
   fluentui_system_icons: ^1.1.273
+  alice_dio: ^1.0.7
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,5 +71,21 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    - assets/images/
+    - assets/images/regions/dark/india.png
+    - assets/images/regions/dark/europe.png
+    - assets/images/regions/dark/usa.png
+    - assets/images/regions/dark/china.png
+    - assets/images/regions/dark/africa.png
+    - assets/images/regions/dark/spain.png
+    - assets/images/regions/light/india.png
+    - assets/images/regions/light/europe.png
+    - assets/images/regions/light/usa.png
+    - assets/images/regions/light/china.png
+    - assets/images/regions/light/africa.png
+    - assets/images/regions/light/spain.png
+    - assets/data/
+    - .env
 
 
