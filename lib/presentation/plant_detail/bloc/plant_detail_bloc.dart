@@ -1,18 +1,28 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
-import 'package:ecogrid_intelligence/domain/model/cvs_result.dart';
-import 'package:ecogrid_intelligence/domain/model/plant_context_payload.dart';
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
-import 'package:ecogrid_intelligence/domain/repository/cvs_repository.dart';
-import 'package:ecogrid_intelligence/domain/repository/ai_repository.dart';
-import 'package:ecogrid_intelligence/service/lg_service.dart';
-import 'package:ecogrid_intelligence/domain/repository/climate_repository.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/core/enums/lg_display_mode.dart';
-import 'package:ecogrid_intelligence/core/utils/kml_generator.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../domain/model/climate_data.dart';
+import '../../../domain/model/cvs_result.dart';
+import '../../../domain/model/plant_context_payload.dart';
+import '../../../domain/model/lg_settings.dart';
+import '../../../service/lg_service.dart';
+import '../../../domain/usecases/cvs/services/get_unified_score_usecase.dart';
+import '../../../domain/usecases/cvs/services/get_cvs_for_plant_usecase.dart';
+import '../../../domain/usecases/ai/services/generate_plant_insight_usecase.dart';
+import '../../../domain/usecases/ai/services/generate_scenario_analysis_usecase.dart';
+import '../../../domain/usecases/climate/services/get_multi_year_trend_usecase.dart';
+import '../../../domain/usecases/ai/services/generate_trend_insight_usecase.dart';
+import '../../../domain/usecases/ai/services/start_plant_chat_usecase.dart';
+import '../../../domain/usecases/ai/services/send_chat_message_usecase.dart';
+import '../../../core/resources/data_state.dart';
+import '../../../domain/repository/cvs_repository.dart';
+
+import '../../../core/enums/connection_status.dart';
+import '../../../core/enums/lg_display_mode.dart';
+import '../../../core/enums/historical_data_mode.dart';
+import '../../../core/utils/kml_utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ─── Events ──────────────────────────────────────────────
 
@@ -246,19 +256,30 @@ class PlantDetailError extends PlantDetailState {
 // ─── BLoC ────────────────────────────────────────────────
 
 class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
-  final CvsRepository cvsRepository;
-  final AIRepository aiRepository;
   final LGService lgService;
-  final ClimateRepository climateRepository;
+
+  final GetUnifiedScoreUsecase getUnifiedScoreUsecase;
+  final GetCvsForPlantUsecase getCvsForPlantUsecase;
+  final GeneratePlantInsightUsecase generatePlantInsightUsecase;
+  final GenerateScenarioAnalysisUsecase generateScenarioAnalysisUsecase;
+  final GetMultiYearTrendUsecase getMultiYearTrendUsecase;
+  final GenerateTrendInsightUsecase generateTrendInsightUsecase;
+  final StartPlantChatUsecase startPlantChatUsecase;
+  final SendChatMessageUsecase sendChatMessageUsecase;
 
   /// Active chat session (in-memory only, not persisted).
   String? _chatSessionId;
 
   PlantDetailBloc({
-    required this.cvsRepository,
-    required this.aiRepository,
     required this.lgService,
-    required this.climateRepository,
+    required this.getUnifiedScoreUsecase,
+    required this.getCvsForPlantUsecase,
+    required this.generatePlantInsightUsecase,
+    required this.generateScenarioAnalysisUsecase,
+    required this.getMultiYearTrendUsecase,
+    required this.generateTrendInsightUsecase,
+    required this.startPlantChatUsecase,
+    required this.sendChatMessageUsecase,
   }) : super(const PlantDetailInitial()) {
     on<PlantDetailLoadRequested>(_onLoadRequested);
     on<PlantDetailGenerateInsightRequested>(_onGenerateInsightRequested);
@@ -296,10 +317,14 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     PlantDetailLoadRequested event,
     Emitter<PlantDetailState> emit,
   ) async {
+    emit(const PlantDetailLoading());
+
+
+
     final plant = event.plant;
 
     // Step 1: Use unified single source of truth score
-    final activeCvs = cvsRepository.getUnifiedScore(plant);
+    final activeCvs = getUnifiedScoreUsecase(plant);
 
     emit(
       PlantDetailLoaded(
@@ -318,27 +343,22 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     // Step 2: Try to fetch supplementary climate data
     // IMPORTANT: Do NOT replace cvsResult. The unified score is the single source of truth.
     try {
-      final cvsFetchResult = await cvsRepository
-          .getCvsForPlant(plant)
+      final cvsFetchResult = await getCvsForPlantUsecase(params: plant)
           .timeout(const Duration(seconds: 35));
 
-      cvsFetchResult.fold(
-        (failure) {
-          debugPrint('[CVS] API climate fetch failed: ${failure.message}');
-        },
-        (computationResult) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                climateData: computationResult.currentClimate,
-                historicalData: computationResult.historicalData,
-                // cvsResult is NOT replaced — unified score stays
-                isLoadingCvs: false,
-              ),
-            );
-          }
-        },
-      );
+      if (cvsFetchResult is DataSuccess<CvsComputationResult>) {
+        if (state is PlantDetailLoaded) {
+          emit(
+            (state as PlantDetailLoaded).copyWith(
+              climateData: cvsFetchResult.data!.currentClimate,
+              historicalData: cvsFetchResult.data!.historicalData,
+              isLoadingCvs: false,
+            ),
+          );
+        }
+      } else {
+        debugPrint('[CVS] API climate fetch failed: ${cvsFetchResult.exception}');
+      }
     } catch (e) {
       debugPrint('[CVS] API climate fetch failed for ${plant.name}. Error: $e');
       if (state is PlantDetailLoaded) {
@@ -360,50 +380,41 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     CVSResult cvs,
     Emitter<PlantDetailState> emit,
   ) async {
-    // Guard: if LG is not connected, inform the UI and do nothing else.
-    if (lgService.connectionStatus != ConnectionStatus.connected) {
-      if (state is PlantDetailLoaded) {
-        emit(
-          (state as PlantDetailLoaded).copyWith(
-            lgError: 'Liquid Galaxy not connected',
-          ),
-        );
-      }
-      return;
-    }
+    // Guard: LG auto-sequence fires silently when not connected.
+    // Only explicit user-triggered LG actions show the "not connected" toast.
+    if (lgService.connectionStatus != ConnectionStatus.connected) return;
 
     try {
       // 1. Always clear everything first.
       await lgService.clearKml();
 
-      // 2. Fly camera to the exact plant location at tight zoom.
-      //    altitude=50000m, heading=0, tilt=45°, range=50000.
+      // 2. Fly camera to the exact plant location.
       await lgService.flyTo(
         plant.latitude,
         plant.longitude,
-        0, // altitude=0: target is at ground level (the plant itself)
-        0, // heading=0: north-up
-        45, // tilt=45: angled aerial perspective
-        1000, // range=1000m: eye alt ≈ 707m — whole facility visible
+        0,
+        0,
+        0,
+        1000, // Zoomed in close for orbit feature (was 4000)
       );
 
       // 3. Send single colour-coded pin to master screen.
-      final pinKml = KMLGenerator.plantPinKml(
+      final pinKml = KmlUtils.plantPinKml(
         plant: plant,
         riskLevel: cvs.riskLevel,
       );
       await lgService.sendKmlToMaster(pinKml);
 
-      // 4. Load settings to get rightmost screen (generalised formula, no hardcoding).
+      // 4. Load settings to get rightmost screen.
       final settingsResult = await lgService.loadSettings();
       int screenCount = LGSettings.empty.screenCount;
       int rightmostScreen = LGSettings.empty.rightmostScreen;
-      settingsResult.fold((_) => null, (settings) {
-        screenCount = settings.screenCount;
-        rightmostScreen = settings.rightmostScreen;
-      });
+      if (settingsResult is DataSuccess<LGSettings>) {
+        screenCount = settingsResult.data!.screenCount;
+        rightmostScreen = settingsResult.data!.rightmostScreen;
+      }
 
-      // 5. Compute the lon offset for the rightmost slave screen (same formula as region overlay).
+      // 5. Compute the lon offset for the rightmost slave screen.
       const offsetPerSideScreen = 10.0;
       final sideScreens = (screenCount - 1) / 2;
       final rightmostLonOffset =
@@ -419,7 +430,7 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
       }
 
       // 7. Send full detail card to rightmost slave screen.
-      final balloonKml = KMLGenerator.plantDetailBalloon(
+      final balloonKml = KmlUtils.plantDetailBalloon(
         plant: plant,
         cvs: cvs,
         lat: plant.latitude,
@@ -433,7 +444,6 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
 
       debugPrint('[LG] Plant detail sequence complete for ${plant.name}');
     } catch (e) {
-      // LG errors must never crash the plant analysis screen.
       debugPrint('[LG] Plant detail sequence failed: $e');
     }
   }
@@ -463,32 +473,25 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     );
 
     try {
-      final insightResult = await aiRepository
-          .generatePlantInsight(context: context, isUserInitiated: true)
-          .timeout(const Duration(seconds: 12));
+      final insightResult = await generatePlantInsightUsecase(
+        params: {'context': context, 'isUserInitiated': true},
+      ).timeout(const Duration(seconds: 12));
 
-      insightResult.fold(
-        (failure) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                isLoadingInsight: false,
-                insightError: failure.message,
-              ),
-            );
-          }
-        },
-        (insight) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                aiInsight: insight,
-                isLoadingInsight: false,
-              ),
-            );
-          }
-        },
-      );
+      if (insightResult is DataSuccess<String>) {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            aiInsight: insightResult.data!,
+            isLoadingInsight: false,
+          ));
+        }
+      } else {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            isLoadingInsight: false,
+            insightError: insightResult.exception?.toString(),
+          ));
+        }
+      }
     } catch (_) {
       if (state is PlantDetailLoaded) {
         emit(
@@ -521,34 +524,29 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     );
 
     try {
-      final insightResult = await aiRepository.generateScenarioAnalysis(
-        context: context,
-        projectedCvs: event.projectedCvs,
-        scenarioType: event.scenarioType,
+      final insightResult = await generateScenarioAnalysisUsecase(
+        params: {
+          'context': context,
+          'projectedCvs': event.projectedCvs,
+          'scenarioType': event.scenarioType,
+        },
       );
 
-      insightResult.fold(
-        (failure) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                isLoadingInsight: false,
-                insightError: failure.message,
-              ),
-            );
-          }
-        },
-        (insight) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                scenarioInsight: insight,
-                isLoadingInsight: false,
-              ),
-            );
-          }
-        },
-      );
+      if (insightResult is DataSuccess<String>) {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            scenarioInsight: insightResult.data!,
+            isLoadingInsight: false,
+          ));
+        }
+      } else {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            isLoadingInsight: false,
+            insightError: insightResult.exception?.toString(),
+          ));
+        }
+      }
     } catch (_) {
       if (state is PlantDetailLoaded) {
         emit((state as PlantDetailLoaded).copyWith(isLoadingInsight: false));
@@ -557,6 +555,43 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
   }
 
   // ── Trend Data (unchanged — fetches climate data, not AI) ──
+
+  List<ClimateData> _aggregateByYear(List<ClimateData> rawData) {
+    final Map<int, List<ClimateData>> byYear = {};
+
+    for (final d in rawData) {
+      byYear.putIfAbsent(d.timestamp.year, () => []).add(d);
+    }
+
+    return byYear.entries.map((entry) {
+      final year = entry.key;
+      final points = entry.value;
+
+      // Annual average for each metric
+      final temps = points.where((d) => d.temperature != null)
+          .map((d) => d.temperature!).toList();
+      final precips = points.where((d) => d.precipitation != null)
+          .map((d) => d.precipitation!).toList();
+      final winds = points.where((d) => d.windSpeed != null)
+          .map((d) => d.windSpeed!).toList();
+
+      return ClimateData(
+        latitude: points.first.latitude,
+        longitude: points.first.longitude,
+        timestamp: DateTime(year, 7, 1), // mid-year anchor point
+        temperature: temps.isNotEmpty
+            ? temps.reduce((a, b) => a + b) / temps.length
+            : null,
+        precipitation: precips.isNotEmpty
+            ? precips.reduce((a, b) => a + b) / precips.length
+            : null,
+        windSpeed: winds.isNotEmpty
+            ? winds.reduce((a, b) => a + b) / winds.length
+            : null,
+      );
+    }).toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  }
 
   Future<void> _onTrendRequested(
     PlantDetailTrendRequested event,
@@ -573,28 +608,34 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     emit(currentState.copyWith(isLoadingTrend: true));
 
     try {
-      final trendResult = await climateRepository
-          .getMultiYearTrend(event.plant.latitude, event.plant.longitude)
-          .timeout(const Duration(seconds: 75));
+      final prefs = await SharedPreferences.getInstance();
+      final modeIndex = prefs.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
+      final mode = HistoricalDataMode.values[modeIndex];
 
-      trendResult.fold(
-        (failure) {
-          debugPrint('[Trend] Failed: ${failure.message}');
-          if (state is PlantDetailLoaded) {
-            emit((state as PlantDetailLoaded).copyWith(isLoadingTrend: false));
-          }
+      final now = DateTime.now();
+      final trendResult = await getMultiYearTrendUsecase(
+        params: {
+          'lat': event.plant.latitude,
+          'lon': event.plant.longitude,
+          'startDate': mode.startDate,
+          'endDate': DateTime(now.year, 1, 1).subtract(const Duration(days: 1)),
         },
-        (data) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                trendData: data,
-                isLoadingTrend: false,
-              ),
-            );
-          }
-        },
-      );
+      ).timeout(const Duration(seconds: 75));
+
+      if (trendResult is DataSuccess<List<ClimateData>>) {
+        final aggregatedData = _aggregateByYear(trendResult.data!);
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            trendData: aggregatedData,
+            isLoadingTrend: false,
+          ));
+        }
+      } else {
+        debugPrint('[Trend] Failed: ${trendResult.exception}');
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(isLoadingTrend: false));
+        }
+      }
     } catch (e) {
       debugPrint('[Trend] Error: $e');
       if (state is PlantDetailLoaded) {
@@ -618,31 +659,22 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     emit(currentState.copyWith(isLoadingTrendInsight: true));
 
     try {
-      final result = await aiRepository
-          .generateTrendInsight(context: context)
-          .timeout(const Duration(seconds: 12));
+      final result = await generateTrendInsightUsecase(
+        params: context,
+      ).timeout(const Duration(seconds: 12));
 
-      result.fold(
-        (failure) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                isLoadingTrendInsight: false,
-              ),
-            );
-          }
-        },
-        (insight) {
-          if (state is PlantDetailLoaded) {
-            emit(
-              (state as PlantDetailLoaded).copyWith(
-                trendInsight: insight,
-                isLoadingTrendInsight: false,
-              ),
-            );
-          }
-        },
-      );
+      if (result is DataSuccess<String>) {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(
+            trendInsight: result.data!,
+            isLoadingTrendInsight: false,
+          ));
+        }
+      } else {
+        if (state is PlantDetailLoaded) {
+          emit((state as PlantDetailLoaded).copyWith(isLoadingTrendInsight: false));
+        }
+      }
     } catch (_) {
       if (state is PlantDetailLoaded) {
         emit(
@@ -665,7 +697,7 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     if (context == null) return;
 
     // Start a fresh chat session (not persisted between sessions)
-    _chatSessionId = aiRepository.startPlantChat(context: context);
+    _chatSessionId = startPlantChatUsecase(context: context);
 
     emit(currentState.copyWith(isChatActive: true, chatMessages: []));
   }
@@ -677,6 +709,10 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     if (state is! PlantDetailLoaded || _chatSessionId == null) return;
     final currentState = state as PlantDetailLoaded;
 
+    emit(const PlantDetailLoading());
+
+
+
     // Add user message immediately
     final userMessage = ChatMessage(text: event.message, isUser: true);
     final updatedMessages = [...currentState.chatMessages, userMessage];
@@ -686,43 +722,32 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
     );
 
     // Send to AI
-    final result = await aiRepository.sendChatMessage(
-      sessionId: _chatSessionId!,
-      message: event.message,
+    final result = await sendChatMessageUsecase(
+      params: {
+        'sessionId': _chatSessionId!,
+        'message': event.message,
+      },
     );
 
-    result.fold(
-      (failure) {
-        final errorMessage = ChatMessage(
-          text: 'Sorry, I encountered an error. Please try again.',
-          isUser: false,
-        );
-        if (state is PlantDetailLoaded) {
-          emit(
-            (state as PlantDetailLoaded).copyWith(
-              chatMessages: [
-                ...(state as PlantDetailLoaded).chatMessages,
-                errorMessage,
-              ],
-              isChatLoading: false,
-            ),
-          );
-        }
-      },
-      (response) {
-        final aiMessage = ChatMessage(text: response, isUser: false);
-        if (state is PlantDetailLoaded) {
-          emit(
-            (state as PlantDetailLoaded).copyWith(
-              chatMessages: [
-                ...(state as PlantDetailLoaded).chatMessages,
-                aiMessage,
-              ],
-              isChatLoading: false,
-            ),
-          );
-        }
-      },
-    );
+    if (result is DataSuccess<String>) {
+      final aiMessage = ChatMessage(text: result.data!, isUser: false);
+      if (state is PlantDetailLoaded) {
+        emit((state as PlantDetailLoaded).copyWith(
+          chatMessages: [...(state as PlantDetailLoaded).chatMessages, aiMessage],
+          isChatLoading: false,
+        ));
+      }
+    } else {
+      final errorMessage = ChatMessage(
+        text: 'Sorry, I encountered an error. Please try again.',
+        isUser: false,
+      );
+      if (state is PlantDetailLoaded) {
+        emit((state as PlantDetailLoaded).copyWith(
+          chatMessages: [...(state as PlantDetailLoaded).chatMessages, errorMessage],
+          isChatLoading: false,
+        ));
+      }
+    }
   }
 }

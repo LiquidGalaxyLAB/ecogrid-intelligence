@@ -1,11 +1,14 @@
-import 'package:dartz/dartz.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/core/exception/failures.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/settings_local_ds.dart';
-import 'package:ecogrid_intelligence/data/data_sources/remote/lg_remote_ds.dart';
-import 'package:ecogrid_intelligence/core/enums/lg_display_mode.dart';
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
+import 'package:flutter/material.dart';
+import '../core/utils/globals.dart';
+import '../core/enums/connection_status.dart';
+import '../core/exception/invalid_response_exception.dart';
+import '../core/exception/unhandled_exception.dart';
+import '../core/resources/data_state.dart';
+import '../core/utils/kml_utils.dart';
+import '../data/data_sources/local/settings_local_ds.dart';
+import '../data/data_sources/remote/lg_remote_ds.dart';
+import '../core/enums/lg_display_mode.dart';
+import '../domain/model/lg_settings.dart';
 
 class LGService {
   final LGRemoteDataSource remoteDataSource;
@@ -26,7 +29,28 @@ class LGService {
 
   void setCurrentMode(LGDisplayMode mode) => _currentMode = mode;
 
-  Future<Either<Failure, bool>> connect(LGSettings settings) async {
+  bool _checkConnection({bool silent = false}) {
+    if (_status != ConnectionStatus.connected) {
+      if (!silent) {
+        snackbarKey.currentState?.clearSnackBars();
+        snackbarKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Liquid Galaxy not connected',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<DataState<bool>> connect(LGSettings settings) async {
     try {
       _status = ConnectionStatus.connecting;
       final sshService = remoteDataSource.sshService;
@@ -37,28 +61,41 @@ class LGService {
         password: settings.password,
       );
 
-      // Auto-configure the LG rig for slave KML refreshing, just like mentor's code.
+      // Automatically upload the logos to the rig upon connection
+      try {
+        await sshService.uploadAsset(
+          'assets/images/logos.png',
+          '/var/www/html/logos.png',
+        );
+      } catch (e) {
+        // Just log the error, don't fail the entire connection if upload fails
+        debugPrint('[EcoGrid] Failed to upload logo: $e');
+      }
+
       await remoteDataSource.setRefresh();
 
       _status = ConnectionStatus.connected;
-      return const Right(true);
+      return const DataSuccess(true);
     } catch (e) {
       _status = ConnectionStatus.error;
-      return Left(ConnectionFailure(message: 'Failed to connect: $e'));
+      return DataFailure(InvalidResponseException(
+        message: 'Failed to connect: $e',
+        response: null,
+      ));
     }
   }
 
-  Future<Either<Failure, void>> disconnect() async {
+  Future<DataState<void>> disconnect() async {
     try {
       remoteDataSource.sshService.disconnect();
       _status = ConnectionStatus.disconnected;
-      return const Right(null);
+      return const DataSuccess(null);
     } catch (e) {
-      return Left(ConnectionFailure(message: 'Failed to disconnect: $e'));
+      return DataFailure(UnhandledException(message: 'Failed to disconnect: $e'));
     }
   }
 
-  Future<Either<Failure, void>> flyTo(
+  Future<DataState<void>> flyTo(
     double lat,
     double lon,
     double altitude,
@@ -66,146 +103,184 @@ class LGService {
     double tilt,
     double range,
   ) async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.flyTo(lat, lon, altitude, heading, tilt, range);
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> sendKmlToMaster(String kmlContent) async {
+  Future<DataState<void>> sendKmlToMaster(String kmlContent) async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.sendKmlToMaster(kmlContent);
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> clearMasterScreen() async {
+  Future<DataState<void>> clearMasterScreen() async {
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearMaster();
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> sendKmlToSlave(
+  Future<DataState<void>> sendKmlToSlave(
     int slaveNumber,
     String kml,
   ) async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.sendKmlToSlave(slaveNumber, kml);
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> showBalloonOnSlave(
+  Future<DataState<void>> showBalloonOnSlave(
     int slaveNumber,
     String balloonKml,
   ) async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.showBalloonOnSlave(slaveNumber, balloonKml);
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> clearBalloonOnSlave(int slaveNumber) async {
+  Future<DataState<void>> clearBalloonOnSlave(int slaveNumber) async {
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearBalloonOnSlave(slaveNumber);
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> startOrbit(
+  Future<DataState<void>> startOrbit(
     double lat,
     double lon,
     double range,
     double tilt,
   ) async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
-      final orbitKml = '''<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
-  <gx:Tour><name>Orbit</name><gx:Playlist>''';
-      final buffer = StringBuffer(orbitKml);
-      for (int i = 0; i < 36; i++) {
-        final heading = i * 10.0;
-        buffer.writeln('''
-    <gx:FlyTo>
-      <gx:duration>1.2</gx:duration>
-      <gx:flyToMode>smooth</gx:flyToMode>
-      <LookAt>
-        <longitude>$lon</longitude><latitude>$lat</latitude>
-        <heading>$heading</heading><tilt>$tilt</tilt><range>$range</range>
-        <altitudeMode>relativeToGround</altitudeMode>
-      </LookAt>
-    </gx:FlyTo>''');
-      }
-      buffer.writeln('</gx:Playlist></gx:Tour></kml>');
-
-      await remoteDataSource.sendKmlToMaster(buffer.toString());
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      final orbitKml = KmlUtils.orbitTour(
+        lat: lat,
+        lon: lon,
+        range: range,
+        tilt: tilt,
+      );
+      await remoteDataSource.sendKmlToMaster(orbitKml);
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> stopOrbit() async {
+  Future<DataState<void>> stopOrbit() async {
     return clearKml();
   }
 
-  Future<Either<Failure, void>> clearKml() async {
+  Future<DataState<void>> clearKml() async {
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearKml();
       _currentRegion = null;
       _currentMode = LGDisplayMode.none;
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> reboot() async {
+  Future<DataState<void>> reboot() async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.reboot();
       _status = ConnectionStatus.disconnected;
-      return const Right(null);
-    } on ConnectionException catch (e) {
-      return Left(ConnectionFailure(message: e.message));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> setRefresh() async {
+  Future<DataState<void>> shutdown() async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    try {
+      await remoteDataSource.shutdown();
+      _status = ConnectionStatus.disconnected;
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> relaunch() async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    try {
+      await remoteDataSource.relaunch();
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> setRefresh() async {
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.setRefresh();
-      return const Right(null);
+      return const DataSuccess(null);
     } catch (e) {
-      return Left(ConnectionFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
-  Future<Either<Failure, void>> saveSettings(LGSettings settings) async {
+  Future<DataState<void>> showLogos() async {
+    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    try {
+      await remoteDataSource.showLogos();
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> clearLogos() async {
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    try {
+      await remoteDataSource.clearLogos();
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> saveSettings(LGSettings settings) async {
     try {
       await settingsDataSource.saveSettings(settings);
-      return const Right(null);
+      return const DataSuccess(null);
     } catch (e) {
-      return Left(CacheFailure(message: 'Failed to save settings: $e'));
+      return DataFailure(UnhandledException(message: 'Failed to save settings: $e'));
     }
   }
 
-  Future<Either<Failure, LGSettings>> loadSettings() async {
+  Future<DataState<LGSettings>> loadSettings() async {
     try {
-      return Right(await settingsDataSource.loadSettings());
+      return DataSuccess(await settingsDataSource.loadSettings());
     } catch (e) {
-      return Left(CacheFailure(message: 'Failed to load settings: $e'));
+      return DataFailure(UnhandledException(message: 'Failed to load settings: $e'));
     }
   }
 }

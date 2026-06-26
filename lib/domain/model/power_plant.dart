@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
+import '../../core/enums/plant_type.dart';
 
 /// Domain entity representing a power generation facility.
 class PowerPlant extends Equatable {

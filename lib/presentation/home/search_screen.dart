@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
-import 'package:ecogrid_intelligence/presentation/home/bloc/search_bloc.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/presentation/components/app_search_bar.dart';
-import 'package:ecogrid_intelligence/presentation/components/atmospheric_globe_painter.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
+import 'bloc/search_bloc.dart';
+import '../../config/routes/app_routes.dart';
+import '../components/app_search_bar.dart';
+import '../components/atmospheric_globe_painter.dart';
+import '../../di/service_di.dart';
+import '../../service/speech_to_text_service.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool autoStartVoice;
@@ -20,77 +21,39 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   List<String> _recentSearches = [];
-  final stt.SpeechToText _speechToText = stt.SpeechToText();
-  bool _speechEnabled = false;
   bool _isListening = false;
+
+  SpeechToTextService get _stt => sl<SpeechToTextService>();
 
   @override
   void initState() {
     super.initState();
     _loadRecentSearches();
-    _initSpeech();
-  }
-
-  Future<void> _initSpeech() async {
-    try {
-      _speechEnabled = await _speechToText.initialize(
-        onError: (error) => debugPrint('Speech Error: ${error.errorMsg}'),
-        onStatus: (status) => debugPrint('Speech Status: $status'),
-      );
-    } catch (e) {
-      debugPrint('Speech init exception: $e');
-    }
-    if (mounted) {
-      setState(() {});
-      if (_speechEnabled && widget.autoStartVoice) {
-        _startListening();
-      }
+    if (widget.autoStartVoice) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
     }
   }
 
   void _startListening() async {
-    if (!_speechEnabled) {
-      await _initSpeech();
-      if (!_speechEnabled) {
+    await _stt.startListening(
+      onResult: (words) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Voice search is not available. Please ensure microphone permissions are granted and restart the app.',
-              ),
-              backgroundColor: AppTheme.primary,
-            ),
-          );
-        }
-        return;
-      }
-    }
-    await _speechToText.listen(
-      onResult: (result) {
-        if (mounted) {
-          setState(() {
-            _controller.text = result.recognizedWords;
-          });
-          context.read<SearchBloc>().add(
-            SearchQueryChanged(result.recognizedWords),
-          );
+          setState(() => _controller.text = words);
+          context.read<SearchBloc>().add(SearchQueryChanged(words));
         }
       },
+      onListening: (listening) {
+        if (mounted) setState(() => _isListening = listening);
+      },
     );
-    if (mounted) {
-      setState(() {
-        _isListening = true;
-      });
-    }
   }
 
   void _stopListening() async {
-    await _speechToText.stop();
-    if (mounted) {
-      setState(() {
-        _isListening = false;
-      });
-    }
+    await _stt.stopListening(
+      onListening: (listening) {
+        if (mounted) setState(() => _isListening = listening);
+      },
+    );
   }
 
   Future<void> _loadRecentSearches() async {
@@ -133,7 +96,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
-    if (_isListening) _speechToText.stop();
+    if (_isListening) _stt.stopListening();
     _controller.dispose();
     super.dispose();
   }
@@ -167,6 +130,7 @@ class _SearchScreenState extends State<SearchScreen> {
         final screenWidth = MediaQuery.of(context).size.width;
 
         return Scaffold(
+          resizeToAvoidBottomInset: false,
           backgroundColor: isLight
               ? const Color(0xFFEEF2F8)
               : const Color(0xFF08080F),
@@ -211,103 +175,32 @@ class _SearchScreenState extends State<SearchScreen> {
                     // Search Bar Area
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                      child: Row(
-                        children: [
-                          isLight
-                              ? Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        const Color(0xFFF6FAFD),
-                                        const Color(
-                                          0xFFB3CFE5,
-                                        ).withValues(alpha: 0.60),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF4A7FA7,
-                                      ).withValues(alpha: 0.35),
-                                      width: 1.2,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF0A1931,
-                                        ).withValues(alpha: 0.12),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF4A7FA7,
-                                        ).withValues(alpha: 0.15),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.arrow_back_ios_rounded,
-                                      color: Color(0xFF1A3D63),
-                                      size: 18,
-                                    ),
-                                    onPressed: () => Navigator.pop(context),
-                                  ),
-                                )
-                              : Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.cardBackground,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.arrow_back_ios_new,
-                                      color: Color(0xFF00C8FF),
-                                      size: 18,
-                                    ),
-                                    onPressed: () => Navigator.pop(context),
-                                  ),
-                                ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: AppSearchBar(
-                              hintText: 'Search regions or power plants...',
-                              readOnly: false,
-                              controller: _controller,
-                              isListening: _isListening,
-                              onMicTap: () {
-                                if (_isListening) {
-                                  _stopListening();
-                                } else {
-                                  _startListening();
-                                }
-                              },
-                              onClearTap: () {
-                                _controller.clear();
-                                context.read<SearchBloc>().add(
-                                  const SearchCleared(),
-                                );
-                                if (_isListening) _stopListening();
-                                setState(() {});
-                              },
-                              onChanged: (query) {
-                                context.read<SearchBloc>().add(
-                                  SearchQueryChanged(query),
-                                );
-                                setState(() {});
-                              },
-                            ),
-                          ),
-                        ],
+                      child: AppSearchBar(
+                        hintText: 'Search regions or power plants...',
+                        readOnly: false,
+                        controller: _controller,
+                        isListening: _isListening,
+                        onPrefixIconTap: () => Navigator.pop(context),
+                        prefixIcon: Icons.arrow_back_ios_new,
+                        onMicTap: () {
+                          if (_isListening) {
+                            _stopListening();
+                          } else {
+                            _startListening();
+                          }
+                        },
+                        onClearTap: () {
+                          _controller.clear();
+                          context.read<SearchBloc>().add(const SearchCleared());
+                          if (_isListening) _stopListening();
+                          setState(() {});
+                        },
+                        onChanged: (query) {
+                          context.read<SearchBloc>().add(
+                            SearchQueryChanged(query),
+                          );
+                          setState(() {});
+                        },
                       ),
                     ),
 

@@ -1,9 +1,9 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/core/enums/stress_filter.dart';
+import '../../../domain/model/region.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../core/enums/plant_type.dart';
+import '../../../core/enums/risk_level.dart';
+import '../../../core/enums/stress_filter.dart';
 
 abstract class ExploreEvent extends Equatable {
   const ExploreEvent();
@@ -83,4 +83,9 @@ class ExploreShowPlantsOnLG extends ExploreEvent {
 /// Triggers the ExploreBloc to re-send the region LG overlay.
 class ExploreLGRestoreRequested extends ExploreEvent {
   const ExploreLGRestoreRequested();
+}
+
+/// User tapped the X button to dismiss the AI insight card.
+class ExploreDismissInsight extends ExploreEvent {
+  const ExploreDismissInsight();
 }

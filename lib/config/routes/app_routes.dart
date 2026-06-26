@@ -1,42 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:ecogrid_intelligence/presentation/home/home_page.dart';
-import 'package:ecogrid_intelligence/presentation/explore/explore_page.dart';
-import 'package:ecogrid_intelligence/presentation/plant_detail/plant_detail_page.dart';
-import 'package:ecogrid_intelligence/presentation/climate_dashboard/climate_dashboard_page.dart';
-import 'package:ecogrid_intelligence/presentation/timeline/timeline_page.dart';
-import 'package:ecogrid_intelligence/presentation/forecast/forecast_page.dart';
-import 'package:ecogrid_intelligence/presentation/ai_analysis/ai_analysis_page.dart';
-import 'package:ecogrid_intelligence/presentation/simulation/simulation_screen.dart';
-import 'package:ecogrid_intelligence/presentation/filter/filter_page.dart';
-import 'package:ecogrid_intelligence/presentation/lg_connection/lg_connection_page.dart';
-import 'package:ecogrid_intelligence/presentation/lg_visualization/lg_visualization_page.dart';
-import 'package:ecogrid_intelligence/presentation/home/search_screen.dart';
-import 'package:ecogrid_intelligence/presentation/home/bloc/search_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/about/about_screen.dart';
-import 'package:ecogrid_intelligence/presentation/infrastructure_map/infrastructure_map_screen.dart';
+import '../../presentation/home/home_page.dart';
+import '../../presentation/explore/explore_page.dart';
+import '../../presentation/plant_detail/plant_detail_page.dart';
+import '../../presentation/simulation/simulation_screen.dart';
+import '../../presentation/lg_connection/lg_connection_page.dart';
+import '../../presentation/splash/splash_screen.dart';
+
+import '../../presentation/home/search_screen.dart';
+import '../../presentation/home/bloc/search_bloc.dart';
+import '../../presentation/about/about_screen.dart';
+import '../../presentation/infrastructure_map/infrastructure_map_screen.dart';
+import '../../presentation/explore/bloc/explore_bloc.dart';
+import '../../domain/repository/cvs_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
+import '../../di/di.dart';
 
 class AppRoutes {
   AppRoutes._();
 
+  static const String splash = '/splash';
   static const String home = '/';
   static const String explore = '/explore';
   static const String plantDetail = '/plant-detail';
-  static const String climateDashboard = '/climate-dashboard';
-  static const String timeline = '/timeline';
-  static const String forecast = '/forecast';
-  static const String aiAnalysis = '/ai-analysis';
   static const String simulation = '/simulation';
-  static const String filter = '/filter';
   static const String lgSettings = '/lg-settings';
-  static const String lgVisualization = '/lg-visualization';
+
   static const String search = '/search';
   static const String about = '/about';
   static const String infrastructureMap = '/infrastructure-map';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case splash:
+        return _buildRoute(const SplashScreen(), settings);
       case home:
         return _buildRoute(const HomePage(), settings);
       case explore:
@@ -51,19 +47,7 @@ class AppRoutes {
           ),
           settings,
         );
-      case climateDashboard:
-        return _buildRoute(const ClimateDashboardScreen(), settings);
-      case timeline:
-        return _buildRoute(const TimelineScreen(), settings);
-      case forecast:
-        return _buildRoute(const ForecastScreen(), settings);
-      case aiAnalysis:
-        return _buildRoute(
-          AiAnalysisScreen(
-            arguments: settings.arguments as Map<String, dynamic>?,
-          ),
-          settings,
-        );
+
       case simulation:
         return _buildRoute(
           ScenarioSimulationScreen(
@@ -71,15 +55,10 @@ class AppRoutes {
           ),
           settings,
         );
-      case filter:
-        return _buildRoute(
-          FilterScreen(arguments: settings.arguments as Map<String, dynamic>?),
-          settings,
-        );
+
       case lgSettings:
         return _buildRoute(const LgSettingsScreen(), settings);
-      case lgVisualization:
-        return _buildRoute(const LgVisualizationScreen(), settings);
+
       case search:
         return _buildRoute(
           BlocProvider(
@@ -91,7 +70,16 @@ class AppRoutes {
       case about:
         return _buildRoute(const AboutScreen(), settings);
       case infrastructureMap:
-        return _buildRoute(const InfrastructureMapScreen(), settings);
+        return _buildRoute(
+          BlocProvider(
+            create: (context) => sl<ExploreBloc>(),
+            child: RepositoryProvider<CvsRepository>(
+              create: (context) => sl<CvsRepository>(),
+              child: const InfrastructureMapScreen(),
+            ),
+          ),
+          settings,
+        );
       default:
         return _buildRoute(const HomePage(), settings);
     }

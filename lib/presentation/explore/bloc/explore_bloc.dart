@@ -1,33 +1,57 @@
 // ignore_for_file: invalid_use_of_visible_for_testing_member
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/domain/repository/power_plant_repository.dart';
-import 'package:ecogrid_intelligence/service/lg_service.dart';
-import 'package:ecogrid_intelligence/domain/repository/ai_repository.dart';
-import 'package:ecogrid_intelligence/domain/repository/cvs_repository.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/core/enums/stress_filter.dart';
-import 'package:ecogrid_intelligence/core/enums/lg_display_mode.dart';
-import 'package:ecogrid_intelligence/core/utils/kml_generator.dart';
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_event.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_state.dart';
+import '../../../domain/model/region.dart';
+import '../../../service/lg_service.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../core/enums/risk_level.dart';
+import '../../../core/enums/stress_filter.dart';
+import '../../../core/enums/lg_display_mode.dart';
+import '../../../core/utils/kml_utils.dart';
+import '../../../domain/model/lg_settings.dart';
+import '../../../domain/usecases/cvs/bloc/init_cvs_bloc_usecase.dart';
+import '../../../domain/usecases/plant/services/get_plants_by_region_usecase.dart';
+import '../../../domain/usecases/plant/services/get_all_plants_usecase.dart';
+import '../../../domain/usecases/cvs/services/get_unified_score_usecase.dart';
+import '../../../domain/usecases/cvs/services/count_plants_by_risk_level_usecase.dart';
+import '../../../domain/usecases/cvs/services/get_plants_by_risk_level_usecase.dart';
+import '../../../domain/usecases/cvs/services/pre_compute_all_scores_usecase.dart';
+import '../../../domain/usecases/cvs/services/get_cached_cvs_usecase.dart';
+import '../../../domain/usecases/cvs/services/get_cvs_for_plant_usecase.dart';
+import '../../../domain/usecases/ai/services/generate_regional_insight_usecase.dart';
+import '../../../core/resources/data_state.dart';
+import '../../../core/enums/connection_status.dart';
+
+import 'explore_event.dart';
+import 'explore_state.dart';
 
 class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
-  final PowerPlantRepository powerPlantRepository;
-  final CvsRepository cvsRepository;
   final LGService lgService;
-  final AIRepository aiRepository;
+  final GetPlantsByRegionUsecase getPlantsByRegionUsecase;
+  final GetAllPlantsUsecase getAllPlantsUsecase;
+  final PreComputeAllScoresUsecase preComputeAllScoresUsecase;
+  final GetPlantsByRiskLevelUsecase getPlantsByRiskLevelUsecase;
+  final CountPlantsByRiskLevelUsecase countPlantsByRiskLevelUsecase;
+  final GetUnifiedScoreUsecase getUnifiedScoreUsecase;
+  final GenerateRegionalInsightUsecase generateRegionalInsightUsecase;
+  final GetCachedCvsUsecase getCachedCvsUsecase;
+  final GetCvsForPlantUsecase getCvsForPlantUsecase;
+  final InitCvsBlocUseCase initCvsBlocUseCase;
 
   bool _isCancelled = false;
 
   ExploreBloc({
-    required this.powerPlantRepository,
-    required this.cvsRepository,
     required this.lgService,
-    required this.aiRepository,
+    required this.initCvsBlocUseCase,
+    required this.getPlantsByRegionUsecase,
+    required this.getAllPlantsUsecase,
+    required this.preComputeAllScoresUsecase,
+    required this.getPlantsByRiskLevelUsecase,
+    required this.countPlantsByRiskLevelUsecase,
+    required this.getUnifiedScoreUsecase,
+    required this.generateRegionalInsightUsecase,
+    required this.getCachedCvsUsecase,
+    required this.getCvsForPlantUsecase,
   }) : super(const ExploreInitial()) {
     on<ExploreRegionLoaded>(_onRegionLoaded);
     on<ExploreFilterChanged>(_onFilterChanged);
@@ -38,6 +62,11 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     on<ExploreGenerateRegionalInsight>(_onGenerateRegionalInsight);
     on<ExploreShowPlantsOnLG>(_onShowPlantsOnLG);
     on<ExploreLGRestoreRequested>(_onLGRestoreRequested);
+    on<ExploreDismissInsight>((event, emit) {
+      if (state is ExploreLoaded) {
+        emit((state as ExploreLoaded).copyWith(clearAiInsight: true));
+      }
+    });
   }
 
   Future<void> _onRegionLoaded(
@@ -47,61 +76,55 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     _isCancelled = true; // Cancel any ongoing scan
     emit(const ExploreLoading());
 
-    // 1. Clear LG state and KML
-    await lgService.clearKml();
+    // 0. Initialize CVS state by clearing cache
+    initCvsBlocUseCase();
+
+    // 1. Track LG state (always, even if not connected)
     lgService.setCurrentRegion(event.region.name);
     lgService.setCurrentMode(LGDisplayMode.regionOverview);
 
-    // 2. FlyTo region on LG
-    await lgService.flyTo(
-      event.region.centerLat,
-      event.region.centerLon,
-      0,
-      0,
-      60,
-      event.region.defaultZoom * 100000,
-    );
+    // 2. LG commands — skip silently if not connected.
+    // Only explicit user button presses show the "not connected" toast.
+    if (lgService.connectionStatus == ConnectionStatus.connected) {
+      await lgService.clearKml();
 
-    // 3. Send Region Placemark to master screen
-    final regionKml = KMLGenerator.regionPlacemark(
-      regionName: event.region.name,
-      lat: event.region.centerLat,
-      lon: event.region.centerLon,
-    );
-    await lgService.sendKmlToMaster(regionKml);
+      // FlyTo region on LG
+      await lgService.flyTo(
+        event.region.centerLat,
+        event.region.centerLon,
+        0,
+        0,
+        60,
+        event.region.defaultZoom * 100000,
+      );
+
+      // Send Region Placemark to master screen
+      final regionKml = KmlUtils.regionPlacemark(
+        regionName: event.region.name,
+        lat: event.region.centerLat,
+        lon: event.region.centerLon,
+      );
+      await lgService.sendKmlToMaster(regionKml);
+    }
 
     // Get plants in region
-    final plantsResult = await powerPlantRepository.getPlantsByRegion(
-      event.region,
-    );
+    final plantsResult = await getPlantsByRegionUsecase(params: event.region);
 
-    await plantsResult.fold(
-      (failure) async => emit(ExploreError(failure.message)),
-      (plants) async {
-        emit(
-          ExploreLoaded(
-            region: event.region,
-            plants: plants,
-            filteredPlants: plants,
-            isLoadingInsight: false, // No auto-fetch — button-triggered only
-            displayLimit: 15,
-          ),
-        );
-
-        // Pre-compute risk scores on background isolate
-        await cvsRepository.preComputeAllScores(plants);
-
-        // NO auto-fetch AI insight here.
-        // Regional insight is generated only when the user explicitly
-        // taps the "Analyse Regional Risk" button.
-
-        // Start the continuous background warmer
-        _startBackgroundWarmer();
-
-        // 4. Update the right screen overlay with the full region data
-        await _updateRightScreenOverlay(event.region, plants);
-      },
-    );
+    if (plantsResult is DataSuccess<List<PowerPlant>>) {
+      final plants = plantsResult.data!;
+      emit(ExploreLoaded(
+        region: event.region,
+        plants: plants,
+        filteredPlants: plants,
+        isLoadingInsight: false,
+        displayLimit: 15,
+      ));
+      await preComputeAllScoresUsecase(plants);
+      _startBackgroundWarmer();
+      await _updateRightScreenOverlay(event.region, plants);
+    } else {
+      emit(ExploreError(plantsResult.exception?.toString() ?? 'Failed to load plants'));
+    }
   }
 
   Future<void> _updateRightScreenOverlay(
@@ -109,17 +132,17 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     List<PowerPlant> plants, {
     String? aiInsight,
   }) async {
-    final highRiskPlants = cvsRepository.getPlantsByRiskLevel(
+    final highRiskPlants = getPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.high,
       pageSize: plants.length,
     );
     final highCount = highRiskPlants.length;
-    final mediumCount = cvsRepository.countPlantsByRiskLevel(
+    final mediumCount = countPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.medium,
     );
-    final lowCount = cvsRepository.countPlantsByRiskLevel(
+    final lowCount = countPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.low,
     );
@@ -133,7 +156,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       double totalWind = 0;
 
       for (final p in highRiskPlants) {
-        final score = cvsRepository.getUnifiedScore(p);
+        final score = getUnifiedScoreUsecase(p);
         totalTemp += score.temperatureStress;
         totalWater += score.waterStress;
         totalWind += score.windStress;
@@ -153,20 +176,20 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       top3 = topPlants
           .map(
             (p) =>
-                '${p.name} (${p.primaryFuel.displayName}) - Score: ${cvsRepository.getUnifiedScore(p).score.toStringAsFixed(1)}',
+                '${p.name} (${p.primaryFuel.displayName}) - Score: ${getUnifiedScoreUsecase(p).score.toStringAsFixed(1)}',
           )
           .toList();
     }
 
-    // Get settings and calculate rightmost screen dynamically using mentor's formula
+    // Get settings and calculate rightmost screen dynamically
     final settingsResult = await lgService.loadSettings();
     int screenCount = LGSettings.empty.screenCount;
     int rightmostScreen = LGSettings.empty.rightmostScreen;
 
-    settingsResult.fold((_) => null, (settings) {
-      screenCount = settings.screenCount;
-      rightmostScreen = settings.rightmostScreen;
-    });
+    if (settingsResult is DataSuccess<LGSettings>) {
+      screenCount = settingsResult.data!.screenCount;
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+    }
 
     // Calculate longitude offset dynamically based on the number of screens.
     // For 3 screens, ~10 degrees works well. For 5 screens, ~20 degrees.
@@ -180,7 +203,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
         ? rightmostLonOffset - 360.0
         : rightmostLonOffset;
 
-    final balloonKml = KMLGenerator.slaveScreenBalloon(
+    final balloonKml = KmlUtils.slaveScreenBalloon(
       regionName: region.name,
       lat: region.centerLat,
       lon: adjustedLon,
@@ -193,11 +216,14 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       aiInsight: aiInsight,
     );
 
+    // Skip silently if LG is not connected
+    if (lgService.connectionStatus != ConnectionStatus.connected) return;
+
     // Send balloon to dynamically calculated rightmost screen
     await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
 
     // Also, generate a huge region placemark and send it to the master screen
-    final masterRegionKml = KMLGenerator.regionPlacemark(
+    final masterRegionKml = KmlUtils.regionPlacemark(
       lat: region.centerLat,
       lon: region.centerLon,
       regionName: region.name,
@@ -222,21 +248,14 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
 
     // Prepare data for batch placemarks
     final batchPlants = currentState.filteredPlants.take(100).toList();
-    final scores = batchPlants
-        .map((p) => cvsRepository.getUnifiedScore(p))
-        .toList();
+    final scores = batchPlants.map((p) => getUnifiedScoreUsecase(p)).toList();
     final risks = batchPlants.map((p) {
-      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.high) > 0) {
-        return RiskLevel.high;
-      }
-      if (cvsRepository.countPlantsByRiskLevel([p], RiskLevel.medium) > 0) {
-        return RiskLevel.medium;
-      }
+      if (countPlantsByRiskLevelUsecase([p], RiskLevel.high) > 0) return RiskLevel.high;
+      if (countPlantsByRiskLevelUsecase([p], RiskLevel.medium) > 0) return RiskLevel.medium;
       return RiskLevel.low;
     }).toList();
 
-    // Generate KML and send
-    final kml = KMLGenerator.plantPlacemarksBatch(
+    final kml = KmlUtils.plantPlacemarksBatch(
       plants: batchPlants,
       scores: scores,
       risks: risks,
@@ -270,19 +289,18 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     _isCancelled = true;
     emit(const ExploreLoading());
 
-    final plantsResult = await powerPlantRepository.getAllPlants();
+    // 0. Initialize CVS state by clearing cache
+    initCvsBlocUseCase();
 
-    plantsResult.fold((failure) => emit(ExploreError(failure.message)), (
-      plants,
-    ) {
-      emit(
-        ExploreLoaded(plants: plants, filteredPlants: plants, displayLimit: 15),
-      );
-      // Pre-compute risk scores on background isolate
-      cvsRepository.preComputeAllScores(plants).then((_) {
-        _startBackgroundWarmer();
-      });
-    });
+    final plantsResult = await getAllPlantsUsecase();
+
+    if (plantsResult is DataSuccess<List<PowerPlant>>) {
+      final plants = plantsResult.data!;
+      emit(ExploreLoaded(plants: plants, filteredPlants: plants, displayLimit: 15));
+      preComputeAllScoresUsecase(plants).then((_) => _startBackgroundWarmer());
+    } else {
+      emit(ExploreError(plantsResult.exception?.toString() ?? 'Failed to load plants'));
+    }
   }
 
   void _onFilterChanged(
@@ -302,9 +320,9 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     _isCancelled = true; // Cancel ongoing scan before starting new
 
     final nextState = currentState.copyWith(
-      activeTypeFilter: event.clearTypeFilter ? const Object() : typeFilter,
+      activeTypeFilter: event.clearTypeFilter ? null : typeFilter,
       activeStressFilter: event.clearStressFilter
-          ? const Object()
+          ? null
           : stressFilter,
       displayLimit: 15, // Reset pagination on new filter
       isScanning: false,
@@ -361,7 +379,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
         : event.riskLevel;
 
     final nextState = currentState.copyWith(
-      activeRiskFilter: newRiskFilter ?? const Object(), // null clears it
+      activeRiskFilter: newRiskFilter, // Passing null actually clears it now
       displayLimit: 15, // Reset pagination
       isScanning: false,
     );
@@ -385,15 +403,15 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     final plants = currentState.plants;
 
     // Calculate risk breakdown
-    final highCount = cvsRepository.countPlantsByRiskLevel(
+    final highCount = countPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.high,
     );
-    final mediumCount = cvsRepository.countPlantsByRiskLevel(
+    final mediumCount = countPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.medium,
     );
-    final lowCount = cvsRepository.countPlantsByRiskLevel(
+    final lowCount = countPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.low,
     );
@@ -405,7 +423,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     };
 
     // Calculate metrics specifically for high-risk plants
-    final highRiskPlants = cvsRepository.getPlantsByRiskLevel(
+    final highRiskPlants = getPlantsByRiskLevelUsecase(
       plants,
       RiskLevel.high,
       pageSize: plants.length,
@@ -422,7 +440,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       final typeCounts = <String, int>{};
 
       for (final p in highRiskPlants) {
-        final score = cvsRepository.getUnifiedScore(p);
+        final score = getUnifiedScoreUsecase(p);
 
         totalTemp += score.temperatureStress;
         totalWater += score.waterStress;
@@ -456,47 +474,36 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       top3 = topPlants
           .map(
             (p) =>
-                '${p.name} (${p.primaryFuel.displayName}) - Score: ${cvsRepository.getUnifiedScore(p).score.toStringAsFixed(1)}',
+                '${p.name} (${p.primaryFuel.displayName}) - Score: ${getUnifiedScoreUsecase(p).score.toStringAsFixed(1)}',
           )
           .toList();
     }
 
-    final insightResult = await aiRepository.generateRegionalInsight(
-      regionName:
-          currentState.region?.displayName ??
-          currentState.region?.name ??
-          'Global',
-      riskFilterName: currentState.activeRiskFilter?.name ?? 'All',
-      totalPlants: plants.length,
-      riskBreakdown: riskBreakdown,
-      dominantRiskDimension: dominantRisk,
-      commonHighRiskType: commonType,
-      top3Plants: top3,
+    final insightResult = await generateRegionalInsightUsecase(
+      params: {
+        'regionName': currentState.region?.displayName ?? currentState.region?.name ?? 'Global',
+        'riskFilterName': currentState.activeRiskFilter?.name ?? 'All',
+        'totalPlants': plants.length,
+        'riskBreakdown': riskBreakdown,
+        'dominantRiskDimension': dominantRisk,
+        'commonHighRiskType': commonType,
+        'top3Plants': top3,
+      },
     );
 
-    insightResult.fold(
-      (failure) {
-        if (state is ExploreLoaded) {
-          emit((state as ExploreLoaded).copyWith(isLoadingInsight: false));
+    if (insightResult is DataSuccess<String>) {
+      if (state is ExploreLoaded) {
+        final loadedState = state as ExploreLoaded;
+        emit(loadedState.copyWith(aiInsight: insightResult.data!, isLoadingInsight: false));
+        if (loadedState.region != null) {
+          _updateRightScreenOverlay(loadedState.region!, plants, aiInsight: insightResult.data!);
         }
-      },
-      (insight) {
-        if (state is ExploreLoaded) {
-          final loadedState = state as ExploreLoaded;
-          emit(
-            loadedState.copyWith(aiInsight: insight, isLoadingInsight: false),
-          );
-          // Re-send balloon with AI insight
-          if (loadedState.region != null) {
-            _updateRightScreenOverlay(
-              loadedState.region!,
-              plants,
-              aiInsight: insight,
-            );
-          }
-        }
-      },
-    );
+      }
+    } else {
+      if (state is ExploreLoaded) {
+        emit((state as ExploreLoaded).copyWith(isLoadingInsight: false));
+      }
+    }
   }
 
   ExploreLoaded _applyFilters(ExploreLoaded state) {
@@ -518,7 +525,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     // Apply stress filter using the unified single source of truth to prevent empty lists.
     if (state.activeStressFilter != null) {
       filtered = filtered.where((p) {
-        final cvs = cvsRepository.getUnifiedScore(p);
+        final cvs = getUnifiedScoreUsecase(p);
 
         final temp = cvs.temperatureStress;
         final water = cvs.waterStress;
@@ -541,11 +548,11 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     // Apply risk level filter — queries the pre-computed score index
     int totalFilteredCount = filtered.length;
     if (state.activeRiskFilter != null) {
-      totalFilteredCount = cvsRepository.countPlantsByRiskLevel(
+      totalFilteredCount = countPlantsByRiskLevelUsecase(
         filtered,
         state.activeRiskFilter!,
       );
-      filtered = cvsRepository.getPlantsByRiskLevel(
+      filtered = getPlantsByRiskLevelUsecase(
         filtered,
         state.activeRiskFilter!,
         page: 1,
@@ -572,7 +579,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       PowerPlant? nextToScan;
 
       for (final p in currentState.plants) {
-        if (cvsRepository.getCachedCvs(p) == null) {
+        if (getCachedCvsUsecase(p) == null) {
           nextToScan = p;
           break;
         }
@@ -596,12 +603,12 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       }
 
       // Fetch the CVS data for this plant (caches the entire grid block)
-      await cvsRepository.getCvsForPlant(nextToScan);
+      await getCvsForPlantUsecase(params: nextToScan);
 
       if (_isCancelled || isClosed) break;
 
       // Check if the API was rate-limited (429). If so, back off.
-      final cachedResult = cvsRepository.getCachedCvs(nextToScan);
+      final cachedResult = getCachedCvsUsecase(nextToScan);
       final wasRateLimited = cachedResult != null && !cachedResult.isVerified;
 
       // Update the UI state with the newly cached data.
@@ -610,7 +617,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
       if (state is ExploreLoaded && !isClosed) {
         final latestState = state as ExploreLoaded;
         final unCachedCount = latestState.plants
-            .where((p) => cvsRepository.getCachedCvs(p) == null)
+            .where((p) => getCachedCvsUsecase(p) == null)
             .length;
         final progress = 1.0 - (unCachedCount / latestState.plants.length);
 

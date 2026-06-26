@@ -1,66 +1,299 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
-/// About screen for EcoGrid Intelligence.
-///
-/// Fully theme-aware (light + dark). No hardcoded colours — everything
-/// derives from ColorScheme so the screen looks correct in both themes.
-class AboutScreen extends StatelessWidget {
+Future<void> _launch(String url) async {
+  final uri = Uri.parse(url);
+  try {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {
+    try {
+      await launchUrl(uri, mode: LaunchMode.platformDefault);
+    } catch (_) {}
+  }
+}
+
+class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
 
   @override
+  State<AboutScreen> createState() => _AboutScreenState();
+}
+
+class _AboutScreenState extends State<AboutScreen> {
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((i) {
+      if (mounted) setState(() => _appVersion = i.version);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // ── Hero ──────────────────────────────────────────────────────
+          // ── Hero ─────────────────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
             stretch: true,
-            backgroundColor: theme.colorScheme.surface,
+            backgroundColor: cs.surface,
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [StretchMode.zoomBackground],
               background: _HeroSection(isDark: isDark),
             ),
           ),
 
-          // ── Body ──────────────────────────────────────────────────────
+          // ── Body ─────────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 48),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _SectionLabel(label: 'ABOUT THE PROJECT'),
+
+                // ── About / Description ────────────────────────────────
+                _label('ABOUT'),
                 const SizedBox(height: 12),
-                _MissionCard(isDark: isDark),
+                _card(
+                  isDark,
+                  cs,
+                  child: Text(
+                    'Built as part of Google Summer of Code 2026 with Liquid Galaxy LAB, '
+                    'EcoGrid Intelligence is a research tool for understanding climate risk '
+                    'across global energy infrastructure. It turns complex climate and power '
+                    'plant data into something you can actually see, explore, and act on.\n\n'
+                    'Search any region or power plant in the world, and the app instantly '
+                    'flies Liquid Galaxy\'s panoramic display to that location — rendering '
+                    'every nearby facility color-coded by its Climate Vulnerability Score. '
+                    'Filter by plant type, risk level, or climate stress dimension.\n\n'
+                    'Behind every score is real data. EcoGrid pulls live weather conditions '
+                    'from Open-Meteo and weighs them against each plant\'s specific '
+                    'sensitivity to heat, water stress, and wind.',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      height: 1.75,
+                      color: cs.onSurface.withValues(alpha: 0.82),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 28),
 
-                _SectionLabel(label: 'UNDERSTANDING CVS SCORE'),
-                const SizedBox(height: 12),
+                // ── CVS ───────────────────────────────────────────────
                 _CVSCard(isDark: isDark),
                 const SizedBox(height: 28),
 
-                _SectionLabel(label: 'KEY CAPABILITIES'),
+                // ── Features ──────────────────────────────────────────
+                _label('KEY CAPABILITIES'),
                 const SizedBox(height: 12),
                 _FeaturesGrid(isDark: isDark),
                 const SizedBox(height: 28),
 
-                _SectionLabel(label: 'BUILT WITH'),
-                const SizedBox(height: 12),
-                _TechChips(),
+                _divider(cs),
                 const SizedBox(height: 28),
 
-                _SectionLabel(label: 'GSOC PROJECT'),
+                // ── Developer ─────────────────────────────────────────
+                _label('DEVELOPER'),
                 const SizedBox(height: 12),
-                _GSoCCard(isDark: isDark),
+                _DeveloperCard(isDark: isDark, cs: cs),
                 const SizedBox(height: 28),
 
-                _LinksRow(),
+                _divider(cs),
+                const SizedBox(height: 28),
+
+                // ── Organization / Liquid Galaxy ──────────────────────
+                _label('ORGANIZATION'),
+                const SizedBox(height: 12),
+                Center(
+                  child: Image.asset(
+                    'assets/images/logos.png',
+                    height: 120,
+                    errorBuilder: (_, _, _) =>
+                        Icon(Icons.public, size: 80, color: cs.primary),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                _Footer(),
+                _card(
+                  isDark,
+                  cs,
+                  child: Text(
+                    'Liquid Galaxy LAB is an open-source innovation lab and Google Summer '
+                    'of Code organization that builds immersive, interactive geospatial '
+                    'experiences on panoramic multi-screen display systems.\n\n'
+                    'The platform clusters 3 to 7 computers, each driving one screen, into '
+                    'a seamlessly synchronized panoramic rig. A master node controls '
+                    'navigation and broadcasts position data over UDP — every slave screen '
+                    'instantly updates its view to match its relative angle to the master, '
+                    'creating a breathtaking 270° window into the Earth.\n\n'
+                    'Today, Liquid Galaxy empowers researchers and organizations to visualize '
+                    'complex datasets across awe-inspiring immersive environments. From climate '
+                    'change monitoring to urban planning, the platform transforms standard data '
+                    'into interactive, room-scale spatial experiences.',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.75,
+                      color: cs.onSurface.withValues(alpha: 0.80),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Organization socials
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _SocialChip(
+                        icon: Icons.camera_alt_rounded,
+                        label: 'Instagram',
+                        color: const Color(0xFFE1306C),
+                        url: 'https://www.instagram.com/_liquidgalaxy',
+                      ),
+                      _SocialChip(
+                        icon: Icons.chat_rounded,
+                        label: 'Twitter / X',
+                        color: const Color(0xFF1DA1F2),
+                        url: 'https://www.x.com/_liquidgalaxy',
+                      ),
+                      _SocialChip(
+                        icon: Icons.code_rounded,
+                        label: 'GitHub',
+                        color: const Color(0xFF6E40C9),
+                        url: 'https://github.com/LiquidGalaxyLAB',
+                      ),
+                      _SocialChip(
+                        icon: Icons.business_rounded,
+                        label: 'LinkedIn',
+                        color: const Color(0xFF0A66C2),
+                        url:
+                            'https://www.linkedin.com/company/google-summer-of-code---liquid-galaxy-project',
+                      ),
+                      _SocialChip(
+                        icon: Icons.language_rounded,
+                        label: 'Website',
+                        color: const Color(0xFF10B981),
+                        url: 'https://www.liquidgalaxy.eu',
+                      ),
+                      _SocialChip(
+                        icon: Icons.mail_rounded,
+                        label: 'Email',
+                        color: const Color(0xFFF59E0B),
+                        url: 'mailto:liquidgalaxylab@gmail.com',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                _divider(cs),
+                const SizedBox(height: 28),
+
+                // ── Credits ───────────────────────────────────────────
+                _label('CREDITS'),
+                const SizedBox(height: 12),
+                _card(
+                  isDark,
+                  cs,
+                  child: Column(
+                    children: [
+                      _CreditRow(
+                        icon: Icons.school_rounded,
+                        name: 'Yash Raj Bharti',
+                        role: 'Mentor — GSoC 2026',
+                      ),
+                      const SizedBox(height: 12),
+                      _CreditRow(
+                        icon: Icons.school_rounded,
+                        name: 'Siddhart Mudgil',
+                        role: 'Mentor — GSoC 2026',
+                      ),
+                      const SizedBox(height: 12),
+                      _CreditRow(
+                        icon: Icons.cloud_rounded,
+                        name: 'Open-Meteo',
+                        role: 'Free climate & weather API',
+                      ),
+                      const SizedBox(height: 12),
+                      _CreditRow(
+                        icon: Icons.flash_on_rounded,
+                        name: 'Global Power Plant Database',
+                        role: 'WRI — plant data source',
+                      ),
+                      const SizedBox(height: 12),
+                      _CreditRow(
+                        icon: Icons.auto_awesome_rounded,
+                        name: 'Google Gemini',
+                        role: 'AI-powered insights engine',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── App-level links row ───────────────────────────────
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _SocialChip(
+                        icon: Icons.code_rounded,
+                        label: 'App GitHub',
+                        color: const Color(0xFF6E40C9),
+                        url:
+                            'https://github.com/LiquidGalaxyLAB/ecogrid-intelligence',
+                      ),
+                      _SocialChip(
+                        icon: Icons.language_rounded,
+                        label: 'Liquid Galaxy',
+                        color: const Color(0xFF10B981),
+                        url: 'https://www.liquidgalaxy.eu',
+                      ),
+                      _SocialChip(
+                        icon: Icons.bug_report_rounded,
+                        label: 'Report Bug',
+                        color: const Color(0xFFEF4444),
+                        url:
+                            'https://github.com/LiquidGalaxyLAB/ecogrid-intelligence/issues',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // ── Footer ────────────────────────────────────────────
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Liquid Galaxy LAB · GSoC 2026',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurface.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      if (_appVersion.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'v$_appVersion',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ]),
             ),
           ),
@@ -68,10 +301,30 @@ class AboutScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _label(String text) {
+    final cs = Theme.of(context).colorScheme;
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2,
+        color: cs.onSurface.withValues(alpha: 0.4),
+      ),
+    );
+  }
+
+  Widget _divider(ColorScheme cs) => Divider(
+        color: cs.outlineVariant.withValues(alpha: 0.4),
+        thickness: 1,
+        indent: MediaQuery.of(context).size.width * 0.2,
+        endIndent: MediaQuery.of(context).size.width * 0.2,
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hero Section
+// Hero
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroSection extends StatelessWidget {
@@ -105,7 +358,6 @@ class _HeroSection extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Logo + name row
               Row(
                 children: [
                   Container(
@@ -115,9 +367,7 @@ class _HeroSection extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        width: 1,
-                      ),
+                          color: Colors.white.withValues(alpha: 0.25)),
                     ),
                     child: Image.asset(
                       'assets/images/logo.png',
@@ -139,9 +389,7 @@ class _HeroSection extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF0D2137),
+                          color: isDark ? Colors.white : const Color(0xFF0D2137),
                           letterSpacing: -0.3,
                         ),
                       ),
@@ -180,35 +428,7 @@ class _HeroSection extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mission Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _MissionCard extends StatelessWidget {
-  final bool isDark;
-  const _MissionCard({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(cs, isDark),
-      child: Text(
-        'Built as part of Google Summer of Code 2026 with Liquid Galaxy LAB, EcoGrid Intelligence is a research tool for understanding climate risk across global energy infrastructure. It turns complex climate and power plant data into something you can actually see, explore, and act on.\n\n'
-        'Search any region or power plant in the world, and the app instantly flies Liquid Galaxy\'s panoramic display to that location — rendering every nearby facility color-coded by its Climate Vulnerability Score. Filter by plant type, risk level, or climate stress dimension to find exactly what you\'re looking for.\n\n'
-        'Behind every score is real data. EcoGrid pulls live weather conditions from Open-Meteo and weighs them against each plant\'s specific sensitivity to heat, water stress, and wind.',
-        style: TextStyle(
-          fontSize: 14.5,
-          height: 1.7,
-          color: cs.onSurface.withValues(alpha: 0.82),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CVS Card — the signature element
+// CVS Card (kept as-is — user likes this)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CVSCard extends StatelessWidget {
@@ -218,26 +438,21 @@ class _CVSCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(cs, isDark),
+    return _card(
+      isDark,
+      cs,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title row
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
-                  ),
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.35)),
                 ),
                 child: const Text(
                   'CVS',
@@ -274,12 +489,21 @@ class _CVSCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-
-          // Risk scale bar — the visual signature
-          _CVSScaleBar(),
+          // Scale bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: [
+                  Expanded(flex: 33, child: Container(color: const Color(0xFF22C55E))),
+                  Expanded(flex: 33, child: Container(color: const Color(0xFFF97316))),
+                  Expanded(flex: 34, child: Container(color: const Color(0xFFEF4444))),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
-
-          // Risk level descriptions
           _RiskRow(
             color: const Color(0xFF22C55E),
             label: 'Low Risk',
@@ -298,58 +522,12 @@ class _CVSCard extends StatelessWidget {
             color: const Color(0xFFEF4444),
             label: 'High Risk',
             range: '67 – 100',
-            description: 'Critical climate exposure — action needed.',
+            description: 'High curtailment risk under current conditions.',
           ),
         ],
       ),
     );
   }
-}
-
-class _CVSScaleBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Gradient bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            height: 12,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF22C55E),
-                  Color(0xFF84CC16),
-                  Color(0xFFEAB308),
-                  Color(0xFFF97316),
-                  Color(0xFFEF4444),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Scale markers
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('0', style: _markerStyle()),
-            Text('33', style: _markerStyle()),
-            Text('66', style: _markerStyle()),
-            Text('100', style: _markerStyle()),
-          ],
-        ),
-      ],
-    );
-  }
-
-  TextStyle _markerStyle() => const TextStyle(
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    color: Color(0xFF94A3B8),
-  );
 }
 
 class _RiskRow extends StatelessWidget {
@@ -369,37 +547,24 @@ class _RiskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 8,
-          height: 8,
-          margin: const EdgeInsets.only(top: 5),
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 10),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Text(label,
+            style: TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w600, color: color)),
+        const SizedBox(width: 6),
+        Text('($range)',
+            style: TextStyle(
+                fontSize: 12, color: cs.onSurface.withValues(alpha: 0.45))),
+        const SizedBox(width: 8),
         Expanded(
-          child: RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: '$label ($range) — ',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-                TextSpan(
-                  text: description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: Text(description,
+              style: TextStyle(
+                  fontSize: 12, color: cs.onSurface.withValues(alpha: 0.65))),
         ),
       ],
     );
@@ -415,28 +580,28 @@ class _FeaturesGrid extends StatelessWidget {
   const _FeaturesGrid({required this.isDark});
 
   static const _features = [
-    _Feature(
+    _Feat(
       icon: Icons.language_rounded,
       accent: Color(0xFF3B82F6),
       title: 'Liquid Galaxy\nVisualization',
       body:
           'Cast climate data across a multi-screen panoramic rig with live KML rendering.',
     ),
-    _Feature(
+    _Feat(
       icon: Icons.bolt_rounded,
       accent: Color(0xFFF59E0B),
       title: 'Infrastructure\nAnalysis',
       body:
           'Explore vulnerability of 35 000+ power plants across every region and fuel type.',
     ),
-    _Feature(
+    _Feat(
       icon: Icons.cloud_rounded,
       accent: Color(0xFF10B981),
       title: 'Climate\nForecasting',
       body:
           'Real-time weather data from Open-Meteo feeds live CVS scores per plant.',
     ),
-    _Feature(
+    _Feat(
       icon: Icons.psychology_rounded,
       accent: Color(0xFFA855F7),
       title: 'AI Risk\nInsights',
@@ -447,6 +612,7 @@ class _FeaturesGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -455,237 +621,181 @@ class _FeaturesGrid extends StatelessWidget {
       mainAxisSpacing: 12,
       childAspectRatio: 0.88,
       children: _features
-          .map((f) => _FeatureCard(feature: f, isDark: isDark))
+          .map((f) => Container(
+                padding: const EdgeInsets.all(16),
+                decoration: _cardDecoration(cs, isDark),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: f.accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(f.icon, color: f.accent, size: 22),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      f.title,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Text(
+                        f.body,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.55,
+                          color: cs.onSurface.withValues(alpha: 0.62),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ))
           .toList(),
     );
   }
 }
 
-class _Feature {
+class _Feat {
   final IconData icon;
   final Color accent;
   final String title;
   final String body;
-  const _Feature({
-    required this.icon,
-    required this.accent,
-    required this.title,
-    required this.body,
-  });
+  const _Feat(
+      {required this.icon,
+      required this.accent,
+      required this.title,
+      required this.body});
 }
 
-class _FeatureCard extends StatelessWidget {
-  final _Feature feature;
+// ─────────────────────────────────────────────────────────────────────────────
+// Developer Card — centered
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DeveloperCard extends StatelessWidget {
   final bool isDark;
-  const _FeatureCard({required this.feature, required this.isDark});
+  final ColorScheme cs;
+  const _DeveloperCard({required this.isDark, required this.cs});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(cs, isDark),
+    return _card(
+      isDark,
+      cs,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Avatar
           Container(
-            width: 40,
-            height: 40,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
-              color: feature.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              color: cs.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: cs.primary.withValues(alpha: 0.25), width: 2),
             ),
-            child: Icon(feature.icon, color: feature.accent, size: 22),
+            child: Icon(Icons.person_rounded, color: cs.primary, size: 36),
           ),
           const SizedBox(height: 12),
           Text(
-            feature.title,
+            'Bhoomi Shivhare',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               color: cs.onSurface,
-              height: 1.3,
             ),
           ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Text(
-              feature.body,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.55,
-                color: cs.onSurface.withValues(alpha: 0.62),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tech Chips
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TechChips extends StatelessWidget {
-  static const _items = [
-    'Flutter & Dart',
-    'BLoC Architecture',
-    'DartSSH2',
-    'Open-Meteo API',
-    'WRI GPPD Dataset',
-    'KML Visualization',
-    'Clean Architecture',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: _items
-          .map(
-            (t) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
-              ),
-              child: Text(
-                t,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: cs.onSurface.withValues(alpha: 0.75),
-                ),
-              ),
-            ),
-          )
-          .toList(),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GSoC Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _GSoCCard extends StatelessWidget {
-  final bool isDark;
-  const _GSoCCard({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(cs, isDark),
-      child: Column(
-        children: [
-          _InfoRow(label: 'Program', value: 'Google Summer of Code 2026'),
-          const SizedBox(height: 12),
-          _InfoRow(label: 'Organization', value: 'Liquid Galaxy LAB'),
-          const SizedBox(height: 12),
-          _InfoRow(label: 'Mentors', value: 'Yash Raj Bharti\nSiddhart Mudgil'),
-          const SizedBox(height: 12),
-          const Divider(height: 1, thickness: 1),
-          const SizedBox(height: 12),
-          _InfoRow(
-            label: 'About LG LAB',
-            value:
-                'Liquid Galaxy LAB is an open-source innovation lab that builds '
-                'immersive geospatial experiences across multi-screen panoramic '
-                'display systems.',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 110,
-          child: Text(
-            label,
+          const SizedBox(height: 4),
+          Text(
+            'GSoC 2026 Contributor · Liquid Galaxy LAB',
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface.withValues(alpha: 0.45),
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 13,
+              color: cs.primary,
               fontWeight: FontWeight.w500,
-              color: cs.onSurface.withValues(alpha: 0.88),
-              height: 1.5,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          // Social chips
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SocialChip(
+                icon: Icons.mail_rounded,
+                label: 'Email',
+                color: const Color(0xFFF59E0B),
+                url: 'mailto:shivharebhoomi07@gmail.com',
+              ),
+              _SocialChip(
+                icon: Icons.code_rounded,
+                label: 'GitHub',
+                color: const Color(0xFF6E40C9),
+                url: 'https://github.com/shivharebhoomi07',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Links Row
+// Credits Row
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _LinksRow extends StatelessWidget {
-  Future<void> _launch(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
-  }
+class _CreditRow extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final String role;
+  const _CreditRow(
+      {required this.icon, required this.name, required this.role});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Expanded(
-          child: _LinkButton(
-            icon: Icons.code_rounded,
-            label: 'GitHub',
-            accent: const Color(0xFF6E40C9),
-            onTap: () =>
-                _launch('https://github.com/yourusername/ecogrid_intelligence'),
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Icon(icon, color: cs.primary, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _LinkButton(
-            icon: Icons.language_rounded,
-            label: 'Liquid Galaxy',
-            accent: const Color(0xFF3B82F6),
-            onTap: () => _launch('https://www.liquidgalaxy.eu'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _LinkButton(
-            icon: Icons.bug_report_rounded,
-            label: 'Report Bug',
-            accent: const Color(0xFFEF4444),
-            onTap: () => _launch(
-              'https://github.com/yourusername/ecogrid_intelligence/issues',
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name,
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface)),
+              Text(role,
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withValues(alpha: 0.5))),
+            ],
           ),
         ),
       ],
@@ -693,39 +803,42 @@ class _LinksRow extends StatelessWidget {
   }
 }
 
-class _LinkButton extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Social Chip — pill-style with per-type accent color
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SocialChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color accent;
-  final VoidCallback onTap;
-  const _LinkButton({
-    required this.icon,
-    required this.label,
-    required this.accent,
-    required this.onTap,
-  });
+  final String url;
+  final Color? color;
+  const _SocialChip(
+      {required this.icon, required this.label, required this.url, this.color});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = color ?? cs.primary;
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      onTap: () => _launch(url),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.09),
-          borderRadius: BorderRadius.circular(12),
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: accent.withValues(alpha: 0.25)),
         ),
-        child: Column(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: accent, size: 22),
-            const SizedBox(height: 6),
+            Icon(icon, color: accent, size: 16),
+            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
                 color: accent,
               ),
             ),
@@ -737,43 +850,16 @@ class _LinkButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Footer
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _Footer extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Text(
-        'Liquid Galaxy LAB · GSoC 2026',
-        style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.35)),
-        textAlign: TextAlign.center,
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Shared helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 2,
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-      ),
-    );
-  }
+Widget _card(bool isDark, ColorScheme cs, {required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    decoration: _cardDecoration(cs, isDark),
+    child: child,
+  );
 }
 
 BoxDecoration _cardDecoration(ColorScheme cs, bool isDark) {

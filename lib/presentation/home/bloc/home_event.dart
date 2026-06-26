@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
+import '../../../domain/model/region.dart';
 
 abstract class HomeEvent extends Equatable {
   const HomeEvent();

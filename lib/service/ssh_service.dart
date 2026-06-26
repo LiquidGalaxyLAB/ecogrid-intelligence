@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:dartssh2/dartssh2.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
+import '../core/exception/invalid_response_exception.dart';
 
 /// SSH service for communicating with the Liquid Galaxy rig.
 ///
@@ -148,6 +149,38 @@ class SSHService {
       _client = null;
       _connectionController.add(false);
       debugPrint('[EcoGrid] SSH disconnected');
+    }
+  }
+
+  /// Uploads a Flutter asset (like an image) directly to the LG rig via SFTP.
+  Future<void> uploadAsset(String assetPath, String remotePath) async {
+    if (_client == null) {
+      throw const ConnectionException(message: 'Not connected to Liquid Galaxy');
+    }
+    
+    try {
+      // 1. Read the asset from the Flutter bundle
+      final byteData = await rootBundle.load(assetPath);
+      final bytes = byteData.buffer.asUint8List();
+
+      // 2. Open an SFTP session
+      final sftp = await _client!.sftp();
+      
+      // 3. Open the remote file for writing
+      final remoteFile = await sftp.open(
+        remotePath,
+        mode: SftpFileOpenMode.create | SftpFileOpenMode.write | SftpFileOpenMode.truncate,
+      );
+
+      // 4. Write the bytes and close
+      await remoteFile.write(
+        Stream.value(bytes).cast<Uint8List>(),
+      );
+      await remoteFile.close();
+      debugPrint('[EcoGrid] Successfully uploaded $assetPath to $remotePath');
+      
+    } catch (e) {
+      throw ConnectionException(message: 'SFTP upload failed for $assetPath: $e');
     }
   }
 

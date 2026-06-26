@@ -1,4 +1,4 @@
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
+import '../enums/plant_type.dart';
 import 'dart:math';
 
 /// Climate Vulnerability Score calculator.

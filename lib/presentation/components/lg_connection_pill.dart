@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/presentation/lg_connection/bloc/lg_connection_bloc.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
+import '../../config/theme/app_theme.dart';
+import '../../config/routes/app_routes.dart';
+import '../../core/enums/connection_status.dart';
+import '../lg_connection/bloc/lg_connection_bloc.dart';
+import '../../di/di.dart';
 
 class LgConnectionPill extends StatelessWidget {
   const LgConnectionPill({super.key});
@@ -84,8 +84,9 @@ class LgConnectionPill extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.settings, size: 20, color: statusColor),
+                  Icon(Icons.settings, size: 20, color: isDark ? Colors.white : AppTheme.textSecondary),
                 ],
+
               ),
             ),
           );

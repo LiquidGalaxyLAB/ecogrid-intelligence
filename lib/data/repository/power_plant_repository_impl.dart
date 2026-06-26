@@ -1,70 +1,75 @@
-import 'package:dartz/dartz.dart';
-import 'package:ecogrid_intelligence/core/exception/failures.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/power_plant_local_ds.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/domain/repository/power_plant_repository.dart';
+import '../../core/exception/invalid_response_exception.dart';
+import '../../core/exception/unhandled_exception.dart';
+import '../../core/resources/data_state.dart';
+
+import '../data_sources/local/power_plant_local_ds.dart';
+import '../../domain/model/power_plant.dart';
+import '../../domain/model/region.dart';
+import '../../domain/repository/power_plant_repository.dart';
 
 class PowerPlantRepositoryImpl implements PowerPlantRepository {
-  final PowerPlantLocalDataSource localDataSource;
+  final PowerPlantLocalDataSource _localDataSource;
 
-  PowerPlantRepositoryImpl({required this.localDataSource});
+  PowerPlantRepositoryImpl({required this._localDataSource});
 
   @override
-  Future<Either<Failure, List<PowerPlant>>> getAllPlants() async {
+  Future<DataState<List<PowerPlant>>> getAllPlants() async {
     try {
-      final plants = await localDataSource.getAllPlants();
-      return Right(plants);
+      final plants = await _localDataSource.getAllPlants();
+      return DataSuccess(plants);
     } on ParseException catch (e) {
-      return Left(ParseFailure(message: e.message));
+      return DataFailure(InvalidResponseException(
+        message: e.message,
+        response: null,
+      ));
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, List<PowerPlant>>> getPlantsByRegion(
-    Region region,
-  ) async {
+  Future<DataState<List<PowerPlant>>> getPlantsByRegion(Region region) async {
     try {
-      final plants = await localDataSource.getPlantsByRegion(region);
-      return Right(plants);
+      final plants = await _localDataSource.getPlantsByRegion(region);
+      return DataSuccess(plants);
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, List<PowerPlant>>> searchPlants(String query) async {
+  Future<DataState<List<PowerPlant>>> searchPlants(String query) async {
     try {
-      final plants = await localDataSource.searchPlants(query);
-      return Right(plants);
+      final plants = await _localDataSource.searchPlants(query);
+      return DataSuccess(plants);
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, List<Region>>> searchRegions(String query) async {
+  Future<DataState<List<Region>>> searchRegions(String query) async {
     try {
-      final regions = await localDataSource.searchRegions(query);
-      return Right(regions);
+      final regions = await _localDataSource.searchRegions(query);
+      return DataSuccess(regions);
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, PowerPlant>> getPlantById(String id) async {
+  Future<DataState<PowerPlant>> getPlantById(String id) async {
     try {
-      final plant = await localDataSource.getPlantById(id);
+      final plant = await _localDataSource.getPlantById(id);
       if (plant == null) {
-        return const Left(ParseFailure(message: 'Power plant not found'));
+        return DataFailure(InvalidResponseException(
+          message: 'Power plant not found',
+          response: id,
+        ));
       }
-      return Right(plant);
+      return DataSuccess(plant);
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 }

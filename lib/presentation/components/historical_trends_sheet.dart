@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
-import 'package:ecogrid_intelligence/presentation/plant_detail/bloc/plant_detail_bloc.dart';
+import '../../config/theme/app_theme.dart';
+import '../../domain/model/climate_data.dart';
+import '../plant_detail/bloc/plant_detail_bloc.dart';
 
 class HistoricalTrendsSheet extends StatelessWidget {
   final List<ClimateData> historicalData;

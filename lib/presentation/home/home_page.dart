@@ -1,17 +1,17 @@
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_bloc.dart';
+import '../explore/bloc/explore_bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
-import 'package:ecogrid_intelligence/config/theme/region_asset_resolver.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
-import 'package:ecogrid_intelligence/presentation/home/bloc/home_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/home/bloc/home_event.dart';
-import 'package:ecogrid_intelligence/presentation/components/app_search_bar.dart';
-import 'package:ecogrid_intelligence/presentation/components/atmospheric_globe_painter.dart';
-import 'package:ecogrid_intelligence/presentation/components/lg_connection_pill.dart';
+import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
+import '../../config/theme/region_asset_resolver.dart';
+import '../../config/routes/app_routes.dart';
+import '../../domain/model/region.dart';
+import '../../di/di.dart';
+import 'bloc/home_bloc.dart';
+import 'bloc/home_event.dart';
+import '../components/app_search_bar.dart';
+import '../components/atmospheric_globe_painter.dart';
+import '../components/lg_connection_pill.dart';
 
 const Color bgWhite = Color(0xFFF6FAFD); // screen background
 const Color deepNavy = Color(0xFF0A1931); // card base

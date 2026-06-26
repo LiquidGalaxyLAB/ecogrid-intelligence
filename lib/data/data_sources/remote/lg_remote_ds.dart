@@ -1,7 +1,7 @@
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
-import 'package:ecogrid_intelligence/core/utils/kml_generator.dart';
-import 'package:ecogrid_intelligence/service/ssh_service.dart';
-import 'package:ecogrid_intelligence/core/constants/lg_constants.dart';
+import '../../../core/exception/invalid_response_exception.dart';
+import '../../../core/utils/kml_utils.dart';
+import '../../../service/ssh_service.dart';
+import '../../../core/constants/lg_constants.dart';
 
 /// Remote data source for Liquid Galaxy SSH operations.
 class LGRemoteDataSource {
@@ -19,7 +19,7 @@ class LGRemoteDataSource {
     double range,
   ) async {
     try {
-      final query = KMLGenerator.queryFlyTo(
+      final query = KmlUtils.queryFlyTo(
         lat: lat,
         lon: lon,
         altitude: altitude,
@@ -51,7 +51,7 @@ class LGRemoteDataSource {
   /// Clear master screen only.
   Future<void> clearMaster() async {
     try {
-      final escapedKml = KMLGenerator.emptyKml().replaceAll("'", "'\\''");
+      final escapedKml = KmlUtils.emptyKml().replaceAll("'", "'\\''");
       await sshService.execute(
         "echo '$escapedKml' > ${LGConstants.masterKmlFile}",
       );
@@ -96,7 +96,7 @@ class LGRemoteDataSource {
   /// Clear the balloon/KML from a specific slave screen.
   Future<void> clearBalloonOnSlave(int slaveNumber) async {
     try {
-      final emptyBalloonKml = KMLGenerator.emptyBalloon().replaceAll(
+      final emptyBalloonKml = KmlUtils.emptyBalloon().replaceAll(
         "'",
         "'\\''",
       );
@@ -116,12 +116,12 @@ class LGRemoteDataSource {
       await sshService.execute('echo "" > ${LGConstants.queryFile}');
 
       // Clear master KML and the sync file
-      final empty = KMLGenerator.emptyKml().replaceAll("'", "'\\''");
+      final empty = KmlUtils.emptyKml().replaceAll("'", "'\\''");
       await sshService.execute("echo '$empty' > ${LGConstants.masterKmlFile}");
       await sshService.execute("echo '' > /var/www/html/kmls.txt");
 
       // Clear all slave KML files and kill any old Chromium instances
-      final emptyBalloonKml = KMLGenerator.emptyBalloon().replaceAll(
+      final emptyBalloonKml = KmlUtils.emptyBalloon().replaceAll(
         "'",
         "'\\''",
       );
@@ -135,6 +135,9 @@ class LGRemoteDataSource {
           );
         } catch (_) {}
       }
+
+      // Re-apply logos to ensure they persist through screen clears
+      await showLogos();
     } catch (e) {
       throw ConnectionException(message: 'Clear KML failed: $e');
     }
@@ -178,4 +181,82 @@ class LGRemoteDataSource {
       throw ConnectionException(message: 'Reboot failed: $e');
     }
   }
+
+  /// Shutdown the LG system.
+  Future<void> shutdown() async {
+    try {
+      for (int i = LGConstants.screenCount; i >= 1; i--) {
+        final target = i == 1 ? 'lg' : 'lg$i';
+        await sshService.execute(
+          'sshpass -p ${sshService.password} ssh -t $target "echo ${sshService.password} | sudo -S poweroff"',
+        );
+      }
+    } catch (e) {
+      throw ConnectionException(message: 'Shutdown failed: $e');
+    }
+  }
+
+  /// Relaunch the Liquid Galaxy software (Earth).
+  Future<void> relaunch() async {
+    try {
+      for (int i = LGConstants.screenCount; i >= 1; i--) {
+        final target = i == 1 ? 'lg' : 'lg$i';
+        final cmd = """RELAUNCH_CMD="\\
+if [ -f /etc/init/lxdm.conf ]; then
+  export SERVICE=lxdm
+elif [ -f /etc/init/lightdm.conf ]; then
+  export SERVICE=lightdm
+else
+  exit 1
+fi
+if  [[ \\\$(service \\\$SERVICE status) =~ 'stop' ]]; then
+  echo ${sshService.password} | sudo -S service \\\${SERVICE} start
+else
+  echo ${sshService.password} | sudo -S service \\\${SERVICE} restart
+fi
+" && sshpass -p ${sshService.password} ssh -x -t lg@$target "\\\$RELAUNCH_CMD\"""";
+        
+        await sshService.execute('"/home/lg/bin/lg-relaunch" > /home/lg/log.txt');
+        await sshService.execute(cmd);
+      }
+    } catch (e) {
+      throw ConnectionException(message: 'Relaunch failed: $e');
+    }
+  }
+
+  /// Returns the leftmost slave screen index for a given screen count.
+  /// Follows the standard LG formula used across all official LG apps.
+  int _leftScreenIndex() {
+    if (LGConstants.screenCount == 1) return 1;
+    return (LGConstants.screenCount / 2).floor() + 2;
+  }
+
+  /// Display the EcoGrid + LG logos on the leftmost rig (554×500 px overlay).
+  Future<void> showLogos() async {
+    try {
+      final leftScreen = _leftScreenIndex();
+      final kml = KmlUtils.screenOverlayKml().replaceAll("'", "'\\''");
+      await sshService.execute(
+        "chmod 777 ${LGConstants.kmlPath}slave_$leftScreen.kml; "
+        "echo '$kml' > ${LGConstants.kmlPath}slave_$leftScreen.kml",
+      );
+    } catch (e) {
+      throw ConnectionException(message: 'Show logos failed: $e');
+    }
+  }
+
+  /// Clear logos from the leftmost rig by writing an empty balloon KML.
+  Future<void> clearLogos() async {
+    try {
+      final leftScreen = _leftScreenIndex();
+      final emptyKml = KmlUtils.emptyBalloon().replaceAll("'", "'\\''");
+      await sshService.execute(
+        "chmod 777 ${LGConstants.kmlPath}slave_$leftScreen.kml; "
+        "echo '$emptyKml' > ${LGConstants.kmlPath}slave_$leftScreen.kml",
+      );
+    } catch (e) {
+      throw ConnectionException(message: 'Clear logos failed: $e');
+    }
+  }
 }
+

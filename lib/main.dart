@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
-import 'package:ecogrid_intelligence/core/network/api_client.dart';
+import 'config/theme/app_theme.dart';
+import 'config/routes/app_routes.dart';
+import 'config/theme/theme_controller.dart';
+import 'di/di.dart';
+import 'core/network/api_client.dart';
+import 'core/utils/globals.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,13 +48,14 @@ class EcoGridApp extends StatelessWidget {
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, currentThemeMode, _) {
         return MaterialApp(
-          navigatorKey: ApiClient.alice.getNavigatorKey(),
+          navigatorKey: ApiClient.navigatorKey,
+          scaffoldMessengerKey: snackbarKey,
           title: 'EcoGrid Intelligence',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: currentThemeMode,
-          initialRoute: AppRoutes.home,
+          initialRoute: AppRoutes.splash,
           onGenerateRoute: AppRoutes.generateRoute,
         );
       },

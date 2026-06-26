@@ -20,7 +20,7 @@ dependencies:
 
   # Networking
   dio: ^5.8.0+1
-  alice: ^1.0.0
+  chucker_flutter: ^1.9.2
   
   # Local Storage / Cache
   drift: ^2.22.0
@@ -60,7 +60,8 @@ dependencies:
   speech_to_text: ^7.4.0
   lucide_icons_flutter: ^3.1.14+2
   fluentui_system_icons: ^1.1.273
-  alice_dio: ^1.0.7
+
+  package_info_plus: ^8.3.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

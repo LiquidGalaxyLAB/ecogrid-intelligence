@@ -2,13 +2,6 @@
 class CacheConstants {
   CacheConstants._();
 
-  // ─── Hive Box Names ──────────────────────────────────
-  static const String plantBox = 'power_plants';
-  static const String climateBox = 'climate_data';
-  static const String cvsBox = 'cvs_results';
-  static const String aiInsightBox = 'ai_insights';
-  static const String settingsBox = 'settings';
-  static const String searchHistoryBox = 'search_history';
 
   // ─── Cache Staling Durations ─────────────────────────
   /// Climate data (current conditions): fresh for 1h, stale-while-revalidate up to 6h

@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
-import 'package:ecogrid_intelligence/service/lg_service.dart';
-import 'package:ecogrid_intelligence/presentation/plant_detail/bloc/plant_detail_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_event.dart';
-import 'package:ecogrid_intelligence/service/tts_service.dart';
-import 'package:ecogrid_intelligence/presentation/components/historical_trends_sheet.dart';
-import 'package:ecogrid_intelligence/domain/model/cvs_result.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/presentation/components/plant_chat_bottom_sheet.dart';
-import 'package:ecogrid_intelligence/presentation/components/lg_connection_pill.dart';
+import '../../config/theme/app_theme.dart';
+import '../../domain/model/power_plant.dart';
+import '../../di/di.dart';
+import '../../service/lg_service.dart';
+import 'bloc/plant_detail_bloc.dart';
+import '../explore/bloc/explore_bloc.dart';
+import '../explore/bloc/explore_event.dart';
+import '../../service/tts_service.dart';
+import '../components/historical_trends_sheet.dart';
+import '../../domain/model/cvs_result.dart';
+import '../../config/routes/app_routes.dart';
+import '../components/plant_chat_bottom_sheet.dart';
+import '../components/lg_connection_pill.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/enums/historical_data_mode.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -160,7 +162,7 @@ class _PlantDetailBody extends StatelessWidget {
                       child: state.isLoadingCvs
                           ? _buildCvsLoadingCard()
                           : (cvs != null
-                                ? _buildCVSCard(cvs)
+                                ? _buildCVSCard(context, cvs)
                                 : _buildCvsUnavailableCard()),
                     ),
                   ],
@@ -352,9 +354,93 @@ class _PlantDetailBody extends StatelessWidget {
     );
   }
 
-  Widget _buildCVSCard(CVSResult cvs) {
-    return Container(
-      height: 200,
+  Widget _buildCVSCard(BuildContext context, CVSResult cvs) {
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => Dialog(
+            backgroundColor: AppTheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spacingLG),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 16),
+                      Text(
+                        'CVS + Stress',
+                        style: AppTheme.headingSmall,
+                      ),
+                      const SizedBox(height: 24),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 120,
+                            height: 120,
+                            child: CircularProgressIndicator(
+                              value: cvs.score / 10,
+                              strokeWidth: 12,
+                              color: cvs.riskLevel.color,
+                              backgroundColor: AppTheme.surfaceLight,
+                            ),
+                          ),
+                          Text(
+                            cvs.score.toStringAsFixed(1),
+                            style: AppTheme.headingLarge.copyWith(
+                              color: cvs.riskLevel.color,
+                              fontSize: 32,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        cvs.riskLevel.label,
+                        style: AppTheme.bodyLarge.copyWith(
+                          color: cvs.riskLevel.color,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text('Vulnerability Level', style: AppTheme.bodyMedium),
+                      const SizedBox(height: 32),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildMiniStressBar('Temp', cvs.temperatureStress, const Color(0xFFFF6B6B)),
+                            const SizedBox(height: 12),
+                            _buildMiniStressBar('Water', cvs.waterStress, const Color(0xFF4ECDC4)),
+                            const SizedBox(height: 12),
+                            _buildMiniStressBar('Wind', cvs.windStress, const Color(0xFF45B7D1)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                  Positioned(
+                    right: -8,
+                    top: -8,
+                    child: IconButton(
+                      icon: Icon(Icons.close, color: AppTheme.textSecondary),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      child: Container(
+        height: 200,
       padding: const EdgeInsets.all(AppTheme.spacingMD),
       decoration: AppTheme.cardDecoration,
       child: Column(
@@ -444,6 +530,7 @@ class _PlantDetailBody extends StatelessWidget {
           _buildMiniStressBar('Wind', cvs.windStress, const Color(0xFF45B7D1)),
         ],
       ),
+    ),
     );
   }
 
@@ -697,9 +784,21 @@ class _PlantDetailBody extends StatelessWidget {
                       children: [
                         CircularProgressIndicator(color: AppTheme.primary),
                         const SizedBox(height: 16),
-                        Text(
-                          'Loading 14-year climate trend...',
-                          style: TextStyle(color: AppTheme.textSecondary),
+                        FutureBuilder<SharedPreferences>(
+                          future: SharedPreferences.getInstance(),
+                          builder: (context, snapshot) {
+                            int years = 5;
+                            if (snapshot.hasData) {
+                              final modeIndex = snapshot.data!.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
+                              if (modeIndex >= 0 && modeIndex < HistoricalDataMode.values.length) {
+                                years = HistoricalDataMode.values[modeIndex].yearsBack;
+                              }
+                            }
+                            return Text(
+                              'Loading $years-year climate trend...',
+                              style: TextStyle(color: AppTheme.textSecondary),
+                            );
+                          },
                         ),
                       ],
                     ),

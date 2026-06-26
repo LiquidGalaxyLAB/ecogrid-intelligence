@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
-import 'package:ecogrid_intelligence/presentation/lg_connection/bloc/lg_connection_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/components/atmospheric_globe_painter.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
+import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
+import '../../core/enums/connection_status.dart';
+import '../../domain/model/lg_settings.dart';
+import '../../di/di.dart';
+import 'bloc/lg_connection_bloc.dart';
+import '../components/atmospheric_globe_painter.dart';
+import '../../config/routes/app_routes.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ecogrid_intelligence/config/theme/map_themes.dart';
+import '../../config/theme/map_themes.dart';
+import '../../core/enums/historical_data_mode.dart';
 
 class LgSettingsScreen extends StatelessWidget {
   const LgSettingsScreen({super.key});
@@ -162,9 +163,45 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
         labelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
         unselectedLabelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
         tabs: const [
-          Tab(text: 'General'),
-          Tab(text: 'Connection'),
-          Tab(text: 'Liquid Galaxy'),
+          Tab(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.tune, size: 16),
+                  SizedBox(width: 6),
+                  Text('General'),
+                ],
+              ),
+            ),
+          ),
+          Tab(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi, size: 16),
+                  SizedBox(width: 6),
+                  Text('Connection'),
+                ],
+              ),
+            ),
+          ),
+          Tab(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.public, size: 16),
+                  SizedBox(width: 6),
+                  Text('Liquid Galaxy'),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -188,10 +225,7 @@ class _GeneralTab extends StatefulWidget {
 class _GeneralTabState extends State<_GeneralTab> {
   MapType _selectedMapType = MapType.normal;
   String _selectedMapTheme = MapThemes.mapsThemeNone;
-  final CameraPosition _fixedCamera = const CameraPosition(
-    target: LatLng(40.7128, -74.0060), // Fixed target for preview
-    zoom: 12.0,
-  );
+  HistoricalDataMode _selectedHistoricalMode = HistoricalDataMode.fast;
 
   @override
   void initState() {
@@ -206,6 +240,12 @@ class _GeneralTabState extends State<_GeneralTab> {
       _selectedMapType = MapType.values[mapTypeIndex];
     }
     _selectedMapTheme = prefs.getString('map_theme') ?? MapThemes.mapsThemeNone;
+    
+    final modeIndex = prefs.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
+    if (modeIndex >= 0 && modeIndex < HistoricalDataMode.values.length) {
+      _selectedHistoricalMode = HistoricalDataMode.values[modeIndex];
+    }
+    
     if (mounted) {
       setState(() {});
     }
@@ -224,6 +264,14 @@ class _GeneralTabState extends State<_GeneralTab> {
     await prefs.setString('map_theme', themeJson);
     setState(() {
       _selectedMapTheme = themeJson;
+    });
+  }
+
+  Future<void> _setHistoricalMode(HistoricalDataMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('historical_data_mode', mode.index);
+    setState(() {
+      _selectedHistoricalMode = mode;
     });
   }
 
@@ -246,6 +294,10 @@ class _GeneralTabState extends State<_GeneralTab> {
           const SizedBox(height: 12),
           _buildMapThemeSection(widget.isDark),
           const SizedBox(height: 32),
+          _buildSectionLabel('HISTORICAL DATA'),
+          const SizedBox(height: 12),
+          _buildHistoricalDataSection(widget.isDark),
+          const SizedBox(height: 32),
           _buildSectionLabel('PREFERENCES'),
           const SizedBox(height: 12),
           _buildLanguageCard(widget.isDark),
@@ -253,142 +305,39 @@ class _GeneralTabState extends State<_GeneralTab> {
           _buildSectionLabel('ABOUT'),
           const SizedBox(height: 12),
           _buildAboutCard(context, widget.isDark),
-          const SizedBox(height: 12),
-          _buildAppVersionCard(widget.isDark),
           const SizedBox(height: 48),
         ],
       ),
     );
   }
 
-  Widget _buildMapPreviewCard({
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required MapType mapType,
-    required String mapTheme,
-    required bool isDark,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppTheme.primary : AppTheme.cardBorder,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isDark
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Stack(
-            children: [
-              GoogleMap(
-                initialCameraPosition: _fixedCamera,
-                mapType: mapType,
-                style: mapTheme,
-                zoomGesturesEnabled: false,
-                scrollGesturesEnabled: false,
-                rotateGesturesEnabled: false,
-                tiltGesturesEnabled: false,
-                zoomControlsEnabled: false,
-                compassEnabled: false,
-                myLocationButtonEnabled: false,
-                mapToolbarEnabled: false,
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              if (isSelected)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: const Icon(
-                      Icons.check,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMapStyleSection(bool isDark) {
+    final styles = [
+      {'title': 'Normal', 'type': MapType.normal},
+      {'title': 'Terrain', 'type': MapType.terrain},
+      {'title': 'Satellite', 'type': MapType.satellite},
+      {'title': 'Hybrid', 'type': MapType.hybrid},
+    ];
+
     return SizedBox(
       height: 120,
-      child: ListView(
+      child: ListView.builder(
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
-        children: [
-          _buildMapPreviewCard(
-            title: 'Normal',
-            isSelected: _selectedMapType == MapType.normal,
-            onTap: () => _setMapType(MapType.normal),
-            mapType: MapType.normal,
+        itemCount: styles.length,
+        itemBuilder: (context, index) {
+          final style = styles[index];
+          final type = style['type'] as MapType;
+          return _MapPreviewCard(
+            title: style['title'] as String,
+            isSelected: _selectedMapType == type,
+            onTap: () => _setMapType(type),
+            mapType: type,
             mapTheme: MapThemes.mapsThemeNone,
             isDark: isDark,
-          ),
-          _buildMapPreviewCard(
-            title: 'Terrain',
-            isSelected: _selectedMapType == MapType.terrain,
-            onTap: () => _setMapType(MapType.terrain),
-            mapType: MapType.terrain,
-            mapTheme: MapThemes.mapsThemeNone,
-            isDark: isDark,
-          ),
-          _buildMapPreviewCard(
-            title: 'Satellite',
-            isSelected: _selectedMapType == MapType.satellite,
-            onTap: () => _setMapType(MapType.satellite),
-            mapType: MapType.satellite,
-            mapTheme: MapThemes.mapsThemeNone,
-            isDark: isDark,
-          ),
-          _buildMapPreviewCard(
-            title: 'Hybrid',
-            isSelected: _selectedMapType == MapType.hybrid,
-            onTap: () => _setMapType(MapType.hybrid),
-            mapType: MapType.hybrid,
-            mapTheme: MapThemes.mapsThemeNone,
-            isDark: isDark,
-          ),
-        ],
+            delayMs: index * 150,
+          );
+        },
       ),
     );
   }
@@ -416,20 +365,102 @@ class _GeneralTabState extends State<_GeneralTab> {
           final String title = theme['name'] as String;
           final String json = theme['json'] as String;
 
-          return _buildMapPreviewCard(
+          return _MapPreviewCard(
             title: title,
             isSelected: _selectedMapTheme == json,
             onTap: () => _setMapTheme(json),
-            mapType:
-                MapType.normal, // Themes are usually applied on normal maps
+            mapType: MapType.normal,
             mapTheme: json,
             isDark: isDark,
+            delayMs: index * 150,
           );
         },
       ),
     );
   }
 
+  Widget _buildHistoricalDataSection(bool isDark) {
+    return Material(
+      color: AppTheme.surfaceLight,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? AppTheme.divider : Colors.black.withValues(alpha: 0.05),
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          iconColor: AppTheme.textPrimary,
+          collapsedIconColor: AppTheme.textMuted,
+          title: Text(
+            'Data Fetch Range',
+            style: AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.w500),
+          ),
+          subtitle: Text(
+            _selectedHistoricalMode.displayName,
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.primary),
+          ),
+          children: [
+            for (final mode in HistoricalDataMode.values)
+              InkWell(
+                onTap: () => _setHistoricalMode(mode),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _selectedHistoricalMode == mode 
+                        ? AppTheme.primary.withValues(alpha: 0.1) 
+                        : Colors.transparent,
+                    border: Border(
+                      left: BorderSide(
+                        color: _selectedHistoricalMode == mode 
+                            ? AppTheme.primary 
+                            : Colors.transparent,
+                        width: 4,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(mode.icon, color: _selectedHistoricalMode == mode ? AppTheme.primary : AppTheme.textMuted),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(mode.displayName, style: AppTheme.bodyLarge.copyWith(
+                              fontWeight: _selectedHistoricalMode == mode ? FontWeight.w600 : FontWeight.w400,
+                              color: _selectedHistoricalMode == mode ? AppTheme.primary : AppTheme.textPrimary,
+                            )),
+                            Text(mode.description, style: AppTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _selectedHistoricalMode == mode
+                            ? Icon(
+                                Icons.check_circle,
+                                key: const ValueKey('selected'),
+                                color: AppTheme.primary,
+                              )
+                            : Icon(
+                                Icons.radio_button_unchecked,
+                                key: const ValueKey('unselected'),
+                                color: AppTheme.textMuted,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
   Widget _buildSectionLabel(String label) {
     return Text(
       label,
@@ -701,49 +732,7 @@ class _GeneralTabState extends State<_GeneralTab> {
     );
   }
 
-  Widget _buildAppVersionCard(bool isDark) {
-    return _buildBaseCard(
-      isDark: isDark,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isDark ? AppTheme.surfaceLight : const Color(0xFFF3F4F6),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.build_circle_outlined,
-                color: AppTheme.textSecondary,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'App Version',
-                    style: AppTheme.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              'v1.0.0',
-              style: AppTheme.bodyMedium.copyWith(color: AppTheme.textMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1141,10 +1130,11 @@ class _LiquidGalaxyTab extends StatelessWidget {
           const SizedBox(height: 16),
           _buildActionCard(
             context: context,
-            title: 'Power Off System',
+            title: 'Shut Down',
             icon: Icons.power_settings_new,
             color: AppTheme.riskCritical,
             isDestructive: true,
+            isHorizontal: true,
             onTap: () {
               context.read<LGConnectionBloc>().add(const LGPowerOffRequested());
             },
@@ -1190,6 +1180,7 @@ class _LiquidGalaxyTab extends StatelessWidget {
             title: 'Clear KML',
             icon: Icons.layers_clear,
             color: const Color(0xFF00C853),
+            isHorizontal: true,
             onTap: () {
               context.read<LGConnectionBloc>().add(const LGClearKmlRequested());
             },
@@ -1218,50 +1209,223 @@ class _LiquidGalaxyTab extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
     bool isDestructive = false,
+    bool isHorizontal = false,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBackground,
+    return Container(
+      width: isHorizontal ? double.infinity : null,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 15,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Material(
+        color: AppTheme.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          border: isDestructive
-              ? Border.all(color: color.withValues(alpha: 0.3), width: 1.5)
-              : null,
-          boxShadow: isDark
-              ? []
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 15,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 4),
+          splashColor: color.withValues(alpha: 0.2), // Glowing ripple
+          highlightColor: color.withValues(alpha: 0.1),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: isDestructive
+                  ? Border.all(color: color.withValues(alpha: 0.3), width: 1.5)
+                  : null,
+            ),
+            child: isHorizontal
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: color, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        title,
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isDestructive ? color : AppTheme.textPrimary,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, color: color, size: 28),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        title,
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isDestructive ? color : AppTheme.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: AppTheme.bodyMedium.copyWith(
-                fontWeight: FontWeight.w600,
-                color: isDestructive ? color : AppTheme.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class _MapPreviewCard extends StatefulWidget {
+  final String title;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final MapType mapType;
+  final String mapTheme;
+  final bool isDark;
+  final int delayMs;
+
+  const _MapPreviewCard({
+    required this.title,
+    required this.isSelected,
+    required this.onTap,
+    required this.mapType,
+    required this.mapTheme,
+    required this.isDark,
+    required this.delayMs,
+  });
+
+  @override
+  State<_MapPreviewCard> createState() => _MapPreviewCardState();
+}
+
+class _MapPreviewCardState extends State<_MapPreviewCard> {
+
+
+  @override
+  Widget build(BuildContext context) {
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: widget.isSelected ? AppTheme.primary : AppTheme.cardBorder,
+            width: widget.isSelected ? 2 : 1,
+          ),
+          boxShadow: widget.isDark
+              ? []
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(
+            children: [
+              Container(
+                color: _getMockColorForTheme(widget.mapTheme, widget.mapType, widget.isDark),
+                child: Center(
+                  child: Icon(
+                    Icons.map_outlined,
+                    size: 32,
+                    color: widget.isDark || 
+                           widget.mapType == MapType.satellite || 
+                           widget.mapType == MapType.hybrid
+                           ? Colors.white.withValues(alpha: 0.5)
+                           : Colors.black.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    widget.title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              if (widget.isSelected)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: const Icon(
+                      Icons.check,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getMockColorForTheme(String mapTheme, MapType type, bool isDark) {
+    if (type == MapType.satellite || type == MapType.hybrid) {
+      return const Color(0xFF2E3D2B); // Dark earthy green for satellite
+    }
+    if (type == MapType.terrain) {
+      return const Color(0xFFC1D0B5); // Light greenish for terrain
+    }
+    
+    if (mapTheme == MapThemes.mapsThemeRed) {
+      return const Color(0xFFFFCDD2); // Light Red
+    } else if (mapTheme == MapThemes.mapsThemeYellow) {
+      return const Color(0xFFFFF9C4); // Light Yellow
+    } else if (mapTheme == MapThemes.mapsThemeGreen) {
+      return const Color(0xFFC8E6C9); // Light Green
+    } else if (mapTheme == MapThemes.mapsThemeBlue) {
+      return const Color(0xFFBBDEFB); // Light Blue
+    } else if (mapTheme == MapThemes.mapsThemeIndigo) {
+      return const Color(0xFFC5CAE9); // Light Indigo
+    } else if (mapTheme == MapThemes.mapsThemePurple) {
+      return const Color(0xFFE1BEE7); // Light Purple
+    } else if (mapTheme == MapThemes.mapsThemePink) {
+      return const Color(0xFFF8BBD0); // Light Pink
+    }
+    
+    return isDark ? const Color(0xFF303030) : const Color(0xFFF5F5F5);
   }
 }

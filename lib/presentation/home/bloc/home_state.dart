@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
+import '../../../core/enums/connection_status.dart';
 
 abstract class HomeState extends Equatable {
   const HomeState();

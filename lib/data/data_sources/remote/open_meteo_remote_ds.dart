@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:ecogrid_intelligence/core/constants/api_constants.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
+import '../../../core/constants/api_constants.dart';
+import '../../../core/exception/invalid_response_exception.dart';
 
 /// Remote data source for Open-Meteo API.
 class OpenMeteoRemoteDataSource {

@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
+import '../../domain/model/climate_data.dart';
 
 /// Statistically evaluates raw climate data to compute normalized (0.0-1.0) anomaly intensities.
 /// These represent long-term historical climate vulnerability for infrastructure.

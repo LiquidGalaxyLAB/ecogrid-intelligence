@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
+import 'theme_controller.dart';
 
 class RegionAssetResolver {
   static String getRegionImage(String regionId, [ThemeMode? mode]) {

@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
+import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
 
 class AppSearchBar extends StatelessWidget {
   final String hintText;
@@ -13,6 +13,8 @@ class AppSearchBar extends StatelessWidget {
   final bool isListening;
   final VoidCallback? onMicTap;
   final VoidCallback? onClearTap;
+  final VoidCallback? onPrefixIconTap;
+  final IconData? prefixIcon;
 
   const AppSearchBar({
     super.key,
@@ -24,6 +26,8 @@ class AppSearchBar extends StatelessWidget {
     this.isListening = false,
     this.onMicTap,
     this.onClearTap,
+    this.onPrefixIconTap,
+    this.prefixIcon,
   });
 
   @override
@@ -34,7 +38,7 @@ class AppSearchBar extends StatelessWidget {
       controller: controller,
       autofocus: !readOnly,
       readOnly: readOnly,
-      onTap: readOnly ? null : onTap,
+      onTap: onTap,
       style: AppTheme.bodyLarge.copyWith(
         color: isDark ? Colors.white : const Color(0xFF0A1931),
       ),
@@ -49,11 +53,16 @@ class AppSearchBar extends StatelessWidget {
           horizontal: 20,
           vertical: 16,
         ),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 8),
-          child: Icon(
-            Icons.search,
-            color: isDark ? const Color(0xFF8A9BAE) : const Color(0xFF4A7FA7),
+        prefixIcon: GestureDetector(
+          onTap: onPrefixIconTap,
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 8),
+            child: Icon(
+              prefixIcon ?? Icons.search,
+              color: isDark ? const Color(0xFF8A9BAE) : const Color(0xFF4A7FA7),
+              size: prefixIcon != null ? 20 : 24,
+            ),
           ),
         ),
         suffixIcon: Padding(
@@ -168,10 +177,14 @@ class AppSearchBar extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.search_rounded,
-                        color: Color(0xFF1A3D63),
-                        size: 20,
+                      GestureDetector(
+                        onTap: onPrefixIconTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: Icon(
+                          prefixIcon ?? Icons.search_rounded,
+                          color: const Color(0xFF1A3D63),
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -180,7 +193,7 @@ class AppSearchBar extends StatelessWidget {
                           onChanged: onChanged,
                           autofocus: !readOnly,
                           readOnly: readOnly,
-                          onTap: readOnly ? null : onTap,
+                          onTap: onTap,
                           style: const TextStyle(
                             color: Color(0xFF0A1931),
                             fontSize: 14,
@@ -237,7 +250,7 @@ class AppSearchBar extends StatelessWidget {
       return GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: AbsorbPointer(child: searchContent),
+        child: searchContent,
       );
     }
 

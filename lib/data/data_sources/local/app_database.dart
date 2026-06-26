@@ -5,9 +5,9 @@ import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import 'package:ecogrid_intelligence/data/data_sources/local/tables/lg_settings_table.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/tables/climate_cache_table.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/tables/ai_insight_cache_table.dart';
+import 'tables/lg_settings_table.dart';
+import 'tables/climate_cache_table.dart';
+import 'tables/ai_insight_cache_table.dart';
 
 // ── DAO part files (share this library, no circular import) ──
 part 'dao/settings_dao.dart';

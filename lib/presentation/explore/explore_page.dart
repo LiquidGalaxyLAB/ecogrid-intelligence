@@ -2,20 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:logger/logger.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/config/routes/app_routes.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/di/di.dart';
-import 'package:ecogrid_intelligence/core/constants/design_constants.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_bloc.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_event.dart';
-import 'package:ecogrid_intelligence/presentation/explore/bloc/explore_state.dart';
-import 'package:ecogrid_intelligence/presentation/lg_connection/bloc/lg_connection_bloc.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/presentation/components/app_search_bar.dart';
+import '../../config/theme/app_theme.dart';
+import '../../config/routes/app_routes.dart';
+import '../../core/enums/plant_type.dart';
+import '../../core/enums/risk_level.dart';
+import '../../domain/model/region.dart';
+import '../../domain/model/power_plant.dart';
+import '../../di/di.dart';
+import '../../config/theme/design_constants.dart';
+import 'bloc/explore_bloc.dart';
+import 'bloc/explore_event.dart';
+import 'bloc/explore_state.dart';
+import '../lg_connection/bloc/lg_connection_bloc.dart';
+import '../../core/enums/connection_status.dart';
+import '../components/app_search_bar.dart';
+import '../../service/tts_service.dart';
+import '../../di/di.dart' show sl;
 
 class ExploreScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -57,6 +59,7 @@ class _ExploreScreenBody extends StatefulWidget {
 class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  bool _isNarrating = false;
 
   @override
   void initState() {
@@ -104,36 +107,13 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         // Step 1: Header Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: DesignConstants.cardSurface(context),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Color(0xFF0066FF),
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AppSearchBar(
-                  hintText:
-                      'Search within ${state.region?.displayName ?? state.region?.name ?? 'Global'}...',
-                  readOnly: true,
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.search),
-                ),
-              ),
-            ],
+          child: AppSearchBar(
+            hintText:
+                'Search within ${state.region?.displayName ?? state.region?.name ?? 'Global'}...',
+            readOnly: true,
+            onTap: () => Navigator.pushNamed(context, AppRoutes.search),
+            prefixIcon: Icons.arrow_back_ios_new,
+            onPrefixIconTap: () => Navigator.pop(context),
           ),
         ),
 
@@ -385,36 +365,39 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             ),
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-          child: Row(
-            children: [
-              _buildRiskChip(
-                context,
-                state,
-                RiskLevel.high,
-                'High Risk',
-                const Color(0xFFFF3B30),
-              ),
-              const SizedBox(width: 8),
-              _buildRiskChip(
-                context,
-                state,
-                RiskLevel.medium,
-                'Medium',
-                const Color(0xFFFF9500),
-              ),
-              const SizedBox(width: 8),
-              _buildRiskChip(
-                context,
-                state,
-                RiskLevel.low,
-                'Low',
-                const Color(0xFF34C759),
-              ),
-            ],
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+            child: Row(
+              children: [
+                _buildRiskChip(
+                  context,
+                  state,
+                  RiskLevel.high,
+                  'High',
+                  const Color(0xFFFF3B30),
+                ),
+                const SizedBox(width: 8),
+                _buildRiskChip(
+                  context,
+                  state,
+                  RiskLevel.medium,
+                  'Medium',
+                  const Color(0xFFFF9500),
+                ),
+                const SizedBox(width: 8),
+                _buildRiskChip(
+                  context,
+                  state,
+                  RiskLevel.low,
+                  'Low',
+                  const Color(0xFF34C759),
+                ),
+              ],
+            ),
           ),
         ),
 
@@ -463,18 +446,57 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     ),
                     const SizedBox(width: 8),
                     Switch(
-                      value: true,
-                      onChanged: (v) {},
+                      value: _isNarrating,
+                      onChanged: (v) async {
+                        final tts = sl<TTSService>();
+                        if (v) {
+                          setState(() => _isNarrating = true);
+                          await tts.speak(state.aiInsight!);
+                          if (mounted) setState(() => _isNarrating = false);
+                        } else {
+                          await tts.stop();
+                          if (mounted) setState(() => _isNarrating = false);
+                        }
+                      },
                       activeThumbColor: const Color(0xFF00C8FF),
                       activeTrackColor: const Color(
                         0xFF0066FF,
                       ).withValues(alpha: 0.5),
                     ),
                     const SizedBox(width: 4),
-                    const Icon(
-                      Icons.volume_up,
-                      color: Color(0xFF8A9BAE),
+                    Icon(
+                      _isNarrating ? Icons.volume_up : Icons.volume_off,
+                      color: _isNarrating
+                          ? const Color(0xFF00C8FF)
+                          : const Color(0xFF8A9BAE),
                       size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    // X dismiss button
+                    GestureDetector(
+                      onTap: () async {
+                        // Capture bloc ref before async gap
+                        final bloc = context.read<ExploreBloc>();
+                        // Stop narration if playing before dismissing
+                        if (_isNarrating) {
+                          await sl<TTSService>().stop();
+                          if (mounted) setState(() => _isNarrating = false);
+                        }
+                        // Dismiss insight card
+                        bloc.add(const ExploreDismissInsight());
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8A9BAE).withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Color(0xFF8A9BAE),
+                        ),
+                      ),
                     ),
                   ],
                 ),

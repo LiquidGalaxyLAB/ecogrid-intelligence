@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:ecogrid_intelligence/config/theme/theme_controller.dart';
-import 'package:ecogrid_intelligence/core/constants/design_constants.dart';
+import 'theme_controller.dart';
+import 'design_constants.dart';
 
 class AppTheme {
   AppTheme._();

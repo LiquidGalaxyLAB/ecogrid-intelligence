@@ -1,94 +1,90 @@
-import 'package:dartz/dartz.dart';
-import 'package:ecogrid_intelligence/core/exception/failures.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/climate_cache_ds.dart';
-import 'package:ecogrid_intelligence/data/data_sources/remote/open_meteo_remote_ds.dart';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
-import 'package:ecogrid_intelligence/domain/repository/climate_repository.dart';
+import '../../core/exception/unhandled_exception.dart';
+
+import '../../core/exception/invalid_response_exception.dart';
+import '../../core/resources/data_state.dart';
+import '../data_sources/local/climate_cache_ds.dart';
+import '../data_sources/remote/open_meteo_remote_ds.dart';
+import '../../domain/model/climate_data.dart';
+import '../../domain/repository/climate_repository.dart';
 
 class ClimateRepositoryImpl implements ClimateRepository {
-  final OpenMeteoRemoteDataSource remoteDataSource;
-  final ClimateCacheDataSource cacheDataSource;
+  final OpenMeteoRemoteDataSource _remoteDataSource;
+  final ClimateCacheDataSource _cacheDataSource;
 
   ClimateRepositoryImpl({
-    required this.remoteDataSource,
-    required this.cacheDataSource,
+    required this._remoteDataSource,
+    required this._cacheDataSource,
   });
 
   @override
-  Future<Either<Failure, ClimateData>> getCurrentClimate(
+  Future<DataState<ClimateData>> getCurrentClimate(
     double lat,
     double lon,
   ) async {
-    // Check cache first (stale-while-revalidate)
-    final cached = await cacheDataSource.getCachedClimate(lat, lon);
+    final cached = await _cacheDataSource.getCachedClimate(lat, lon);
     if (cached != null && cached.isFresh) {
-      return Right(_mapToClimateData(cached.data, lat, lon));
+      return DataSuccess(_mapToClimateData(cached.data, lat, lon));
     }
 
     try {
-      // Fetch fresh data
-      final response = await remoteDataSource.fetchCurrentClimate(lat, lon);
-      await cacheDataSource.cacheClimateData(lat, lon, response);
-
-      return Right(_mapApiResponseToClimateData(response, lat, lon));
+      final response = await _remoteDataSource.fetchCurrentClimate(lat, lon);
+      await _cacheDataSource.cacheClimateData(lat, lon, response);
+      return DataSuccess(_mapApiResponseToClimateData(response, lat, lon));
     } on ServerException catch (e) {
       if (cached != null) {
-        return Right(_mapToClimateData(cached.data, lat, lon));
+        return DataSuccess(_mapToClimateData(cached.data, lat, lon));
       }
-      return Left(ServerFailure(message: e.message));
+      return DataFailure(InvalidResponseException(message: e.message, response: null));
     } catch (e) {
       if (cached != null) {
-        return Right(_mapToClimateData(cached.data, lat, lon));
+        return DataSuccess(_mapToClimateData(cached.data, lat, lon));
       }
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, List<ClimateData>>> getHistoricalClimate(
+  Future<DataState<List<ClimateData>>> getHistoricalClimate(
     double lat,
     double lon, {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    // Check local cache first (aggressive geo-spatial caching)
-    final cached = await cacheDataSource.getCachedClimate(
+    final cached = await _cacheDataSource.getCachedClimate(
       lat,
       lon,
       prefix: 'historical',
     );
     if (cached != null && cached.isFresh) {
-      return Right(_parseHistoricalData(cached.data, lat, lon));
+      return DataSuccess(_parseHistoricalData(cached.data, lat, lon));
     }
 
     try {
-      final response = await remoteDataSource.fetchHistoricalClimate(
+      final response = await _remoteDataSource.fetchHistoricalClimate(
         lat,
         lon,
         startDate: startDate,
         endDate: endDate,
       );
 
-      // Cache the raw JSON response
-      await cacheDataSource.cacheClimateData(
+      await _cacheDataSource.cacheClimateData(
         lat,
         lon,
         response,
         prefix: 'historical',
       );
 
-      return Right(_parseHistoricalData(response, lat, lon));
+      return DataSuccess(_parseHistoricalData(response, lat, lon));
     } on ServerException catch (e) {
       if (cached != null) {
-        return Right(_parseHistoricalData(cached.data, lat, lon));
+        return DataSuccess(_parseHistoricalData(cached.data, lat, lon));
       }
-      return Left(ServerFailure(message: e.message));
+      return DataFailure(InvalidResponseException(message: e.message, response: null));
     } catch (e) {
       if (cached != null) {
-        return Right(_parseHistoricalData(cached.data, lat, lon));
+        return DataSuccess(_parseHistoricalData(cached.data, lat, lon));
       }
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
@@ -137,50 +133,47 @@ class ClimateRepositoryImpl implements ClimateRepository {
   }
 
   @override
-  Future<Either<Failure, List<ClimateData>>> getMultiYearTrend(
+  Future<DataState<List<ClimateData>>> getMultiYearTrend(
     double lat,
-    double lon,
-  ) async {
-    // Check local cache
-    final cached = await cacheDataSource.getCachedClimate(
+    double lon, {
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final cached = await _cacheDataSource.getCachedClimate(
       lat,
       lon,
-      prefix: 'trend',
+      prefix: 'trend_${startDate.year}',
     );
     if (cached != null && cached.isFresh) {
-      return Right(_parseMultiYearHistoricalData(cached.data, lat, lon));
+      return DataSuccess(_parseMultiYearHistoricalData(cached.data, lat, lon));
     }
 
     try {
-      final response = await remoteDataSource.fetchArchiveClimate(
+      final response = await _remoteDataSource.fetchArchiveClimate(
         lat,
         lon,
-        startDate: DateTime(DateTime.now().year - 10, 1, 1),
-        endDate: DateTime(
-          DateTime.now().year,
-          1,
-          1,
-        ).subtract(const Duration(days: 1)),
+        startDate: startDate,
+        endDate: endDate,
       );
 
-      await cacheDataSource.cacheClimateData(
+      await _cacheDataSource.cacheClimateData(
         lat,
         lon,
         response,
-        prefix: 'trend',
+        prefix: 'trend_${startDate.year}',
       );
 
-      return Right(_parseMultiYearHistoricalData(response, lat, lon));
+      return DataSuccess(_parseMultiYearHistoricalData(response, lat, lon));
     } on ServerException catch (e) {
       if (cached != null) {
-        return Right(_parseMultiYearHistoricalData(cached.data, lat, lon));
+        return DataSuccess(_parseMultiYearHistoricalData(cached.data, lat, lon));
       }
-      return Left(ServerFailure(message: e.message));
+      return DataFailure(InvalidResponseException(message: e.message, response: null));
     } catch (e) {
       if (cached != null) {
-        return Right(_parseMultiYearHistoricalData(cached.data, lat, lon));
+        return DataSuccess(_parseMultiYearHistoricalData(cached.data, lat, lon));
       }
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
@@ -273,17 +266,17 @@ class ClimateRepositoryImpl implements ClimateRepository {
   }
 
   @override
-  Future<Either<Failure, List<ClimateData>>> getForecastClimate(
+  Future<DataState<List<ClimateData>>> getForecastClimate(
     double lat,
     double lon,
   ) async {
     try {
-      final response = await remoteDataSource.fetchCurrentClimate(lat, lon);
+      final response = await _remoteDataSource.fetchCurrentClimate(lat, lon);
       final rawDaily = response['daily'];
       final dailyData = rawDaily != null
           ? Map<String, dynamic>.from(rawDaily as Map)
           : null;
-      if (dailyData == null) return const Right([]);
+      if (dailyData == null) return const DataSuccess([]);
 
       final dates = (dailyData['time'] as List?)?.cast<String>() ?? [];
       final maxTemps =
@@ -316,11 +309,11 @@ class ClimateRepositoryImpl implements ClimateRepository {
         );
       }
 
-      return Right(results);
+      return DataSuccess(results);
     } on ServerException catch (e) {
-      return Left(ServerFailure(message: e.message));
+      return DataFailure(InvalidResponseException(message: e.message, response: null));
     } catch (e) {
-      return Left(UnknownFailure(message: e.toString()));
+      return DataFailure(UnhandledException(message: e.toString()));
     }
   }
 

@@ -1,14 +1,14 @@
-import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
-import 'package:ecogrid_intelligence/core/exception/failures.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/core/utils/anomaly_engine.dart';
-import 'package:ecogrid_intelligence/core/utils/cvs_calculator.dart';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
-import 'package:ecogrid_intelligence/domain/model/cvs_result.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/repository/climate_repository.dart';
-import 'package:ecogrid_intelligence/domain/repository/cvs_repository.dart';
+import '../../core/exception/unhandled_exception.dart';
+import '../../core/resources/data_state.dart';
+import '../../core/enums/risk_level.dart';
+import '../../core/utils/anomaly_engine.dart';
+import '../../core/utils/cvs_calculator.dart';
+import '../../domain/model/climate_data.dart';
+import '../../domain/model/cvs_result.dart';
+import '../../domain/model/power_plant.dart';
+import '../../domain/repository/climate_repository.dart';
+import '../../domain/repository/cvs_repository.dart';
 
 class GridClimateData {
   final ClimateData currentData;
@@ -27,26 +27,25 @@ class GridClimateData {
 }
 
 class CvsRepositoryImpl implements CvsRepository {
-  final ClimateRepository climateRepository;
+  final ClimateRepository _climateRepository;
 
   final Map<String, GridClimateData> _gridCache = {};
-  final Map<String, Future<Either<Failure, CvsComputationResult>>>
-  _inFlightRequests = {};
+  final Map<String, Future<DataState<CvsComputationResult>>> _inFlightRequests = {};
 
-  CvsRepositoryImpl({required this.climateRepository});
+  CvsRepositoryImpl({required this._climateRepository});
 
   double snapToGrid(double value) => (value / 0.5).round() * 0.5;
   String getGridId(double lat, double lon) =>
       'grid_${snapToGrid(lat)}_${snapToGrid(lon)}';
 
   @override
-  Future<Either<Failure, CvsComputationResult>> getCvsForPlant(
+  Future<DataState<CvsComputationResult>> getCvsForPlant(
     PowerPlant plant,
   ) async {
     final gridId = getGridId(plant.latitude, plant.longitude);
 
     if (_gridCache.containsKey(gridId)) {
-      return Right(_buildCvsComputationResult(plant, _gridCache[gridId]!));
+      return DataSuccess(_buildCvsComputationResult(plant, _gridCache[gridId]!));
     }
 
     if (_inFlightRequests.containsKey(gridId)) {
@@ -63,25 +62,25 @@ class CvsRepositoryImpl implements CvsRepository {
     }
   }
 
-  Future<Either<Failure, CvsComputationResult>> _fetchCvsForGrid(
+  Future<DataState<CvsComputationResult>> _fetchCvsForGrid(
     PowerPlant plant,
     String gridId,
   ) async {
     final gridLat = snapToGrid(plant.latitude);
     final gridLon = snapToGrid(plant.longitude);
 
-    // ── Step 1 & 2: Fetch Current and Historical Climate Concurrently ─────────
     final now = DateTime.now();
 
-    final currentFuture = climateRepository
+    final currentResult = await _climateRepository
         .getCurrentClimate(gridLat, gridLon)
         .timeout(
           const Duration(seconds: 30),
-          onTimeout: () =>
-              Left(ServerFailure(message: 'Current weather timeout')),
+          onTimeout: () => DataFailure(
+            UnhandledException(message: 'Current weather timeout'),
+          ),
         );
 
-    final historicalFuture = climateRepository
+    final historicalResult = await _climateRepository
         .getHistoricalClimate(
           gridLat,
           gridLon,
@@ -90,47 +89,38 @@ class CvsRepositoryImpl implements CvsRepository {
         )
         .timeout(
           const Duration(seconds: 30),
-          onTimeout: () =>
-              Left(ServerFailure(message: 'Historical data timeout')),
+          onTimeout: () => DataFailure(
+            UnhandledException(message: 'Historical data timeout'),
+          ),
         );
 
-    final results = await Future.wait([currentFuture, historicalFuture]);
-    final currentResult = results[0] as Either<Failure, ClimateData>;
-    final historicalResult = results[1] as Either<Failure, List<ClimateData>>;
-
     ClimateData? currentData;
-    currentResult.fold(
-      (failure) =>
-          debugPrint('[CVS] Current weather failed: ${failure.message}'),
-      (data) => currentData = data,
-    );
-
-    // If even current weather fails, synthesize from coordinates
+    if (currentResult is DataSuccess<ClimateData>) {
+      currentData = currentResult.data;
+    } else {
+      debugPrint('[CVS] Current weather failed: ${currentResult.exception}');
+    }
     currentData ??= _synthesizeFromCoordinates(gridLat, gridLon);
 
     List<ClimateData> historicalData = [];
-    historicalResult.fold(
-      (failure) =>
-          debugPrint('[CVS] Historical fetch failed: ${failure.message}'),
-      (data) => historicalData = data,
-    );
+    if (historicalResult is DataSuccess<List<ClimateData>>) {
+      historicalData = historicalResult.data!;
+    } else {
+      debugPrint('[CVS] Historical fetch failed: ${historicalResult.exception}');
+    }
 
-    // trendData is fetched lazily when the user opens the Historical Trends sheet
     List<ClimateData> trendData = [];
 
-    // ── Step 3: Compute anomalies ──────────────────────────────
     Map<String, double> anomalies;
-
     if (historicalData.isNotEmpty) {
       anomalies = AnomalyEngine.computeAnomalies(historicalData);
     } else {
-      // Fallback: use latitude + current weather to estimate regional risk
-      anomalies = _estimateAnomaliesFromContext(currentData!, gridLat);
+      anomalies = _estimateAnomaliesFromContext(currentData, gridLat);
       debugPrint('[CVS] Using coordinate-based fallback for Grid $gridId');
     }
 
     final gridData = GridClimateData(
-      currentData: currentData!,
+      currentData: currentData,
       historicalData: historicalData,
       trendData: trendData,
       anomalies: anomalies,
@@ -139,7 +129,7 @@ class CvsRepositoryImpl implements CvsRepository {
 
     _gridCache[gridId] = gridData;
 
-    return Right(_buildCvsComputationResult(plant, gridData));
+    return DataSuccess(_buildCvsComputationResult(plant, gridData));
   }
 
   CvsComputationResult _buildCvsComputationResult(

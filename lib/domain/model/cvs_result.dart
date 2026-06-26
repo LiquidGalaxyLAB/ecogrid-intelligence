@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
+import '../../core/enums/risk_level.dart';
 
 /// Domain entity representing a computed Climate Vulnerability Score.
 class CVSResult extends Equatable {

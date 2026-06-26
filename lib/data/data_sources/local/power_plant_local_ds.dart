@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
-import 'package:ecogrid_intelligence/core/exception/exceptions.dart';
-import 'package:ecogrid_intelligence/core/resources/ingestion_report.dart';
-import 'package:ecogrid_intelligence/core/utils/geo_utils.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
+import '../../../core/enums/plant_type.dart';
+import '../../../core/exception/invalid_response_exception.dart';
+
+import '../../../core/resources/ingestion_report.dart';
+import '../../../core/utils/geo_utils.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../domain/model/region.dart';
 
 /// CSV column indices for the EcoGrid power plant dataset.
 ///

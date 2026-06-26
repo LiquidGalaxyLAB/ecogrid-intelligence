@@ -1,7 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
-import 'package:ecogrid_intelligence/data/data_sources/local/app_database.dart';
+import '../../../domain/model/lg_settings.dart';
+import 'app_database.dart';
 
 /// Local data source for persisting LG SSH settings.
 ///

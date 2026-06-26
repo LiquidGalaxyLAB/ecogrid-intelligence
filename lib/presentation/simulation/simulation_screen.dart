@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/presentation/plant_detail/bloc/plant_detail_bloc.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
-import 'package:ecogrid_intelligence/core/utils/cvs_calculator.dart';
+import '../../config/theme/app_theme.dart';
+import '../plant_detail/bloc/plant_detail_bloc.dart';
+import '../../core/enums/risk_level.dart';
+import '../../core/enums/plant_type.dart';
+import '../../core/utils/cvs_calculator.dart';
 
 enum SimulationMode { simulateImpact, pathToDanger }
 

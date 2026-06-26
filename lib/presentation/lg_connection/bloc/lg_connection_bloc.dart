@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/core/enums/connection_status.dart';
-import 'package:ecogrid_intelligence/domain/model/lg_settings.dart';
-import 'package:ecogrid_intelligence/service/lg_service.dart';
-import 'package:ecogrid_intelligence/service/ssh_service.dart';
+import '../../../core/enums/connection_status.dart';
+import '../../../core/resources/data_state.dart';
+import '../../../domain/model/lg_settings.dart';
+import '../../../domain/usecases/lg/bloc/init_lg_bloc_usecase.dart';
+import '../../../service/lg_service.dart';
+import '../../../service/ssh_service.dart';
 
 // ═══════════════════════════════════════════════════════
 // EVENTS
@@ -64,7 +66,6 @@ class LGClearLogosRequested extends LGConnectionEvent {
 }
 
 /// Internal event — fired by the SSHService connection stream.
-/// Not intended to be dispatched from UI code.
 class _LGConnectionStatusChanged extends LGConnectionEvent {
   final bool isConnected;
   const _LGConnectionStatusChanged(this.isConnected);
@@ -109,21 +110,20 @@ class LGConnectionState extends Equatable {
 
 /// Global singleton BLoC for managing Liquid Galaxy connection state.
 ///
-/// This BLoC is registered as a `registerLazySingleton` in GetIt,
-/// meaning all screens share the same instance. When the user
-/// connects in the LG Settings screen and navigates back to Home,
-/// the Home Screen's LG status indicator will correctly reflect
-/// the active connection.
-///
-/// It listens to [SSHService.connectionStream] to reactively
-/// update the UI whenever the connection drops or recovers.
+/// Registered as `registerLazySingleton` in GetIt so all screens share
+/// the same instance. Listens to [SSHService.connectionStream] to
+/// reactively update the UI whenever the connection drops or recovers.
 class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
-  final LGService lgService;
+  final LGService _lgService;
   final SSHService sshService;
+  final InitLgBlocUseCase initLgBlocUseCase;
   StreamSubscription<bool>? _connectionSubscription;
 
-  LGConnectionBloc({required this.lgService, required this.sshService})
-    : super(const LGConnectionState()) {
+  LGConnectionBloc({
+    required this._lgService,
+    required this.sshService,
+    required this.initLgBlocUseCase,
+  }) : super(const LGConnectionState()) {
     on<LGSettingsLoadRequested>(_onLoadSettings);
     on<LGConnectRequested>(_onConnect);
     on<LGDisconnectRequested>(_onDisconnect);
@@ -136,8 +136,8 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     on<LGShowLogosRequested>(_onShowLogos);
     on<LGClearLogosRequested>(_onClearLogos);
 
-    // Subscribe to the SSH service's connection stream
-    _connectionSubscription = sshService.connectionStream.listen((isConnected) {
+    // Subscribe to the SSH service's connection stream via the use case
+    _connectionSubscription = initLgBlocUseCase().listen((isConnected) {
       add(_LGConnectionStatusChanged(isConnected));
     });
 
@@ -151,13 +151,12 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     LGSettingsLoadRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    final result = await lgService.loadSettings();
-    result.fold(
-      (failure) => debugPrint(
-        '[EcoGrid] Failed to load LG settings: ${failure.message}',
-      ),
-      (settings) => emit(state.copyWith(settings: settings)),
-    );
+    final result = await _lgService.loadSettings();
+    if (result is DataSuccess<LGSettings>) {
+      emit(state.copyWith(settings: result.data!));
+    } else {
+      debugPrint('[EcoGrid] Failed to load LG settings: ${result.exception}');
+    }
   }
 
   Future<void> _onConnect(
@@ -166,26 +165,30 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
   ) async {
     emit(state.copyWith(status: ConnectionStatus.connecting, error: null));
 
-    final result = await lgService.connect(event.settings);
-    result.fold(
-      (failure) => emit(
-        state.copyWith(status: ConnectionStatus.error, error: failure.message),
-      ),
-      (_) => emit(
+    final result = await _lgService.connect(event.settings);
+    if (result is DataSuccess) {
+      emit(
         state.copyWith(
           status: ConnectionStatus.connected,
           settings: event.settings,
           error: null,
         ),
-      ),
-    );
+      );
+    } else {
+      emit(
+        state.copyWith(
+          status: ConnectionStatus.error,
+          error: result.exception?.toString(),
+        ),
+      );
+    }
   }
 
   Future<void> _onDisconnect(
     LGDisconnectRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    await lgService.disconnect();
+    await _lgService.disconnect();
     emit(state.copyWith(status: ConnectionStatus.disconnected, error: null));
   }
 
@@ -193,7 +196,7 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     LGSettingsSaveRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    await lgService.saveSettings(event.settings);
+    await _lgService.saveSettings(event.settings);
     emit(state.copyWith(settings: event.settings));
   }
 
@@ -215,48 +218,42 @@ class LGConnectionBloc extends Bloc<LGConnectionEvent, LGConnectionState> {
     LGRebootRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Reboot
-    debugPrint('[EcoGrid] LG Reboot Requested (Placeholder)');
+    await _lgService.reboot();
   }
 
   Future<void> _onPowerOff(
     LGPowerOffRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Power Off
-    debugPrint('[EcoGrid] LG Power Off Requested (Placeholder)');
+    await _lgService.shutdown();
   }
 
   Future<void> _onRelaunch(
     LGRelaunchRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Relaunch
-    debugPrint('[EcoGrid] LG Relaunch Requested (Placeholder)');
+    await _lgService.relaunch();
   }
 
   Future<void> _onClearKml(
     LGClearKmlRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Clear KML
-    debugPrint('[EcoGrid] LG Clear KML Requested (Placeholder)');
+    await _lgService.clearKml();
   }
 
   Future<void> _onShowLogos(
     LGShowLogosRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Show Logos
-    debugPrint('[EcoGrid] LG Show Logos Requested (Placeholder)');
+    await _lgService.showLogos();
   }
 
   Future<void> _onClearLogos(
     LGClearLogosRequested event,
     Emitter<LGConnectionState> emit,
   ) async {
-    // Placeholder for Clear Logos
-    debugPrint('[EcoGrid] LG Clear Logos Requested (Placeholder)');
+    await _lgService.clearLogos();
   }
 
   @override

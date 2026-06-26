@@ -1,9 +1,9 @@
 import 'package:equatable/equatable.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/core/enums/plant_type.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
-import 'package:ecogrid_intelligence/core/enums/stress_filter.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../domain/model/region.dart';
+import '../../../core/enums/plant_type.dart';
+import '../../../core/enums/risk_level.dart';
+import '../../../core/enums/stress_filter.dart';
 
 abstract class ExploreState extends Equatable {
   const ExploreState();
@@ -81,6 +81,7 @@ class ExploreLoaded extends ExploreState {
     String? searchQuery,
     bool? isScanning,
     double? scanProgress,
+    bool clearAiInsight = false,
   }) {
     return ExploreLoaded(
       region: region ?? this.region,
@@ -96,7 +97,7 @@ class ExploreLoaded extends ExploreState {
           ? this.activeRiskFilter
           : activeRiskFilter as RiskLevel?,
       totalFilteredCount: totalFilteredCount ?? this.totalFilteredCount,
-      aiInsight: aiInsight ?? this.aiInsight,
+      aiInsight: clearAiInsight ? null : (aiInsight ?? this.aiInsight),
       isLoadingInsight: isLoadingInsight ?? this.isLoadingInsight,
       displayLimit: displayLimit ?? this.displayLimit,
       searchQuery: searchQuery ?? this.searchQuery,

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:dartz/dartz.dart' as dartz;
-import 'package:ecogrid_intelligence/domain/model/region.dart';
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/repository/power_plant_repository.dart';
-
+import '../../../core/resources/data_state.dart';
+import '../../../domain/model/region.dart';
+import '../../../domain/model/power_plant.dart';
+import '../../../domain/usecases/plant/services/search_plants_usecase.dart';
+import '../../../domain/usecases/plant/services/search_regions_usecase.dart';
 // Events
 abstract class SearchEvent extends Equatable {
   const SearchEvent();
@@ -65,11 +65,14 @@ class _SearchTriggered extends SearchEvent {
 
 // BLoC
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
-  final PowerPlantRepository powerPlantRepository;
+  final SearchPlantsUsecase searchPlantsUsecase;
+  final SearchRegionsUsecase searchRegionsUsecase;
   Timer? _debounceTimer;
 
-  SearchBloc({required this.powerPlantRepository})
-    : super(const SearchState()) {
+  SearchBloc({
+    required this.searchPlantsUsecase,
+    required this.searchRegionsUsecase,
+  }) : super(const SearchState()) {
     on<SearchQueryChanged>(_onQueryChanged);
     on<_SearchTriggered>(_onSearchTriggered);
     on<SearchCleared>(_onCleared);
@@ -102,17 +105,17 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     if (state.query != event.query) return;
 
     // Fetch both plants and regions concurrently
-    final plantFuture = powerPlantRepository.searchPlants(event.query);
-    final regionFuture = powerPlantRepository.searchRegions(event.query);
+    final plantFuture = searchPlantsUsecase(params: event.query);
+    final regionFuture = searchRegionsUsecase(params: event.query);
 
     final results = await Future.wait([plantFuture, regionFuture]);
-    final plantResult = results[0] as dartz.Either<dynamic, List<PowerPlant>>;
-    final regionResult = results[1] as dartz.Either<dynamic, List<Region>>;
+    final plantResult = results[0] as DataState<List<PowerPlant>>;
+    final regionResult = results[1] as DataState<List<Region>>;
 
     // Only emit if the state query is still the same as the one we just searched for
     if (state.query == event.query) {
-      final plants = plantResult.fold((_) => <PowerPlant>[], (p) => p);
-      final regions = regionResult.fold((_) => <Region>[], (r) => r);
+      final plants = plantResult is DataSuccess<List<PowerPlant>> ? plantResult.data! : <PowerPlant>[];
+      final regions = regionResult is DataSuccess<List<Region>> ? regionResult.data! : <Region>[];
 
       emit(
         state.copyWith(

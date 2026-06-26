@@ -5,7 +5,7 @@ class ApiConstants {
   ApiConstants._();
 
   // ─── API Keys (loaded via dotenv) ────────────────────
-  static String get groqApiKey => dotenv.env['GROQ_API_KEY'] ?? '';
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   // ─── Open-Meteo Endpoints ────────────────────────────
@@ -14,15 +14,15 @@ class ApiConstants {
   static const String openMeteoArchive =
       'https://archive-api.open-meteo.com/v1/archive';
 
-  // ─── Groq AI ────────────────────────────────────────
-  static const String groqBaseUrl = 'https://api.groq.com/openai/v1';
+  // ─── Gemini AI ────────────────────────────────────────
+  static const String geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
 
   /// Fast model for structured insights (Insight Card, Scenario, Regional, Trend).
-  static const String groqInsightModel = 'llama-3.1-8b-instant';
+  static const String geminiInsightModel = 'gemini-3.1-flash-lite';
 
   /// Larger model for conversational chat (Plant AI Chat).
-  static const String groqChatModel = 'llama-3.3-70b-versatile';
+  static const String geminiChatModel = 'gemini-3.1-flash-lite';
 
   // ─── Timeouts ────────────────────────────────────────
-  static const Duration apiTimeout = Duration(seconds: 25);
+  static const Duration apiTimeout = Duration(seconds: 60);
 }

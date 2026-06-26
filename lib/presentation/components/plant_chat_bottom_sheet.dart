@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:ecogrid_intelligence/config/theme/app_theme.dart';
-import 'package:ecogrid_intelligence/presentation/plant_detail/bloc/plant_detail_bloc.dart';
+import '../../config/theme/app_theme.dart';
+import '../plant_detail/bloc/plant_detail_bloc.dart';
 
 /// Slide-up bottom sheet for conversational AI chat about a specific plant.
 /// The chat panel shows which plant is being discussed and maintains
