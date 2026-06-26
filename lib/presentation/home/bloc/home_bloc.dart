@@ -1,13 +1,18 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-import 'package:ecogrid_intelligence/domain/repository/power_plant_repository.dart';
+import '../../../core/resources/data_state.dart';
+import '../../../service/lg_service.dart';
+import '../../../domain/usecases/plant/bloc/init_plant_bloc_usecase.dart';
 import 'home_event.dart';
 import 'home_state.dart';
 
 class HomeBloc extends Bloc<HomeEvent, HomeState> {
-  final PowerPlantRepository powerPlantRepository;
+  final LGService lgService;
+  final InitPlantBlocUseCase initPlantBlocUseCase;
 
-  HomeBloc({required this.powerPlantRepository}) : super(const HomeInitial()) {
+  HomeBloc({
+    required this.lgService,
+    required this.initPlantBlocUseCase,
+  }) : super(const HomeInitial()) {
     on<HomeLoadRequested>(_onLoadRequested);
   }
 
@@ -17,16 +22,15 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   ) async {
     emit(const HomeLoading());
 
-    final plantsResult = await powerPlantRepository.getAllPlants();
+    final plantsResult = await initPlantBlocUseCase();
 
-    plantsResult.fold(
-      (failure) => emit(HomeError(failure.message)),
-      (plants) => emit(
-        HomeLoaded(
-          totalPlants: plants.length,
-          lgStatus: ConnectionStatus.disconnected,
-        ),
-      ),
-    );
+    if (plantsResult is DataSuccess) {
+      emit(HomeLoaded(
+        totalPlants: plantsResult.data!.length,
+        lgStatus: lgService.connectionStatus,
+      ));
+    } else {
+      emit(HomeError(plantsResult.exception?.toString() ?? 'Failed to load plants'));
+    }
   }
 }

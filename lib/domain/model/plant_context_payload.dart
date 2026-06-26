@@ -1,7 +1,7 @@
-import 'package:ecogrid_intelligence/domain/model/power_plant.dart';
-import 'package:ecogrid_intelligence/domain/model/cvs_result.dart';
-import 'package:ecogrid_intelligence/domain/model/climate_data.dart';
-import 'package:ecogrid_intelligence/core/enums/risk_level.dart';
+import 'power_plant.dart';
+import 'cvs_result.dart';
+import 'climate_data.dart';
+import '../../core/enums/risk_level.dart';
 
 /// Structured context payload sent to Gemini alongside every AI request.
 /// Contains the full data profile of the plant being analysed so the AI
