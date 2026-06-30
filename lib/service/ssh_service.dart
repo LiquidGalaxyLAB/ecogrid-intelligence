@@ -20,6 +20,7 @@ class SSHService {
   SSHClient? _client;
   String _host = '';
   String _password = '';
+  String _username = '';
 
   /// Broadcasts connection state changes.
   /// `true` = connected, `false` = disconnected.
@@ -30,6 +31,7 @@ class SSHService {
 
   String get password => _password;
   String get host => _host;
+  String get username => _username;
   bool get isConnected => _client != null;
 
   /// Establish and validate an SSH connection to the LG master.
@@ -54,6 +56,7 @@ class SSHService {
     try {
       _host = host;
       _password = password;
+      _username = username;
 
       final socket = await SSHSocket.connect(
         host,

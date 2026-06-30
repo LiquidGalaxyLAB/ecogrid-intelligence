@@ -94,8 +94,8 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
         event.region.centerLon,
         0,
         0,
-        60,
-        event.region.defaultZoom * 100000,
+        0,
+        event.region.defaultZoom * 150000,
       );
 
       // Send Region Placemark to master screen
@@ -249,11 +249,7 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     // Prepare data for batch placemarks
     final batchPlants = currentState.filteredPlants.take(100).toList();
     final scores = batchPlants.map((p) => getUnifiedScoreUsecase(p)).toList();
-    final risks = batchPlants.map((p) {
-      if (countPlantsByRiskLevelUsecase([p], RiskLevel.high) > 0) return RiskLevel.high;
-      if (countPlantsByRiskLevelUsecase([p], RiskLevel.medium) > 0) return RiskLevel.medium;
-      return RiskLevel.low;
-    }).toList();
+    final risks = scores.map((s) => s.riskLevel).toList();
 
     final kml = KmlUtils.plantPlacemarksBatch(
       plants: batchPlants,

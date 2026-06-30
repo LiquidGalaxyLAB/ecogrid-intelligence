@@ -32,9 +32,10 @@ class LGSettings extends Equatable {
   }
 
   /// The leftmost screen number.
+  /// Uses the standard LG formula (same as the official LG apps where _slaves == screenCount).
   int get leftmostScreen {
     if (screenCount == 1) return 1;
-    return screenCount;
+    return (screenCount / 2).floor() + 2;
   }
 
   @override

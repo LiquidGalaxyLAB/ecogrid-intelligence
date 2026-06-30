@@ -58,8 +58,16 @@ class _HomePageBody extends StatelessWidget {
                       left: 0,
                       right: 0,
                       height: screenWidth * 0.9,
-                      child: Opacity(
-                        opacity: 1.0,
+                      child: ShaderMask(
+                        shaderCallback: (rect) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.white],
+                            stops: [0.0, 0.35], // Fade out the top 35% to erase the hard line
+                          ).createShader(rect);
+                        },
+                        blendMode: BlendMode.dstIn,
                         child: FuturisticGlobeBackground(isDark: isDark),
                       ),
                     )
@@ -310,6 +318,13 @@ class _RegionCardState extends State<_RegionCard>
     }
   }
 
+  double _getRegionImageScale(String regionId) {
+    if (regionId == 'europe') return 1.25;
+    if (regionId == 'africa') return 1.25;
+    if (regionId == 'spain') return 0.85;
+    return 1.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = ThemeController.instance.isDarkMode;
@@ -388,12 +403,15 @@ class _RegionCardState extends State<_RegionCard>
           bottom: 24,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Image.asset(
-              RegionAssetResolver.getRegionImage(widget.region.id),
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
-              isAntiAlias: true,
-              errorBuilder: (context, error, stackTrace) => const SizedBox(),
+            child: Transform.scale(
+              scale: _getRegionImageScale(widget.region.id),
+              child: Image.asset(
+                RegionAssetResolver.getRegionImage(widget.region.id),
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                isAntiAlias: true,
+                errorBuilder: (context, error, stackTrace) => const SizedBox(),
+              ),
             ),
           ),
         ),
@@ -557,7 +575,7 @@ class _GlobalOverviewButtonState extends State<_GlobalOverviewButton>
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL * 1.5), // Increased padding to reduce button width
       child: GestureDetector(
         onTap: () {
           Navigator.pushNamed(context, AppRoutes.infrastructureMap);
@@ -609,39 +627,43 @@ class _GlobalOverviewButtonState extends State<_GlobalOverviewButton>
                       width: 1.0,
                     ),
                   ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Stack(
+              alignment: Alignment.center,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.public,
                       color: isDark ? Colors.white : snowWhite,
-                      size: 24,
+                      size: 20,
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Text(
                       'Show Infrastructure Map',
                       style: AppTheme.labelLarge.copyWith(
                         color: isDark ? Colors.white : snowWhite,
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: isDark ? FontWeight.w600 : FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.arrow_forward,
-                      color: isDark ? Colors.white : snowWhite,
-                      size: 16,
+                Positioned(
+                  right: 0,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: isDark ? Colors.white : snowWhite,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ),

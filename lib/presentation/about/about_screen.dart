@@ -112,7 +112,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 Center(
                   child: Image.asset(
                     'assets/images/logos.png',
-                    height: 120,
+                    height: 180,
                     errorBuilder: (_, _, _) =>
                         Icon(Icons.public, size: 80, color: cs.primary),
                   ),
@@ -204,15 +204,21 @@ class _AboutScreenState extends State<AboutScreen> {
                   child: Column(
                     children: [
                       _CreditRow(
+                        icon: Icons.person_rounded,
+                        name: 'Andreu Ibáñez',
+                        role: 'Admin — Liquid Galaxy',
+                      ),
+                      const SizedBox(height: 12),
+                      _CreditRow(
                         icon: Icons.school_rounded,
                         name: 'Yash Raj Bharti',
-                        role: 'Mentor — GSoC 2026',
+                        role: 'Mentor — Liquid Galaxy',
                       ),
                       const SizedBox(height: 12),
                       _CreditRow(
                         icon: Icons.school_rounded,
                         name: 'Siddhart Mudgil',
-                        role: 'Mentor — GSoC 2026',
+                        role: 'Mentor — Liquid Galaxy',
                       ),
                       const SizedBox(height: 12),
                       _CreditRow(
@@ -257,13 +263,6 @@ class _AboutScreenState extends State<AboutScreen> {
                         color: const Color(0xFF10B981),
                         url: 'https://www.liquidgalaxy.eu',
                       ),
-                      _SocialChip(
-                        icon: Icons.bug_report_rounded,
-                        label: 'Report Bug',
-                        color: const Color(0xFFEF4444),
-                        url:
-                            'https://github.com/LiquidGalaxyLAB/ecogrid-intelligence/issues',
-                      ),
                     ],
                   ),
                 ),
@@ -307,7 +306,7 @@ class _AboutScreenState extends State<AboutScreen> {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: FontWeight.w700,
         letterSpacing: 2,
         color: cs.onSurface.withValues(alpha: 0.4),
