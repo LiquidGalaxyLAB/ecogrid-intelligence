@@ -88,31 +88,28 @@ class KmlUtils {
       <name>$regionName</name>
       <Style>
         <IconStyle>
-          <scale>3.0</scale>
-          <color>ffAAFFAA</color> <!-- Light teal tint -->
+          <color>ffff0000</color>
+          <scale>1.8</scale>
           <Icon>
-            <href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href>
+            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
           </Icon>
+          <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
         </IconStyle>
-        <LineStyle>
-          <color>7f00D4AA</color> <!-- 50% opacity teal -->
-          <width>5</width>
-        </LineStyle>
         <LabelStyle>
-          <scale>2.0</scale>
           <color>ffffffff</color>
+          <scale>1.0</scale>
         </LabelStyle>
       </Style>
       <Point>
-        <extrude>1</extrude>
         <altitudeMode>relativeToGround</altitudeMode>
-        <coordinates>$lon,$lat,25000</coordinates> <!-- 25km high laser pin -->
+        <coordinates>$lon,$lat,0</coordinates>
       </Point>
     </Placemark>''';
     return wrapInKmlDocument(content, name: regionName);
   }
 
   /// Generate a batch of plant placemarks for the master screen (max 100).
+
   static String plantPlacemarksBatch({
     required List<PowerPlant> plants,
     required List<CVSResult> scores,
@@ -165,7 +162,7 @@ class KmlUtils {
           <color>$color</color>
           <scale>$scale</scale>
           <Icon>
-            <href>https://maps.google.com/mapfiles/kml/shapes/electricity.png</href>
+            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
           </Icon>
         </IconStyle>
         <LabelStyle>
@@ -294,6 +291,7 @@ class KmlUtils {
         flyTo(
           lat: lat,
           lon: lon,
+          altitude: 0, // Target the plant at ground level, not 10km in the sky
           heading: heading,
           tilt: tilt,
           range: range,
@@ -350,7 +348,7 @@ ${buffer.toString()}    </gx:Playlist>
     final formattedAiInsight = aiInsight?.replaceAll('\\n', '<br/>') ?? '';
     final aiSection = aiInsight != null && aiInsight.isNotEmpty
         ? '<br/><hr color="#334155" /><h3><font color="#A855F7">&#10024; AI Risk Analysis</font></h3><p><font color="#E2E8F0">$formattedAiInsight</font></p>'
-        : '<br/><hr color="#334155" /><p><font color="#64748B"><i>(AI Analysis pending... tap "Analyse Regional Risk" on your tablet to generate and sync it here!)</i></font></p>';
+        : '';
 
     final content =
         '''
@@ -362,23 +360,25 @@ ${buffer.toString()}    </gx:Playlist>
         <bgColor>ff1a0e0a</bgColor>
         <textColor>ffffffff</textColor>
         <text><![CDATA[
-          <h2><font color="#38BDF8">$regionName Climate Risk Dashboard</font></h2>
+          <table width="380" cellpadding="8" cellspacing="0"><tr><td>
+          <h2><font color="#38BDF8">🌍 $regionName Climate Risk Dashboard</font></h2>
           <hr color="#334155" />
-          <font size="+1">
-            <p><b>Total Monitored Plants:</b> <font color="#FFFFFF">$totalPlants</font></p>
+          <font size="+2">
+            <p><b>🏭 Total Monitored Plants:</b> <font color="#FFFFFF">$totalPlants</font></p>
             <br/>
-            <h3><font color="#94A3B8">Risk Breakdown</font></h3>
+            <h3><font color="#94A3B8">📊 Risk Breakdown</font></h3>
             <p><font color="#EF4444">&#9679;</font> <b>High Risk:</b> <font color="#EF4444">$highRiskCount</font></p>
             <p><font color="#F59E0B">&#9679;</font> <b>Medium Risk:</b> <font color="#F59E0B">$mediumRiskCount</font></p>
             <p><font color="#10B981">&#9679;</font> <b>Low Risk:</b> <font color="#10B981">$lowRiskCount</font></p>
             <br/>
-            <h3><font color="#94A3B8">Primary Regional Threat</font></h3>
+            <h3><font color="#94A3B8">⚠️ Primary Regional Threat</font></h3>
             <p><font color="#EF4444" size="+2"><b>$dominantRisk</b></font></p>
             <br/>
-            <h3><font color="#94A3B8">Critical Infrastructure (Top 3)</font></h3>
+            <h3><font color="#94A3B8">📍 Critical Infrastructure (Top 3)</font></h3>
             $top3Html
           </font>
           $aiSection
+          </td></tr></table>
         ]]></text>
       </BalloonStyle>
     </Style>
@@ -463,9 +463,9 @@ ${buffer.toString()}    </gx:Playlist>
     final typeIcon = _plantTypeIcon(plant.primaryFuel.csvLabel);
 
     final dims = [
-      ('Temperature Stress', cvs.temperatureStress),
-      ('Water Stress', cvs.waterStress),
-      ('Wind Stress', cvs.windStress),
+      ('🌡️ Temperature Stress', cvs.temperatureStress),
+      ('💧 Water Stress', cvs.waterStress),
+      ('🌪️ Wind Stress', cvs.windStress),
     ];
 
     final dimRows = dims
@@ -527,6 +527,7 @@ ${buffer.toString()}    </gx:Playlist>
         <bgColor>ff15151a</bgColor>
         <textColor>ffffffff</textColor>
         <text><![CDATA[
+          <table width="380" cellpadding="8" cellspacing="0"><tr><td>
           <font face="Arial" size="+1">
 
           <!-- HEADER -->
@@ -535,7 +536,7 @@ ${buffer.toString()}    </gx:Playlist>
               <td>
                 <font size="+2" color="#FFFFFF"><b>${_escapeXml(plant.name)}</b></font><br/>
                 <font color="#38BDF8">$typeIcon ${_escapeXml(plant.primaryFuel.displayName)}</font><br/>
-                <font color="#94A3B8">${_escapeXml(plant.countryLong ?? plant.country)}</font>
+                <font color="#94A3B8">🌍 ${_escapeXml(plant.countryLong ?? plant.country)}</font>
               </td>
             </tr>
           </table>
@@ -564,7 +565,7 @@ ${buffer.toString()}    </gx:Playlist>
           <!-- CAPACITY -->
           <table width="100%" cellpadding="4">
             <tr>
-              <td><font color="#CBD5E1">&#9889; Installed Capacity</font></td>
+              <td><font color="#CBD5E1">⚡ Installed Capacity</font></td>
               <td align="right"><font color="#FFFFFF"><b>$capacityStr</b></font></td>
             </tr>
           </table>
@@ -574,13 +575,14 @@ ${buffer.toString()}    </gx:Playlist>
           <!-- KEY RISK DRIVERS -->
           <table width="100%" cellpadding="4">
             <tr>
-              <td colspan="2"><font color="#F59E0B"><b>&#9888; Key Risk Drivers</b></font></td>
+              <td colspan="2"><font color="#F59E0B"><b>⚠️ Key Risk Drivers</b></font></td>
             </tr>
 $dimRows
           </table>
 $weatherSection
 
           </font>
+          </td></tr></table>
         ]]></text>
       </BalloonStyle>
     </Style>

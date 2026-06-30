@@ -7,7 +7,7 @@ class ThemeController {
   static final ThemeController instance = ThemeController._();
 
   final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(
-    ThemeMode.system,
+    ThemeMode.dark,
   );
 
   ThemeMode get currentThemeMode => themeModeNotifier.value;
@@ -24,7 +24,7 @@ class ThemeController {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final themeIndex =
-        prefs.getInt('theme_mode') ?? 0; // 0: system, 1: light, 2: dark
+        prefs.getInt('theme_mode') ?? ThemeMode.dark.index; // defaults to dark
     themeModeNotifier.value = ThemeMode.values[themeIndex];
   }
 

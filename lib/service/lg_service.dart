@@ -72,9 +72,20 @@ class LGService {
         debugPrint('[EcoGrid] Failed to upload logo: $e');
       }
 
-      await remoteDataSource.setRefresh();
-
       _status = ConnectionStatus.connected;
+
+      // *** Critical: push the user's screen count into the data source ***
+      // This makes all SSH loop operations (clearKml, reboot, shutdown, relaunch,
+      // logos) target the correct number of screens on the actual rig.
+      remoteDataSource.setScreenCount(settings.screenCount);
+      
+      // Automatically show logos when connected
+      try {
+        await remoteDataSource.showLogos();
+      } catch (e) {
+        debugPrint('[EcoGrid] Failed to show logo on connect: $e');
+      }
+
       return const DataSuccess(true);
     } catch (e) {
       _status = ConnectionStatus.error;
@@ -176,13 +187,20 @@ class LGService {
   ) async {
     if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
+      // Step 1: Write the orbit tour KML to a dedicated file on LG
       final orbitKml = KmlUtils.orbitTour(
         lat: lat,
         lon: lon,
         range: range,
         tilt: tilt,
       );
-      await remoteDataSource.sendKmlToMaster(orbitKml);
+      await remoteDataSource.sendOrbitKml(orbitKml);
+
+      // Step 2: Wait for Google Earth to load the KML before playing the tour
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Step 3: Play the tour named "Orbit" via query.txt
+      await remoteDataSource.playTour('Orbit');
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -190,7 +208,13 @@ class LGService {
   }
 
   Future<DataState<void>> stopOrbit() async {
-    return clearKml();
+    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    try {
+      await remoteDataSource.exitTour();
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
   }
 
   Future<DataState<void>> clearKml() async {
@@ -237,13 +261,12 @@ class LGService {
     }
   }
 
-  Future<DataState<void>> setRefresh() async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+  Future<DataState<void>> removeRefreshIntervals() async {
     try {
-      await remoteDataSource.setRefresh();
+      await remoteDataSource.removeRefreshIntervals();
       return const DataSuccess(null);
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      return DataFailure(UnhandledException(message: 'Failed to remove refresh intervals: $e'));
     }
   }
 

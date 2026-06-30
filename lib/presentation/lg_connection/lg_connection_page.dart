@@ -65,7 +65,10 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                   child: SizedBox(
                     width: 400,
                     height: 400,
-                    child: FuturisticGlobeBackground(isDark: isDark),
+                    child: FuturisticGlobeBackground(
+                      isDark: isDark,
+                      animate: false, // Prevents 60FPS Opacity redraws
+                    ),
                   ),
                 ),
               ),
@@ -76,6 +79,12 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                     _buildCustomTabBar(isDark),
                     Expanded(
                       child: BlocBuilder<LGConnectionBloc, LGConnectionState>(
+                        // Only rebuild tabs when status or settings change.
+                        // Error messages are handled by BlocListener in ConnectionTab,
+                        // so they don't need to trigger a full tab tree rebuild.
+                        buildWhen: (previous, current) =>
+                            previous.status != current.status ||
+                            previous.settings != current.settings,
                         builder: (context, state) {
                           return TabBarView(
                             controller: _tabController,
@@ -754,7 +763,7 @@ class _ConnectionTabState extends State<_ConnectionTab> {
   final _portController = TextEditingController(text: '22');
   final _usernameController = TextEditingController(text: 'lg');
   final _passwordController = TextEditingController();
-  final _screenCountController = TextEditingController(text: '5');
+  final _screenCountController = TextEditingController(text: '3');
   bool _obscurePassword = true;
 
   @override
@@ -941,86 +950,87 @@ class _ConnectionTabState extends State<_ConnectionTab> {
             ),
             const SizedBox(height: 32),
 
-            // Connect Button
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      final settings = LGSettings(
-                        host: _hostController.text.trim(),
-                        port: int.tryParse(_portController.text) ?? 22,
-                        username: _usernameController.text.trim(),
-                        password: _passwordController.text.trim(),
-                        screenCount:
-                            int.tryParse(_screenCountController.text) ?? 5,
-                      );
-                      context.read<LGConnectionBloc>()
-                        ..add(LGSettingsSaveRequested(settings))
-                        ..add(LGConnectRequested(settings));
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: widget.isDark
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: AppTheme.primary.withValues(
-                                    alpha: 0.3,
-                                  ),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      alignment: Alignment.center,
-                      child: widget.state.status == ConnectionStatus.connecting
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppTheme.background,
-                              ),
-                            )
-                          : Text(
-                              'Connect',
-                              style: AppTheme.labelLarge.copyWith(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
+            // Connect / Disconnect Button
+            if (!isConnected)
+              GestureDetector(
+                onTap: () {
+                  final settings = LGSettings(
+                    host: _hostController.text.trim(),
+                    port: int.tryParse(_portController.text) ?? 22,
+                    username: _usernameController.text.trim(),
+                    password: _passwordController.text.trim(),
+                    screenCount:
+                        int.tryParse(_screenCountController.text) ?? 3,
+                  );
+                  context.read<LGConnectionBloc>()
+                    ..add(LGSettingsSaveRequested(settings))
+                    ..add(LGConnectRequested(settings));
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: widget.isDark
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: AppTheme.primary.withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                    ),
+                          ],
+                  ),
+                  alignment: Alignment.center,
+                  child: widget.state.status == ConnectionStatus.connecting
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.background,
+                          ),
+                        )
+                      : Text(
+                          'Connect',
+                          style: AppTheme.labelLarge.copyWith(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                        ),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: () => context.read<LGConnectionBloc>().add(
+                  const LGDisconnectRequested(),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLight,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.riskCritical.withValues(alpha: 0.5)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.power_settings_new, color: AppTheme.riskCritical, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Disconnect',
+                        style: AppTheme.labelLarge.copyWith(
+                          color: AppTheme.riskCritical,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (isConnected) ...[
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => context.read<LGConnectionBloc>().add(
-                      const LGDisconnectRequested(),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 24,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceLight,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppTheme.cardBorder),
-                      ),
-                      child: Icon(
-                        Icons.power_settings_new,
-                        color: AppTheme.riskCritical,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
             const SizedBox(height: 48),
           ],
         ),

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'dart:math' as math;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../domain/model/power_plant.dart';
+import '../../../core/enums/plant_type.dart';
 import '../../../domain/model/climate_data.dart';
 import '../../../domain/model/cvs_result.dart';
 import '../../../domain/model/plant_context_payload.dart';
@@ -100,6 +102,16 @@ class PlantDetailClearLGError extends PlantDetailEvent {
   const PlantDetailClearLGError();
 }
 
+/// User requested to start LG orbit around the plant.
+class PlantDetailStartOrbitRequested extends PlantDetailEvent {
+  const PlantDetailStartOrbitRequested();
+}
+
+/// User requested to stop LG orbit.
+class PlantDetailStopOrbitRequested extends PlantDetailEvent {
+  const PlantDetailStopOrbitRequested();
+}
+
 // ─── Chat Message Model ──────────────────────────────────
 
 class ChatMessage extends Equatable {
@@ -150,6 +162,9 @@ class PlantDetailLoaded extends PlantDetailState {
   final List<ChatMessage> chatMessages;
   final bool isChatLoading;
   final bool isChatActive;
+  
+  // LG interaction state
+  final bool isOrbiting;
 
   /// Set when the LG sequence is skipped due to LG not being connected.
   /// The UI listens for this and shows a SnackBar, then it is cleared.
@@ -173,6 +188,7 @@ class PlantDetailLoaded extends PlantDetailState {
     this.chatMessages = const [],
     this.isChatLoading = false,
     this.isChatActive = false,
+    this.isOrbiting = false,
     this.lgError,
   });
 
@@ -195,6 +211,7 @@ class PlantDetailLoaded extends PlantDetailState {
     chatMessages,
     isChatLoading,
     isChatActive,
+    isOrbiting,
     lgError,
   ];
 
@@ -216,6 +233,7 @@ class PlantDetailLoaded extends PlantDetailState {
     List<ChatMessage>? chatMessages,
     bool? isChatLoading,
     bool? isChatActive,
+    bool? isOrbiting,
     bool clearInsightError = false,
     String? lgError,
     bool clearLgError = false,
@@ -241,6 +259,7 @@ class PlantDetailLoaded extends PlantDetailState {
       chatMessages: chatMessages ?? this.chatMessages,
       isChatLoading: isChatLoading ?? this.isChatLoading,
       isChatActive: isChatActive ?? this.isChatActive,
+      isOrbiting: isOrbiting ?? this.isOrbiting,
       lgError: clearLgError ? null : (lgError ?? this.lgError),
     );
   }
@@ -293,6 +312,8 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
         emit((state as PlantDetailLoaded).copyWith(clearLgError: true));
       }
     });
+    on<PlantDetailStartOrbitRequested>(_onStartOrbitRequested);
+    on<PlantDetailStopOrbitRequested>(_onStopOrbitRequested);
   }
 
   /// Builds the PlantContextPayload from current state.
@@ -389,13 +410,14 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
       await lgService.clearKml();
 
       // 2. Fly camera to the exact plant location.
+      final optimalRange = _calculateOptimalRange(plant);
       await lgService.flyTo(
         plant.latitude,
         plant.longitude,
         0,
         0,
         0,
-        1000, // Zoomed in close for orbit feature (was 4000)
+        optimalRange,
       );
 
       // 3. Send single colour-coded pin to master screen.
@@ -749,5 +771,82 @@ class PlantDetailBloc extends Bloc<PlantDetailEvent, PlantDetailState> {
         ));
       }
     }
+  }
+
+  // ── LG Orbit ───────────────────────────────────────────
+
+  Future<void> _onStartOrbitRequested(
+    PlantDetailStartOrbitRequested event,
+    Emitter<PlantDetailState> emit,
+  ) async {
+    if (state is! PlantDetailLoaded) return;
+    final currentState = state as PlantDetailLoaded;
+    
+    emit(currentState.copyWith(isOrbiting: true));
+    
+    try {
+      final optimalRange = _calculateOptimalRange(currentState.plant);
+      await lgService.startOrbit(
+        currentState.plant.latitude,
+        currentState.plant.longitude,
+        optimalRange,
+        60,   // tilt
+      );
+    } catch (e) {
+      debugPrint('[LG] Failed to start orbit: $e');
+      if (state is PlantDetailLoaded) {
+        emit((state as PlantDetailLoaded).copyWith(isOrbiting: false));
+      }
+    }
+  }
+
+  Future<void> _onStopOrbitRequested(
+    PlantDetailStopOrbitRequested event,
+    Emitter<PlantDetailState> emit,
+  ) async {
+    if (state is! PlantDetailLoaded) return;
+    final currentState = state as PlantDetailLoaded;
+    
+    // Update state immediately so button shows "Start Orbit" at once
+    emit(currentState.copyWith(isOrbiting: false));
+    
+    // Just stop the tour — don't re-trigger the full plant sequence
+    // which would cause the camera to fly back to start position
+    await lgService.stopOrbit();
+  }
+
+  /// Calculates the optimal camera altitude (range) based on plant capacity and type.
+  /// Larger capacity plants (e.g., nuclear, large hydro) require wider fields of view.
+  double _calculateOptimalRange(PowerPlant plant) {
+    double baseRange = 800; // Minimum default range
+
+    // Scale linearly with the square root of capacity to match area expansion
+    if (plant.capacityMw != null) {
+      baseRange += 40 * math.sqrt(plant.capacityMw!);
+    }
+
+    // Apply plant-type specific scaling multipliers
+    switch (plant.primaryFuel) {
+      case PlantType.hydro:
+        baseRange *= 1.5; // Dams/reservoirs stretch very far
+        break;
+      case PlantType.nuclear:
+        baseRange *= 1.2; // Large exclusion zones
+        break;
+      case PlantType.solar:
+        baseRange *= 1.3; // Solar farms are horizontally sprawling
+        break;
+      case PlantType.wind:
+        baseRange *= 2.0; // Wind farms take up vast geographic areas
+        break;
+      default:
+        break;
+    }
+
+    // Clamp the range to reasonable minimum and maximum altitudes
+    if (baseRange < 400) return 400;
+    if (baseRange > 15000) return 15000;
+    
+    return baseRange;
   }
 }

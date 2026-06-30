@@ -281,9 +281,7 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
 
     final cvsRepo = context.read<CvsRepository>();
     final scores = plants.map((p) => cvsRepo.getUnifiedScore(p)).toList();
-    final risks = plants
-        .map((p) => cvsRepo.getCachedCvs(p)?.riskLevel ?? RiskLevel.low)
-        .toList();
+    final risks = scores.map((s) => s.riskLevel).toList();
 
     final kml = KmlUtils.plantPlacemarksBatch(
       plants: plants,

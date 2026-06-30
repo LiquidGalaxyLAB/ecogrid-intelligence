@@ -170,7 +170,7 @@ class _PlantDetailBody extends StatelessWidget {
                 SizedBox(height: AppTheme.spacingMD),
 
                 // ROW 2: AI Climate Insight (button-triggered)
-                _buildAIInsightPanel(context, state),
+                _AIInsightPanel(state: state),
                 SizedBox(height: AppTheme.spacingMD),
 
                 // ROW 3: Historical Trends & Scenario Simulation
@@ -181,6 +181,41 @@ class _PlantDetailBody extends StatelessWidget {
                     SizedBox(width: AppTheme.spacingMD),
                     Expanded(child: _buildScenarioCard(context, state)),
                   ],
+                ),
+                SizedBox(height: AppTheme.spacingXL),
+
+                // ROW 4: LG Orbit Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (state.isOrbiting) {
+                          context.read<PlantDetailBloc>().add(const PlantDetailStopOrbitRequested());
+                        } else {
+                          context.read<PlantDetailBloc>().add(const PlantDetailStartOrbitRequested());
+                        }
+                      },
+                      icon: Icon(
+                        state.isOrbiting ? Icons.stop_circle_outlined : Icons.threesixty,
+                        size: 18,
+                      ),
+                      label: Text(
+                        state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: state.isOrbiting ? AppTheme.surfaceLight : AppTheme.secondary,
+                        foregroundColor: state.isOrbiting ? AppTheme.textPrimary : Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 SizedBox(height: AppTheme.spacingXXL),
               ],
@@ -264,10 +299,6 @@ class _PlantDetailBody extends StatelessWidget {
               onTap: () => Navigator.pop(context),
               child: Icon(Icons.close, color: AppTheme.textMuted, size: 18),
             ),
-            const SizedBox(width: 12),
-            Container(width: 1, height: 16, color: AppTheme.cardBorder),
-            const SizedBox(width: 12),
-            Icon(Icons.tune, color: AppTheme.textSecondary, size: 20),
           ],
         ),
       ),
@@ -384,7 +415,7 @@ class _PlantDetailBody extends StatelessWidget {
                             width: 120,
                             height: 120,
                             child: CircularProgressIndicator(
-                              value: cvs.score / 10,
+                              value: cvs.score / 100,
                               strokeWidth: 12,
                               color: cvs.riskLevel.color,
                               backgroundColor: AppTheme.surfaceLight,
@@ -481,7 +512,7 @@ class _PlantDetailBody extends StatelessWidget {
                     width: 48,
                     height: 48,
                     child: CircularProgressIndicator(
-                      value: cvs.score / 10,
+                      value: cvs.score / 100,
                       strokeWidth: 6,
                       color: cvs.riskLevel.color,
                       backgroundColor: AppTheme.surfaceLight,
@@ -581,9 +612,48 @@ class _PlantDetailBody extends StatelessWidget {
       ),
     );
   }
+}
 
-  /// AI Insight Panel — ONLY generates on explicit button tap.
-  Widget _buildAIInsightPanel(BuildContext context, PlantDetailLoaded state) {
+/// AI Insight Panel — ONLY generates on explicit button tap.
+class _AIInsightPanel extends StatefulWidget {
+  final PlantDetailLoaded state;
+
+  const _AIInsightPanel({required this.state});
+
+  @override
+  State<_AIInsightPanel> createState() => _AIInsightPanelState();
+}
+
+class _AIInsightPanelState extends State<_AIInsightPanel> {
+  bool _isSpeaking = false;
+
+  void _toggleSpeech() async {
+    if (_isSpeaking) {
+      await sl<TTSService>().stop();
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    } else {
+      if (mounted) {
+        setState(() => _isSpeaking = true);
+      }
+      await sl<TTSService>().speak(widget.state.aiInsight!);
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_isSpeaking) {
+      sl<TTSService>().stop();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMD),
       decoration: AppTheme.cardDecoration,
@@ -599,11 +669,9 @@ class _PlantDetailBody extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (state.aiInsight != null)
+              if (widget.state.aiInsight != null)
                 GestureDetector(
-                  onTap: () {
-                    sl<TTSService>().speak(state.aiInsight!);
-                  },
+                  onTap: _toggleSpeech,
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
@@ -611,7 +679,7 @@ class _PlantDetailBody extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: Icon(
-                      Icons.volume_up,
+                      _isSpeaking ? Icons.stop_circle_outlined : Icons.volume_up,
                       color: AppTheme.secondary,
                       size: 16,
                     ),
@@ -621,7 +689,7 @@ class _PlantDetailBody extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          if (state.isLoadingInsight)
+          if (widget.state.isLoadingInsight)
             // Loading state
             Row(
               children: [
@@ -635,7 +703,7 @@ class _PlantDetailBody extends StatelessWidget {
                 ),
               ],
             )
-          else if (state.aiInsight != null)
+          else if (widget.state.aiInsight != null)
             // Insight loaded
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,7 +712,7 @@ class _PlantDetailBody extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
-                    state.aiInsight!,
+                    widget.state.aiInsight!,
                     style: AppTheme.bodySmall.copyWith(
                       color: AppTheme.textSecondary,
                       height: 1.5,
@@ -653,7 +721,7 @@ class _PlantDetailBody extends StatelessWidget {
                 ),
               ],
             )
-          else if (state.insightError != null)
+          else if (widget.state.insightError != null)
             // Error state with retry
             Column(
               children: [
@@ -667,7 +735,7 @@ class _PlantDetailBody extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        state.insightError!,
+                        widget.state.insightError!,
                         style: AppTheme.bodySmall.copyWith(
                           color: AppTheme.textMuted,
                         ),
@@ -702,7 +770,7 @@ class _PlantDetailBody extends StatelessWidget {
               width: double.infinity,
               height: 44,
               child: ElevatedButton.icon(
-                onPressed: state.cvsResult != null
+                onPressed: widget.state.cvsResult != null
                     ? () {
                         context.read<PlantDetailBloc>().add(
                           const PlantDetailGenerateInsightRequested(),
@@ -747,6 +815,7 @@ class _PlantDetailBody extends StatelessWidget {
       ),
     );
   }
+}
 
   Widget _buildHistoricalCard(BuildContext context, PlantDetailLoaded state) {
     return GestureDetector(
@@ -996,7 +1065,6 @@ class _PlantDetailBody extends StatelessWidget {
       ),
     );
   }
-}
 
 class _MiniSparklinePainter extends CustomPainter {
   final Color color;

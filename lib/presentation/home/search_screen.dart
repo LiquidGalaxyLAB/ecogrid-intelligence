@@ -146,7 +146,18 @@ class _SearchScreenState extends State<SearchScreen> {
                     ? const SizedBox.shrink()
                     : Opacity(
                         opacity: isDark ? 1.0 : 0.6,
-                        child: FuturisticGlobeBackground(isDark: isDark),
+                        child: ShaderMask(
+                          shaderCallback: (rect) {
+                            return const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.white],
+                              stops: [0.0, 0.35],
+                            ).createShader(rect);
+                          },
+                          blendMode: BlendMode.dstIn,
+                          child: FuturisticGlobeBackground(isDark: isDark),
+                        ),
                       ),
               ),
               // Global Glow Background

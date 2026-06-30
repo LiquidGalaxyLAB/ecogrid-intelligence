@@ -114,7 +114,7 @@ class Region extends Equatable {
       maxLat: 43.8,
       maxLon: 3.3,
       imageAsset: 'assets/images/regions/dark/spain.png',
-      defaultZoom: 5.5,
+      defaultZoom: 2.0,
       countries: ['Spain'],
     ),
   ];

@@ -3,7 +3,13 @@ import 'package:flutter/material.dart';
 
 class FuturisticGlobeBackground extends StatefulWidget {
   final bool isDark;
-  const FuturisticGlobeBackground({super.key, required this.isDark});
+  final bool animate;
+  
+  const FuturisticGlobeBackground({
+    super.key, 
+    required this.isDark,
+    this.animate = true,
+  });
 
   @override
   State<FuturisticGlobeBackground> createState() =>
@@ -20,7 +26,11 @@ class _FuturisticGlobeBackgroundState extends State<FuturisticGlobeBackground>
     _particleController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
-    )..repeat();
+    );
+    
+    if (widget.animate) {
+      _particleController.repeat();
+    }
   }
 
   @override
