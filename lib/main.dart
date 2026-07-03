@@ -10,14 +10,10 @@ import 'core/utils/globals.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Lock to portrait orientation (phone controller app)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-
-  // Set system UI overlay style for dark theme
   SystemChrome.setSystemUIOverlayStyle(
     SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -26,22 +22,14 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-
-  // Load environment variables
   await dotenv.load(fileName: ".env");
-
-  // Initialize dependency injection
   await initDependencies();
-
-  // Initialize theme
   await ThemeController.instance.init();
-
   runApp(const EcoGridApp());
 }
 
 class EcoGridApp extends StatelessWidget {
   const EcoGridApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(

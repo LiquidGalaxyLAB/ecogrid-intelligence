@@ -1,8 +1,3 @@
-/// Report generated after CSV dataset ingestion.
-///
-/// Tracks row-level parsing outcomes to allow verification
-/// and debugging of the data pipeline without coupling
-/// reporting logic into the data source itself.
 class IngestionReport {
   final int totalRows;
   final int validPlants;
@@ -12,7 +7,6 @@ class IngestionReport {
   final int duplicatesDetected;
   final Duration elapsed;
   final List<String> warnings;
-
   const IngestionReport({
     required this.totalRows,
     required this.validPlants,
@@ -23,12 +17,9 @@ class IngestionReport {
     required this.elapsed,
     this.warnings = const [],
   });
-
   int get totalSkipped =>
       skippedMissingCoordinates + skippedMissingName + skippedMalformed;
-
   double get successRate => totalRows > 0 ? (validPlants / totalRows) * 100 : 0;
-
   @override
   String toString() {
     final buffer = StringBuffer()
@@ -46,14 +37,12 @@ class IngestionReport {
       ..writeln('  Success rate:            ${successRate.toStringAsFixed(1)}%')
       ..writeln('  Elapsed:                 ${elapsed.inMilliseconds}ms')
       ..writeln('═══════════════════════════════════════════════');
-
     if (warnings.isNotEmpty) {
       buffer.writeln('  Warnings (first 10):');
       for (final w in warnings.take(10)) {
         buffer.writeln('    ⚠ $w');
       }
     }
-
     return buffer.toString();
   }
 }

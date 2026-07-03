@@ -4,11 +4,8 @@ import '../../../model/power_plant.dart';
 
 class InitPlantBlocUseCase {
   final PowerPlantRepository _repository;
-
   InitPlantBlocUseCase(this._repository);
-
-  Future<DataState<List<PowerPlant>>> call() {
+  Stream<DataState<List<PowerPlant>>> call() {
     return _repository.getAllPlants();
   }
 }
-

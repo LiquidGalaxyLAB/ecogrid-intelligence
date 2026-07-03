@@ -5,7 +5,6 @@ import 'presentation_di.dart';
 import 'service_di.dart';
 
 final sl = GetIt.instance;
-
 Future<void> initDependencies() async {
   initServices();
   initData();

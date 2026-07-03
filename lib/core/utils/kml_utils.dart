@@ -3,13 +3,8 @@ import '../../domain/model/power_plant.dart';
 import '../../domain/model/cvs_result.dart';
 import '../../domain/model/climate_data.dart';
 
-/// KML generation utilities for Liquid Galaxy visualization.
-///
-/// Generates KML strings for placemarks, FlyTo, LookAt, orbits,
-/// 3D extrusions, and heatmap overlays.
 class KmlUtils {
   KmlUtils._();
-
   static String wrapInKmlDocument(String content, {String name = 'EcoGrid'}) {
     return '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"
@@ -21,12 +16,10 @@ class KmlUtils {
 </kml>''';
   }
 
-  /// Generate a valid but empty KML document to clear the screen.
   static String emptyKml() {
     return wrapInKmlDocument('', name: 'Empty');
   }
 
-  /// Generate a KML document that forces the balloon to close.
   static String emptyBalloon() {
     return '''<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -51,12 +44,6 @@ class KmlUtils {
     </kml>''';
   }
 
-  /// Generate a ScreenOverlay KML for displaying the EcoGrid + LG logos.
-  ///
-  /// Per Liquid Galaxy organization guidelines:
-  ///  - Size: **554 × 500 px** (aspect-ratio preserved via `x=554, y=500`).
-  ///  - Position: **leftmost rig** (slave_leftScreen.kml).
-  ///  - Anchor: bottom-left corner of that screen.
   static String screenOverlayKml() {
     final content = '''
       <ScreenOverlay id="logos_overlay">
@@ -73,10 +60,7 @@ class KmlUtils {
     return wrapInKmlDocument(content, name: 'EcoGrid Logos');
   }
 
-  /// Alias kept for compatibility with mentor-pattern callers.
   static String createLogos() => screenOverlayKml();
-
-  /// Generate a single region placemark for the master screen.
   static String regionPlacemark({
     required String regionName,
     required double lat,
@@ -108,8 +92,6 @@ class KmlUtils {
     return wrapInKmlDocument(content, name: regionName);
   }
 
-  /// Generate a batch of plant placemarks for the master screen (max 100).
-
   static String plantPlacemarksBatch({
     required List<PowerPlant> plants,
     required List<CVSResult> scores,
@@ -135,7 +117,6 @@ class KmlUtils {
     return wrapInKmlDocument(buffer.toString(), name: title);
   }
 
-  /// Generate a styled placemark for a power plant.
   static String plantPlacemark({
     required String id,
     required String name,
@@ -148,7 +129,6 @@ class KmlUtils {
   }) {
     final color = _riskToKmlColor(riskLevel);
     final scale = _cvsToScale(cvsScore);
-
     return '''
     <Placemark id="plant_$id">
       <name>$name</name>
@@ -177,7 +157,6 @@ class KmlUtils {
     </Placemark>''';
   }
 
-  /// Generate a 3D extruded polygon for climate anomaly visualization.
   static String anomalyExtrusion({
     required double lat,
     required double lon,
@@ -188,7 +167,6 @@ class KmlUtils {
     final height = (intensity * 50000).clamp(1000, 100000);
     final color = _anomalyTypeToColor(type, intensity);
     final halfSize = sizeKm / 111.32;
-
     final coords = [
       '${lon - halfSize},${lat - halfSize},$height',
       '${lon + halfSize},${lat - halfSize},$height',
@@ -196,7 +174,6 @@ class KmlUtils {
       '${lon - halfSize},${lat + halfSize},$height',
       '${lon - halfSize},${lat - halfSize},$height',
     ].join(' ');
-
     return '''
     <Placemark>
       <name>${type}_anomaly</name>
@@ -223,7 +200,6 @@ class KmlUtils {
     </Placemark>''';
   }
 
-  /// Generate a FlyTo command as a KML tour step.
   static String flyTo({
     required double lat,
     required double lon,
@@ -249,7 +225,6 @@ class KmlUtils {
     </gx:FlyTo>''';
   }
 
-  /// Generate a LookAt element (not as part of a tour).
   static String lookAt({
     required double lat,
     required double lon,
@@ -270,11 +245,6 @@ class KmlUtils {
     </LookAt>''';
   }
 
-  /// Generate a complete orbit tour KML document around a point.
-  ///
-  /// Returns a fully valid KML document (with XML declaration and gx:Tour),
-  /// ready to be sent directly to [sendKmlToMaster] — matching the mentor's
-  /// pattern where each KML generator returns a complete, standalone document.
   static String orbitTour({
     required double lat,
     required double lon,
@@ -284,14 +254,13 @@ class KmlUtils {
     double stepDuration = 1.2,
   }) {
     final buffer = StringBuffer();
-
     for (int i = 0; i < steps; i++) {
       final heading = (360.0 * i / steps);
       buffer.writeln(
         flyTo(
           lat: lat,
           lon: lon,
-          altitude: 0, // Target the plant at ground level, not 10km in the sky
+          altitude: 0,
           heading: heading,
           tilt: tilt,
           range: range,
@@ -299,7 +268,6 @@ class KmlUtils {
         ),
       );
     }
-
     return '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
   <gx:Tour>
@@ -310,7 +278,6 @@ ${buffer.toString()}    </gx:Playlist>
 </kml>''';
   }
 
-  /// Generate the LG query.txt flyto content.
   static String queryFlyTo({
     required double lat,
     required double lon,
@@ -326,7 +293,6 @@ ${buffer.toString()}    </gx:Playlist>
         '<altitudeMode>relativeToGround</altitudeMode></LookAt>';
   }
 
-  /// Generate HTML content for slave/rightmost rig screens as a KML Balloon.
   static String slaveScreenBalloon({
     required double lat,
     required double lon,
@@ -344,12 +310,10 @@ ${buffer.toString()}    </gx:Playlist>
         : top3Plants
               .map((p) => '<p><font color="#FF5555">&#9888;</font> $p</p>')
               .join('');
-
     final formattedAiInsight = aiInsight?.replaceAll('\\n', '<br/>') ?? '';
     final aiSection = aiInsight != null && aiInsight.isNotEmpty
         ? '<br/><hr color="#334155" /><h3><font color="#A855F7">&#10024; AI Risk Analysis</font></h3><p><font color="#E2E8F0">$formattedAiInsight</font></p>'
         : '';
-
     final content =
         '''
     <Style id="dashboard_style">
@@ -391,13 +355,9 @@ ${buffer.toString()}    </gx:Playlist>
         <coordinates>$lon,$lat,0</coordinates>
       </Point>
     </Placemark>''';
-
     return wrapInKmlDocument(content, name: 'EcoGrid Dashboard');
   }
 
-  // ─── Plant Detail LG Methods ─────────────────────────
-
-  /// Generate a single colour-coded pin for the master screen (plant detail mode).
   static String plantPinKml({
     required PowerPlant plant,
     required RiskLevel riskLevel,
@@ -414,7 +374,6 @@ ${buffer.toString()}    </gx:Playlist>
         iconHref = 'http://maps.google.com/mapfiles/kml/paddle/grn-blank.png';
         break;
     }
-
     final content =
         '''
     <Placemark id="plant_pin_${plant.id}">
@@ -439,7 +398,6 @@ ${buffer.toString()}    </gx:Playlist>
     return wrapInKmlDocument(content, name: plant.name);
   }
 
-  /// Generate the full plant detail balloon KML for the rightmost slave screen.
   static String plantDetailBalloon({
     required PowerPlant plant,
     required CVSResult cvs,
@@ -459,15 +417,12 @@ ${buffer.toString()}    </gx:Playlist>
         riskBadgeColor = '#10B981';
         break;
     }
-
     final typeIcon = _plantTypeIcon(plant.primaryFuel.csvLabel);
-
     final dims = [
       ('🌡️ Temperature Stress', cvs.temperatureStress),
       ('💧 Water Stress', cvs.waterStress),
       ('🌪️ Wind Stress', cvs.windStress),
     ];
-
     final dimRows = dims
         .map((d) {
           final name = d.$1;
@@ -496,11 +451,9 @@ ${buffer.toString()}    </gx:Playlist>
               </tr>''';
         })
         .join('\n');
-
     final capacityStr = plant.capacityMw != null
         ? '${plant.capacityMw!.toStringAsFixed(0)} MW'
         : 'N/A';
-
     final hasWeather = climateData?.temperature != null;
     final weatherSection = hasWeather
         ? '''
@@ -516,7 +469,6 @@ ${buffer.toString()}    </gx:Playlist>
             ${climateData.windSpeed != null ? '<tr><td><font color="#CBD5E1">Wind Speed</font></td><td align="right"><font color="#FFFFFF"><b>${climateData.windSpeed!.toStringAsFixed(1)} km/h</b></font></td></tr>' : ''}
           </table>'''
         : '';
-
     final content =
         '''
     <Style id="plant_detail_style">
@@ -529,7 +481,6 @@ ${buffer.toString()}    </gx:Playlist>
         <text><![CDATA[
           <table width="380" cellpadding="8" cellspacing="0"><tr><td>
           <font face="Arial" size="+1">
-
           <!-- HEADER -->
           <table width="100%" cellpadding="4">
             <tr>
@@ -540,9 +491,7 @@ ${buffer.toString()}    </gx:Playlist>
               </td>
             </tr>
           </table>
-
           <hr color="#334155"/>
-
           <!-- RISK BADGE + CVS SCORE -->
           <table width="100%" cellpadding="6">
             <tr>
@@ -559,9 +508,7 @@ ${buffer.toString()}    </gx:Playlist>
               </td>
             </tr>
           </table>
-
           <hr color="#334155"/>
-
           <!-- CAPACITY -->
           <table width="100%" cellpadding="4">
             <tr>
@@ -569,9 +516,7 @@ ${buffer.toString()}    </gx:Playlist>
               <td align="right"><font color="#FFFFFF"><b>$capacityStr</b></font></td>
             </tr>
           </table>
-
           <hr color="#334155"/>
-
           <!-- KEY RISK DRIVERS -->
           <table width="100%" cellpadding="4">
             <tr>
@@ -580,7 +525,6 @@ ${buffer.toString()}    </gx:Playlist>
 $dimRows
           </table>
 $weatherSection
-
           </font>
           </td></tr></table>
         ]]></text>
@@ -595,11 +539,8 @@ $weatherSection
         <coordinates>$lon,$lat,0</coordinates>
       </Point>
     </Placemark>''';
-
     return wrapInKmlDocument(content, name: 'Plant Detail — ${plant.name}');
   }
-
-  // ─── Private Helpers ─────────────────────────────
 
   static String _escapeXml(String input) {
     return input

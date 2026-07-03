@@ -4,13 +4,12 @@ import '../../../model/power_plant.dart';
 import '../../../model/region.dart';
 import '../../../repository/power_plant_repository.dart';
 
-class GetPlantsByRegionUsecase implements UseCase<DataState<List<PowerPlant>>, Region> {
+class GetPlantsByRegionUsecase
+    implements UseCase<DataState<List<PowerPlant>>, Region> {
   final PowerPlantRepository _repository;
-
   GetPlantsByRegionUsecase(this._repository);
-
   @override
-  Future<DataState<List<PowerPlant>>> call({Region? params}) {
+  Stream<DataState<List<PowerPlant>>> call({Region? params}) {
     return _repository.getPlantsByRegion(params!);
   }
 }

@@ -12,17 +12,18 @@ import '../../di/di.dart';
 import '../../config/theme/design_constants.dart';
 import 'bloc/explore_bloc.dart';
 import 'bloc/explore_event.dart';
-import 'bloc/explore_state.dart';
+import 'bloc/explore_data.dart';
+import '../../core/resources/app_state.dart';
 import '../lg_connection/bloc/lg_connection_bloc.dart';
 import '../../core/enums/connection_status.dart';
 import '../components/app_search_bar.dart';
 import '../../service/tts_service.dart';
 import '../../di/di.dart' show sl;
+import '../../config/theme/theme_controller.dart';
 
 class ExploreScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
   const ExploreScreen({super.key, this.arguments});
-
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -51,7 +52,6 @@ class ExploreScreen extends StatelessWidget {
 
 class _ExploreScreenBody extends StatefulWidget {
   const _ExploreScreenBody();
-
   @override
   State<_ExploreScreenBody> createState() => _ExploreScreenBodyState();
 }
@@ -60,7 +60,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   bool _isNarrating = false;
-
   @override
   void initState() {
     super.initState();
@@ -76,35 +75,61 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Scaffold(
-      backgroundColor: DesignConstants.background(context),
-      body: SafeArea(
-        child: BlocBuilder<ExploreBloc, ExploreState>(
-          builder: (context, state) {
-            if (state is ExploreLoading) {
-              return Center(
-                child: CircularProgressIndicator(color: AppTheme.primary),
-              );
-            }
-            if (state is ExploreError) {
-              return Center(
-                child: Text(state.message, style: AppTheme.bodyMedium),
-              );
-            }
-            if (state is ExploreLoaded) {
-              return _buildLoaded(context, state);
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+      backgroundColor: isDark
+          ? DesignConstants.background(context)
+          : Colors.white,
+      body: Stack(
+        children: [
+          if (!isDark)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFFE8F4FC),
+                      const Color(0xFFF4F9FD),
+                      Colors.white,
+                    ],
+                    stops: const [0.0, 0.4, 0.7],
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            child: BlocBuilder<ExploreBloc, AppState<ExploreData>>(
+              builder: (context, state) {
+                if (state is AppLoading) {
+                  return Center(
+                    child: CircularProgressIndicator(color: AppTheme.primary),
+                  );
+                }
+                if (state is AppFailure<ExploreData>) {
+                  return Center(
+                    child: Text(
+                      state.exception?.toString() ?? 'Something went wrong',
+                      style: AppTheme.bodyMedium,
+                    ),
+                  );
+                }
+                if (state is AppSuccess<ExploreData>) {
+                  return _buildLoaded(context, state.data!, isDark);
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLoaded(BuildContext context, ExploreLoaded state) {
+  Widget _buildLoaded(BuildContext context, ExploreData state, bool isDark) {
     return Column(
       children: [
-        // Step 1: Header Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: AppSearchBar(
@@ -116,8 +141,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             onPrefixIconTap: () => Navigator.pop(context),
           ),
         ),
-
-        // Step 2: Stats Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -128,21 +151,36 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: DesignConstants.cardSurface(context),
+                  color: isDark
+                      ? DesignConstants.cardSurface(context)
+                      : Colors.white,
                   border: Border.all(
-                    color: DesignConstants.border(context),
+                    color: isDark
+                        ? DesignConstants.border(context)
+                        : const Color(0xFFE2E8F0),
                     width: 1,
                   ),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.bolt, color: Color(0xFF00C8FF), size: 14),
+                    Icon(
+                      Icons.bolt,
+                      color: isDark
+                          ? const Color(0xFF00C8FF)
+                          : const Color(0xFF0066FF),
+                      size: 14,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '${state.filteredPlants.length} Plants',
                       style: AppTheme.bodySmall.copyWith(
-                        color: DesignConstants.secondaryText(context),
+                        color: isDark
+                            ? DesignConstants.secondaryText(context)
+                            : const Color(0xFF0D1F4A),
+                        fontWeight: isDark
+                            ? FontWeight.normal
+                            : FontWeight.w600,
                       ),
                     ),
                   ],
@@ -155,25 +193,36 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: DesignConstants.cardSurface(context),
+                  color: isDark
+                      ? DesignConstants.cardSurface(context)
+                      : Colors.white,
                   border: Border.all(
-                    color: DesignConstants.border(context),
+                    color: isDark
+                        ? DesignConstants.border(context)
+                        : const Color(0xFFE2E8F0),
                     width: 1,
                   ),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.layers,
-                      color: Color(0xFF00C8FF),
+                      color: isDark
+                          ? const Color(0xFF00C8FF)
+                          : const Color(0xFF0066FF),
                       size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '${state.filteredPlants.map((p) => p.primaryFuel).toSet().length} Types',
                       style: AppTheme.bodySmall.copyWith(
-                        color: DesignConstants.secondaryText(context),
+                        color: isDark
+                            ? DesignConstants.secondaryText(context)
+                            : const Color(0xFF0D1F4A),
+                        fontWeight: isDark
+                            ? FontWeight.normal
+                            : FontWeight.w600,
                       ),
                     ),
                   ],
@@ -182,9 +231,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             ],
           ),
         ),
-
-        // Step 3: Filter Rows
-        // Plant Type Row
         Padding(
           padding: const EdgeInsets.only(top: 16, left: 16, bottom: 8),
           child: Align(
@@ -192,8 +238,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             child: Text(
               'PLANT TYPE',
               style: AppTheme.labelSmall.copyWith(
-                color: DesignConstants.secondaryText(context),
+                color: isDark
+                    ? DesignConstants.secondaryText(context)
+                    : const Color(0xFF6B80A0),
                 letterSpacing: 1.5,
+                fontWeight: isDark ? FontWeight.normal : FontWeight.w700,
               ),
             ),
           ),
@@ -350,8 +399,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             ],
           ),
         ),
-
-        // Risk Level Row
         Padding(
           padding: const EdgeInsets.only(top: 16, left: 16, bottom: 8),
           child: Align(
@@ -359,8 +406,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             child: Text(
               'RISK LEVEL',
               style: AppTheme.labelSmall.copyWith(
-                color: DesignConstants.secondaryText(context),
+                color: isDark
+                    ? DesignConstants.secondaryText(context)
+                    : const Color(0xFF6B80A0),
                 letterSpacing: 1.5,
+                fontWeight: isDark ? FontWeight.normal : FontWeight.w700,
               ),
             ),
           ),
@@ -373,6 +423,15 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
             child: Row(
               children: [
+                _buildRiskChip(
+                  context,
+                  state,
+                  null,
+                  'All',
+                  Colors.white,
+                  iconData: FluentIcons.grid_24_filled,
+                ),
+                const SizedBox(width: 8),
                 _buildRiskChip(
                   context,
                   state,
@@ -400,13 +459,8 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             ),
           ),
         ),
-
         const SizedBox(height: 8),
-
-        // Step 4 & 7 & 8: Plant List
-        Expanded(child: _buildListContent(context, state)),
-
-        // Step 5: AI Climate Insight Card
+        Expanded(child: _buildListContent(context, state, isDark)),
         if (state.aiInsight != null)
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -472,23 +526,21 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       size: 16,
                     ),
                     const SizedBox(width: 8),
-                    // X dismiss button
                     GestureDetector(
                       onTap: () async {
-                        // Capture bloc ref before async gap
                         final bloc = context.read<ExploreBloc>();
-                        // Stop narration if playing before dismissing
                         if (_isNarrating) {
                           await sl<TTSService>().stop();
                           if (mounted) setState(() => _isNarrating = false);
                         }
-                        // Dismiss insight card
                         bloc.add(const ExploreDismissInsight());
                       },
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF8A9BAE).withValues(alpha: 0.15),
+                          color: const Color(
+                            0xFF8A9BAE,
+                          ).withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -511,8 +563,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ],
             ),
           ),
-
-        // Step 6: Analyse Region Button
         Padding(
           padding: const EdgeInsets.only(
             left: 16,
@@ -531,18 +581,32 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               height: 52,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(100),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? const [Color(0xFF0066FF), Color(0xFF00C8FF)]
+                      : const [Color(0xFF0055FF), Color(0xFF00A3FF)],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00C8FF).withValues(alpha: 0.35),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF00C8FF,
+                          ).withValues(alpha: 0.35),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF0066FF,
+                          ).withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -550,7 +614,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
                   const SizedBox(width: 8),
                   const Text(
-                    'Analyse Region Risk', // Or properly fetch region
+                    'Analyse Region Risk',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -568,43 +632,50 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
 
   Widget _buildTypeChip(
     BuildContext context,
-    ExploreLoaded state,
+    ExploreData state,
     PlantType? type,
     String label,
     IconData iconData,
     Color iconColor,
   ) {
     final isSelected = state.activeTypeFilter == type;
-
+    final isDark = ThemeController.instance.isDarkMode;
     Widget icon = Icon(
       iconData,
       size: 16,
-      color: isSelected ? Colors.white : iconColor,
+      color: isSelected
+          ? (isDark ? Colors.white : const Color(0xFF0066FF))
+          : (isDark ? iconColor : iconColor),
     );
-
     return GestureDetector(
       onTap: () {
         context.read<ExploreBloc>().add(
-          ExploreFilterChanged(typeFilter: type, clearTypeFilter: type == null),
+          ExploreFilterChanged(
+            typeFilter: isSelected ? null : type,
+            clearTypeFilter: isSelected || type == null,
+          ),
         );
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
-                )
-              : null,
-          color: isSelected ? null : DesignConstants.cardSurface(context),
+          color: isSelected
+              ? (isDark
+                    ? const Color(0xFF0066FF).withValues(alpha: 0.2)
+                    : const Color(0xFFE8F4FC))
+              : (isDark ? DesignConstants.cardSurface(context) : Colors.white),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF00C8FF).withValues(alpha: 0.6)
-                : DesignConstants.border(context),
+                ? (isDark
+                      ? const Color(0xFF00C8FF).withValues(alpha: 0.6)
+                      : Colors.transparent)
+                : (isDark
+                      ? DesignConstants.border(context)
+                      : const Color(0xFFE2E8F0)),
             width: 1,
           ),
-          boxShadow: isSelected
+          boxShadow: isSelected && isDark
               ? [
                   BoxShadow(
                     color: const Color(0xFF00C8FF).withValues(alpha: 0.25),
@@ -621,8 +692,10 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               label,
               style: TextStyle(
                 color: isSelected
-                    ? Colors.white
-                    : DesignConstants.secondaryText(context),
+                    ? (isDark ? Colors.white : const Color(0xFF0066FF))
+                    : (isDark
+                          ? DesignConstants.secondaryText(context)
+                          : const Color(0xFF0D1F4A)),
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -635,13 +708,15 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
 
   Widget _buildRiskChip(
     BuildContext context,
-    ExploreLoaded state,
-    RiskLevel level,
+    ExploreData state,
+    RiskLevel? level,
     String label,
-    Color riskColor,
-  ) {
+    Color riskColor, {
+    IconData iconData = Icons.shield,
+  }) {
     final isSelected = state.activeRiskFilter == level;
-
+    final isAllPill = level == null;
+    final isDark = ThemeController.instance.isDarkMode;
     return GestureDetector(
       onTap: () {
         final newRisk = isSelected ? null : level;
@@ -652,25 +727,60 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected
-              ? riskColor.withValues(alpha: 0.2)
-              : DesignConstants.cardSurface(context),
+          gradient: (isSelected && isAllPill && isDark)
+              ? const LinearGradient(
+                  colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
+                )
+              : null,
+          color: (isSelected && !isAllPill)
+              ? (isDark
+                    ? riskColor.withValues(alpha: 0.2)
+                    : riskColor.withValues(alpha: 0.1))
+              : (isSelected && isAllPill)
+              ? (isDark ? null : const Color(0xFFE8F4FC))
+              : (isDark ? DesignConstants.cardSurface(context) : Colors.white),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
-            color: isSelected ? riskColor : DesignConstants.border(context),
+            color: (isSelected && isAllPill)
+                ? (isDark
+                      ? const Color(0xFF00C8FF).withValues(alpha: 0.6)
+                      : Colors.transparent)
+                : isSelected
+                ? riskColor
+                : (isDark
+                      ? DesignConstants.border(context)
+                      : const Color(0xFFE2E8F0)),
             width: 1,
           ),
+          boxShadow: (isSelected && isAllPill && isDark)
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF00C8FF).withValues(alpha: 0.25),
+                    blurRadius: 8,
+                  ),
+                ]
+              : [],
         ),
         child: Row(
           children: [
-            Icon(Icons.shield, size: 14, color: riskColor),
+            Icon(
+              iconData,
+              size: 14,
+              color: (isSelected && isAllPill)
+                  ? (isDark ? Colors.white : const Color(0xFF0066FF))
+                  : riskColor,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected
+                color: (isSelected && isAllPill)
+                    ? (isDark ? Colors.white : const Color(0xFF0066FF))
+                    : isSelected
                     ? riskColor
-                    : DesignConstants.secondaryText(context),
+                    : (isDark
+                          ? DesignConstants.secondaryText(context)
+                          : const Color(0xFF0D1F4A)),
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
               ),
@@ -681,7 +791,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     );
   }
 
-  Widget _buildListContent(BuildContext context, ExploreLoaded state) {
+  Widget _buildListContent(
+    BuildContext context,
+    ExploreData state,
+    bool isDark,
+  ) {
     if (state.filteredPlants.isEmpty) {
       return Center(
         child: Column(
@@ -706,7 +820,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         ),
       );
     }
-
     return BlocBuilder<LGConnectionBloc, LGConnectionState>(
       builder: (context, lgState) {
         final isLgConnected = lgState.status == ConnectionStatus.connected;
@@ -715,15 +828,12 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             state.activeRiskFilter != null &&
             isLgConnected &&
             state.filteredPlants.isNotEmpty;
-
         final plantsCount = state.filteredPlants.length;
         final showLoadMore = plantsCount > state.displayLimit;
         final displayCount = showLoadMore ? state.displayLimit : plantsCount;
-
         int totalItems = displayCount;
         if (showLgButton) totalItems++;
         if (showLoadMore) totalItems++;
-
         return ListView.builder(
           controller: _scrollController,
           physics: const BouncingScrollPhysics(),
@@ -744,10 +854,8 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 },
               );
             }
-
             final isLgButtonIndex = showLgButton && index == displayCount;
             final isLoadMoreIndex = showLoadMore && index == (totalItems - 1);
-
             if (isLgButtonIndex) {
               return Padding(
                 padding: const EdgeInsets.symmetric(
@@ -763,7 +871,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   icon: const Icon(Icons.public, size: 20),
                   label: const Text('Show Plants on LG'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
+                    backgroundColor: isDark
+                        ? AppTheme.primary
+                        : const Color(0xFF0066FF),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -773,7 +883,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 ),
               );
             }
-
             if (isLoadMoreIndex) {
               return Padding(
                 padding: const EdgeInsets.only(
@@ -785,9 +894,13 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 child: Center(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primary,
+                      foregroundColor: isDark
+                          ? AppTheme.primary
+                          : const Color(0xFF0066FF),
                       side: BorderSide(
-                        color: AppTheme.primary.withValues(alpha: 0.5),
+                        color: isDark
+                            ? AppTheme.primary.withValues(alpha: 0.5)
+                            : const Color(0xFF0066FF).withValues(alpha: 0.3),
                       ),
                     ),
                     onPressed: () {
@@ -798,7 +911,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 ),
               );
             }
-
             return const SizedBox.shrink();
           },
         );
@@ -811,17 +923,15 @@ class _PlantListTile extends StatelessWidget {
   final PowerPlant plant;
   final int index;
   final VoidCallback onTap;
-
   const _PlantListTile({
     required this.plant,
     required this.index,
     required this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
-    Widget fuelIcon;
-
+    Icon fuelIcon = const Icon(Icons.bolt, color: Colors.grey, size: 24);
+    final isDark = ThemeController.instance.isDarkMode;
     switch (plant.primaryFuel) {
       case PlantType.hydro:
         fuelIcon = const Icon(
@@ -929,40 +1039,44 @@ class _PlantListTile extends StatelessWidget {
         );
         break;
     }
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: DesignConstants.cardSurface(context),
+          color: isDark ? DesignConstants.cardSurface(context) : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: DesignConstants.border(context), width: 1),
+          border: Border.all(
+            color: isDark
+                ? DesignConstants.border(context)
+                : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Theme.of(context).brightness == Brightness.dark
+              color: isDark
                   ? Colors.black.withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            // Center-left - Fuel type icon
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: DesignConstants.elevatedSurface(context),
+                color: isDark
+                    ? DesignConstants.elevatedSurface(context)
+                    : fuelIcon.color!.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(child: fuelIcon),
             ),
             const SizedBox(width: 12),
-            // Center - Plant info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -970,7 +1084,9 @@ class _PlantListTile extends StatelessWidget {
                   Text(
                     plant.name,
                     style: TextStyle(
-                      color: DesignConstants.primaryText(context),
+                      color: isDark
+                          ? DesignConstants.primaryText(context)
+                          : const Color(0xFF0D1F4A),
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -981,7 +1097,9 @@ class _PlantListTile extends StatelessWidget {
                   Text(
                     '${plant.primaryFuel.displayName} • ${plant.capacityMw?.toStringAsFixed(0) ?? '?'} MW',
                     style: TextStyle(
-                      color: DesignConstants.secondaryText(context),
+                      color: isDark
+                          ? DesignConstants.secondaryText(context)
+                          : const Color(0xFF6B80A0),
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                     ),
@@ -989,10 +1107,11 @@ class _PlantListTile extends StatelessWidget {
                 ],
               ),
             ),
-            // Right - Chevron
             Icon(
               Icons.chevron_right,
-              color: DesignConstants.mutedText(context),
+              color: isDark
+                  ? DesignConstants.mutedText(context)
+                  : const Color(0xFF0066FF),
               size: 20,
             ),
           ],

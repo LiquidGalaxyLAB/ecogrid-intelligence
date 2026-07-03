@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../core/enums/plant_type.dart';
 
-/// Domain entity representing a power generation facility.
 class PowerPlant extends Equatable {
   final String id;
   final String name;
@@ -15,10 +14,7 @@ class PowerPlant extends Equatable {
   final String? owner;
   final String? source;
   final String? url;
-
-  /// Pre-computed lowercase string combining name, country, and fuel for O(1) searches.
   final String searchKey;
-
   const PowerPlant({
     required this.id,
     required this.name,
@@ -34,7 +30,6 @@ class PowerPlant extends Equatable {
     this.url,
     required this.searchKey,
   });
-
   @override
   List<Object?> get props => [id, name, latitude, longitude];
 }

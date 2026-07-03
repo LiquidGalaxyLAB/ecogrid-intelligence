@@ -5,7 +5,6 @@ import '../service/lg_service.dart';
 import '../service/speech_to_text_service.dart';
 
 final sl = GetIt.instance;
-
 void initServices() {
   sl.registerLazySingleton(() => SSHService());
   sl.registerLazySingleton(() => TTSService());

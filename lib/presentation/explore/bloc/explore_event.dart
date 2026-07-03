@@ -27,14 +27,12 @@ class ExploreFilterChanged extends ExploreEvent {
   final StressFilter? stressFilter;
   final bool clearTypeFilter;
   final bool clearStressFilter;
-
   const ExploreFilterChanged({
     this.typeFilter,
     this.stressFilter,
     this.clearTypeFilter = false,
     this.clearStressFilter = false,
   });
-
   @override
   List<Object?> get props => [
     typeFilter,
@@ -69,23 +67,18 @@ class ExploreRiskFilterChanged extends ExploreEvent {
   List<Object?> get props => [riskLevel];
 }
 
-/// User explicitly tapped "Analyse Regional Risk" button.
 class ExploreGenerateRegionalInsight extends ExploreEvent {
   const ExploreGenerateRegionalInsight();
 }
 
-/// User explicitly tapped "Show Plants on LG" button.
 class ExploreShowPlantsOnLG extends ExploreEvent {
   const ExploreShowPlantsOnLG();
 }
 
-/// Dispatched when the user navigates back from plant detail to the explore screen.
-/// Triggers the ExploreBloc to re-send the region LG overlay.
 class ExploreLGRestoreRequested extends ExploreEvent {
   const ExploreLGRestoreRequested();
 }
 
-/// User tapped the X button to dismiss the AI insight card.
 class ExploreDismissInsight extends ExploreEvent {
   const ExploreDismissInsight();
 }

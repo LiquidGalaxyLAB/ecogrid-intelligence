@@ -1,16 +1,15 @@
 abstract class AppState<T> {
   final T? data;
   final Exception? exception;
-
   const AppState({this.data, this.exception});
 }
 
 class AppEmpty<T> extends AppState<T> {
-  const AppEmpty();
+  const AppEmpty() : super();
 }
 
 class AppLoading<T> extends AppState<T> {
-  const AppLoading();
+  const AppLoading() : super();
 }
 
 class AppSuccess<T> extends AppState<T> {

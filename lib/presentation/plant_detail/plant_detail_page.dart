@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
 import '../../domain/model/power_plant.dart';
 import '../../di/di.dart';
 import '../../service/lg_service.dart';
 import 'bloc/plant_detail_bloc.dart';
+import 'bloc/plant_detail_data.dart';
+import 'bloc/plant_detail_event.dart';
+import '../../core/resources/app_state.dart';
 import '../explore/bloc/explore_bloc.dart';
 import '../explore/bloc/explore_event.dart';
 import '../../service/tts_service.dart';
@@ -20,53 +24,52 @@ import '../../core/enums/historical_data_mode.dart';
 class PlantDetailScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
   const PlantDetailScreen({super.key, this.arguments});
-
   @override
   Widget build(BuildContext context) {
     final plant = arguments?['plant'] as PowerPlant?;
     if (plant == null) {
       return const Scaffold(body: Center(child: Text('Plant not found')));
     }
-
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return;
-        // Clear LG screens when leaving plant detail (fire-and-forget).
         sl<LGService>().clearKml();
-        // If ExploreBloc is available in the widget tree (came from regional list),
-        // restore the region LG view.
         try {
           context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
-        } catch (_) {
-          // ExploreBloc is not in scope (came from search). Silently ignore.
-        }
+        } catch (_) {}
       },
       child: BlocProvider(
         create: (_) {
           Logger().i('[UI] Opened PlantDetailScreen');
           return sl<PlantDetailBloc>()..add(PlantDetailLoadRequested(plant));
         },
-        child: BlocListener<PlantDetailBloc, PlantDetailState>(
+        child: BlocListener<PlantDetailBloc, AppState<PlantDetailData>>(
           listenWhen: (prev, curr) {
-            if (curr is! PlantDetailLoaded) return false;
-            if (prev is! PlantDetailLoaded) return curr.lgError != null;
-            return curr.lgError != null && curr.lgError != prev.lgError;
+            if (curr is! AppSuccess<PlantDetailData>) return false;
+            final currData = curr.data!;
+            if (prev is! AppSuccess<PlantDetailData>)
+              return currData.lgError != null;
+            final prevData = prev.data!;
+            return currData.lgError != null &&
+                currData.lgError != prevData.lgError;
           },
           listener: (context, state) {
-            if (state is PlantDetailLoaded && state.lgError != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.lgError!),
-                  backgroundColor: AppTheme.surface,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-              // Clear the error so it does not re-trigger.
-              context.read<PlantDetailBloc>().add(
-                const PlantDetailClearLGError(),
-              );
+            if (state is AppSuccess<PlantDetailData>) {
+              final data = state.data!;
+              if (data.lgError != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(data.lgError!),
+                    backgroundColor: AppTheme.surface,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+                context.read<PlantDetailBloc>().add(
+                  const PlantDetailClearLGError(),
+                );
+              }
             }
           },
           child: const _PlantDetailBody(),
@@ -78,73 +81,94 @@ class PlantDetailScreen extends StatelessWidget {
 
 class _PlantDetailBody extends StatelessWidget {
   const _PlantDetailBody();
-
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Scaffold(
-      backgroundColor: AppTheme.background,
-      // Chat FAB
-      floatingActionButton: BlocBuilder<PlantDetailBloc, PlantDetailState>(
-        builder: (context, state) {
-          if (state is! PlantDetailLoaded || state.cvsResult == null) {
-            return const SizedBox.shrink();
-          }
-          return FloatingActionButton(
-            onPressed: () {
-              // Start a new chat session
-              context.read<PlantDetailBloc>().add(
-                const PlantDetailChatStarted(),
-              );
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (_) => BlocProvider.value(
-                  value: context.read<PlantDetailBloc>(),
-                  child: PlantChatBottomSheet(plantName: state.plant.name),
-                ),
+      backgroundColor: isDark ? AppTheme.background : Colors.white,
+      floatingActionButton:
+          BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
+            builder: (context, state) {
+              if (state is! AppSuccess<PlantDetailData>)
+                return const SizedBox.shrink();
+              final data = state.data!;
+              if (data.cvsResult == null) {
+                return const SizedBox.shrink();
+              }
+              return FloatingActionButton(
+                onPressed: () {
+                  context.read<PlantDetailBloc>().add(
+                    const PlantDetailChatStarted(),
+                  );
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => BlocProvider.value(
+                      value: context.read<PlantDetailBloc>(),
+                      child: PlantChatBottomSheet(plantName: data.plant.name),
+                    ),
+                  );
+                },
+                backgroundColor: AppTheme.secondary,
+                child: const Icon(Icons.chat, color: Colors.white),
               );
             },
-            backgroundColor: AppTheme.secondary,
-            child: const Icon(Icons.chat, color: Colors.white),
-          );
-        },
-      ),
-      body: SafeArea(
-        child: BlocBuilder<PlantDetailBloc, PlantDetailState>(
-          builder: (context, state) {
-            if (state is PlantDetailLoading) {
-              return Center(
-                child: CircularProgressIndicator(color: AppTheme.primary),
-              );
-            }
-            if (state is PlantDetailError) {
-              return Center(
-                child: Text(state.message, style: AppTheme.bodyMedium),
-              );
-            }
-            if (state is PlantDetailLoaded) {
-              return _buildLoaded(context, state);
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+          ),
+      body: Stack(
+        children: [
+          if (!isDark)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFFE8F4FC),
+                      const Color(0xFFF4F9FD),
+                      Colors.white,
+                    ],
+                    stops: const [0.0, 0.4, 0.7],
+                  ),
+                ),
+              ),
+            ),
+          SafeArea(
+            child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
+              builder: (context, state) {
+                if (state is AppLoading) {
+                  return Center(
+                    child: CircularProgressIndicator(color: AppTheme.primary),
+                  );
+                }
+                if (state is AppFailure<PlantDetailData>) {
+                  return Center(
+                    child: Text(
+                      state.exception?.toString() ?? 'Something went wrong',
+                      style: AppTheme.bodyMedium,
+                    ),
+                  );
+                }
+                if (state is AppSuccess<PlantDetailData>) {
+                  return _buildLoaded(context, state.data!);
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildLoaded(BuildContext context, PlantDetailLoaded state) {
+  Widget _buildLoaded(BuildContext context, PlantDetailData state) {
     final plant = state.plant;
     final cvs = state.cvsResult;
-
     return Column(
       children: [
-        // Top Logo Header
         _buildTopHeader(),
-
-        // Search bar area
         _buildSearchBar(context, plant.name),
-
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -152,7 +176,6 @@ class _PlantDetailBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ROW 1: Plant Overview & CVS
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -168,12 +191,8 @@ class _PlantDetailBody extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: AppTheme.spacingMD),
-
-                // ROW 2: AI Climate Insight (button-triggered)
                 _AIInsightPanel(state: state),
                 SizedBox(height: AppTheme.spacingMD),
-
-                // ROW 3: Historical Trends & Scenario Simulation
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -183,35 +202,50 @@ class _PlantDetailBody extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: AppTheme.spacingXL),
-
-                // ROW 4: LG Orbit Button
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingMD,
+                  ),
                   child: SizedBox(
                     width: double.infinity,
                     height: 44,
                     child: ElevatedButton.icon(
                       onPressed: () {
                         if (state.isOrbiting) {
-                          context.read<PlantDetailBloc>().add(const PlantDetailStopOrbitRequested());
+                          context.read<PlantDetailBloc>().add(
+                            const PlantDetailStopOrbitRequested(),
+                          );
                         } else {
-                          context.read<PlantDetailBloc>().add(const PlantDetailStartOrbitRequested());
+                          context.read<PlantDetailBloc>().add(
+                            const PlantDetailStartOrbitRequested(),
+                          );
                         }
                       },
                       icon: Icon(
-                        state.isOrbiting ? Icons.stop_circle_outlined : Icons.threesixty,
+                        state.isOrbiting
+                            ? Icons.stop_circle_outlined
+                            : Icons.threesixty,
                         size: 18,
                       ),
                       label: Text(
                         state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: state.isOrbiting ? AppTheme.surfaceLight : AppTheme.secondary,
-                        foregroundColor: state.isOrbiting ? AppTheme.textPrimary : Colors.white,
+                        backgroundColor: state.isOrbiting
+                            ? AppTheme.surfaceLight
+                            : AppTheme.secondary,
+                        foregroundColor: state.isOrbiting
+                            ? AppTheme.textPrimary
+                            : Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusMedium,
+                          ),
                         ),
                       ),
                     ),
@@ -235,7 +269,6 @@ class _PlantDetailBody extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo
           Row(
             children: [
               Image.asset(
@@ -403,10 +436,7 @@ class _PlantDetailBody extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const SizedBox(height: 16),
-                      Text(
-                        'CVS + Stress',
-                        style: AppTheme.headingSmall,
-                      ),
+                      Text('CVS + Stress', style: AppTheme.headingSmall),
                       const SizedBox(height: 24),
                       Stack(
                         alignment: Alignment.center,
@@ -445,11 +475,23 @@ class _PlantDetailBody extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildMiniStressBar('Temp', cvs.temperatureStress, const Color(0xFFFF6B6B)),
+                            _buildMiniStressBar(
+                              'Temp',
+                              cvs.temperatureStress,
+                              const Color(0xFFFF6B6B),
+                            ),
                             const SizedBox(height: 12),
-                            _buildMiniStressBar('Water', cvs.waterStress, const Color(0xFF4ECDC4)),
+                            _buildMiniStressBar(
+                              'Water',
+                              cvs.waterStress,
+                              const Color(0xFF4ECDC4),
+                            ),
                             const SizedBox(height: 12),
-                            _buildMiniStressBar('Wind', cvs.windStress, const Color(0xFF45B7D1)),
+                            _buildMiniStressBar(
+                              'Wind',
+                              cvs.windStress,
+                              const Color(0xFF45B7D1),
+                            ),
                           ],
                         ),
                       ),
@@ -472,96 +514,100 @@ class _PlantDetailBody extends StatelessWidget {
       },
       child: Container(
         height: 200,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  '2. CVS + Stress',
-                  style: AppTheme.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppTheme.secondary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-                child: Icon(
-                  Icons.eco_outlined,
-                  color: AppTheme.secondary,
-                  size: 16,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: CircularProgressIndicator(
-                      value: cvs.score / 100,
-                      strokeWidth: 6,
-                      color: cvs.riskLevel.color,
-                      backgroundColor: AppTheme.surfaceLight,
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    '2. CVS + Stress',
+                    style: AppTheme.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Text(
-                    cvs.score.toStringAsFixed(1),
-                    style: AppTheme.labelLarge.copyWith(
-                      color: cvs.riskLevel.color,
-                    ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                   ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Icon(
+                    Icons.eco_outlined,
+                    color: AppTheme.secondary,
+                    size: 16,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Text(
-                      cvs.riskLevel.label,
-                      style: AppTheme.bodyMedium.copyWith(
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        value: cvs.score / 100,
+                        strokeWidth: 6,
                         color: cvs.riskLevel.color,
-                        fontWeight: FontWeight.w600,
+                        backgroundColor: AppTheme.surfaceLight,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text('Vulnerability Level', style: AppTheme.caption),
+                    Text(
+                      cvs.score.toStringAsFixed(1),
+                      style: AppTheme.labelLarge.copyWith(
+                        color: cvs.riskLevel.color,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          _buildMiniStressBar(
-            'Temp',
-            cvs.temperatureStress,
-            const Color(0xFFFF6B6B),
-          ),
-          const SizedBox(height: 4),
-          _buildMiniStressBar(
-            'Water',
-            cvs.waterStress,
-            const Color(0xFF4ECDC4),
-          ),
-          const SizedBox(height: 4),
-          _buildMiniStressBar('Wind', cvs.windStress, const Color(0xFF45B7D1)),
-        ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cvs.riskLevel.label,
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: cvs.riskLevel.color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text('Vulnerability Level', style: AppTheme.caption),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            _buildMiniStressBar(
+              'Temp',
+              cvs.temperatureStress,
+              const Color(0xFFFF6B6B),
+            ),
+            const SizedBox(height: 4),
+            _buildMiniStressBar(
+              'Water',
+              cvs.waterStress,
+              const Color(0xFF4ECDC4),
+            ),
+            const SizedBox(height: 4),
+            _buildMiniStressBar(
+              'Wind',
+              cvs.windStress,
+              const Color(0xFF45B7D1),
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -614,19 +660,15 @@ class _PlantDetailBody extends StatelessWidget {
   }
 }
 
-/// AI Insight Panel — ONLY generates on explicit button tap.
 class _AIInsightPanel extends StatefulWidget {
-  final PlantDetailLoaded state;
-
+  final PlantDetailData state;
   const _AIInsightPanel({required this.state});
-
   @override
   State<_AIInsightPanel> createState() => _AIInsightPanelState();
 }
 
 class _AIInsightPanelState extends State<_AIInsightPanel> {
   bool _isSpeaking = false;
-
   void _toggleSpeech() async {
     if (_isSpeaking) {
       await sl<TTSService>().stop();
@@ -679,7 +721,9 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: Icon(
-                      _isSpeaking ? Icons.stop_circle_outlined : Icons.volume_up,
+                      _isSpeaking
+                          ? Icons.stop_circle_outlined
+                          : Icons.volume_up,
                       color: AppTheme.secondary,
                       size: 16,
                     ),
@@ -688,9 +732,7 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
             ],
           ),
           const SizedBox(height: 16),
-
           if (widget.state.isLoadingInsight)
-            // Loading state
             Row(
               children: [
                 _buildRadarIcon(),
@@ -704,7 +746,6 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
               ],
             )
           else if (widget.state.aiInsight != null)
-            // Insight loaded
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -722,7 +763,6 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
               ],
             )
           else if (widget.state.insightError != null)
-            // Error state with retry
             Column(
               children: [
                 Row(
@@ -765,7 +805,6 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
               ],
             )
           else
-            // No insight yet — show generate button
             SizedBox(
               width: double.infinity,
               height: 44,
@@ -817,259 +856,253 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
   }
 }
 
-  Widget _buildHistoricalCard(BuildContext context, PlantDetailLoaded state) {
-    return GestureDetector(
-      onTap: () {
-        // Trigger lazy fetch of multi-year trend data if not already loaded
-        context.read<PlantDetailBloc>().add(
-          PlantDetailTrendRequested(state.plant),
-        );
-
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => BlocProvider.value(
-            value: context.read<PlantDetailBloc>(),
-            child: BlocBuilder<PlantDetailBloc, PlantDetailState>(
-              builder: (context, blocState) {
-                if (blocState is PlantDetailLoaded &&
-                    blocState.trendData.isNotEmpty) {
-                  return HistoricalTrendsSheet(
-                    historicalData: blocState.trendData,
-                  );
-                }
-                return Container(
-                  height: 300,
-                  decoration: BoxDecoration(
-                    color: AppTheme.surface,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(24),
-                    ),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppTheme.primary),
-                        const SizedBox(height: 16),
-                        FutureBuilder<SharedPreferences>(
-                          future: SharedPreferences.getInstance(),
-                          builder: (context, snapshot) {
-                            int years = 5;
-                            if (snapshot.hasData) {
-                              final modeIndex = snapshot.data!.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
-                              if (modeIndex >= 0 && modeIndex < HistoricalDataMode.values.length) {
-                                years = HistoricalDataMode.values[modeIndex].yearsBack;
-                              }
-                            }
-                            return Text(
-                              'Loading $years-year climate trend...',
-                              style: TextStyle(color: AppTheme.textSecondary),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
+Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
+  return GestureDetector(
+    onTap: () {
+      context.read<PlantDetailBloc>().add(
+        PlantDetailTrendRequested(state.plant),
+      );
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => BlocProvider.value(
+          value: context.read<PlantDetailBloc>(),
+          child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
+            builder: (context, blocState) {
+              if (blocState is AppSuccess<PlantDetailData> &&
+                  blocState.data!.trendData.isNotEmpty) {
+                return HistoricalTrendsSheet(
+                  historicalData: blocState.data!.trendData,
                 );
-              },
-            ),
-          ),
-        );
-      },
-      child: Container(
-        height: 180,
-        padding: const EdgeInsets.all(AppTheme.spacingMD),
-        decoration: AppTheme.cardDecoration,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '4. Historical Climate Trends',
-                    style: AppTheme.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+              }
+              return Container(
+                height: 300,
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Icon(
-                    Icons.bar_chart,
-                    color: AppTheme.primary,
-                    size: 16,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Mock mini chart
-            SizedBox(
-              height: 40,
-              width: double.infinity,
-              child: CustomPaint(
-                painter: _MiniSparklinePainter(color: AppTheme.primary),
-              ),
-            ),
-            const Spacer(),
-            Container(
-              width: 60,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: 80,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScenarioCard(BuildContext context, PlantDetailLoaded state) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          AppRoutes.simulation,
-          arguments: {'bloc': context.read<PlantDetailBloc>()},
-        );
-      },
-      child: Container(
-        height: 180,
-        padding: const EdgeInsets.all(AppTheme.spacingMD),
-        decoration: AppTheme.cardDecoration,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    '5. Scenario Simulation',
-                    style: AppTheme.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFB388FF).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: const Icon(
-                    Icons.account_tree,
-                    color: Color(0xFFB388FF),
-                    size: 16,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            // Mock branching nodes
-            Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFB388FF).withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFB388FF),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
+                child: Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: double.infinity,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB388FF).withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB388FF).withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 60,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB388FF).withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                      CircularProgressIndicator(color: AppTheme.primary),
+                      const SizedBox(height: 16),
+                      FutureBuilder<SharedPreferences>(
+                        future: SharedPreferences.getInstance(),
+                        builder: (context, snapshot) {
+                          int years = 5;
+                          if (snapshot.hasData) {
+                            final modeIndex =
+                                snapshot.data!.getInt('historical_data_mode') ??
+                                HistoricalDataMode.fast.index;
+                            if (modeIndex >= 0 &&
+                                modeIndex < HistoricalDataMode.values.length) {
+                              years = HistoricalDataMode
+                                  .values[modeIndex]
+                                  .yearsBack;
+                            }
+                          }
+                          return Text(
+                            'Loading $years-year climate trend...',
+                            style: TextStyle(color: AppTheme.textSecondary),
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const Spacer(),
-            Container(
-              width: double.infinity,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.textMuted,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
+      );
+    },
+    child: Container(
+      height: 180,
+      padding: const EdgeInsets.all(AppTheme.spacingMD),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '4. Historical Climate Trends',
+                  style: AppTheme.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+                child: Icon(Icons.bar_chart, color: AppTheme.primary, size: 16),
+              ),
+            ],
+          ),
+          const Spacer(),
+          SizedBox(
+            height: 40,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _MiniSparklinePainter(color: AppTheme.primary),
+            ),
+          ),
+          const Spacer(),
+          Container(
+            width: 60,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.textMuted,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: 80,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.textMuted,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.textMuted,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+Widget _buildScenarioCard(BuildContext context, PlantDetailData state) {
+  return GestureDetector(
+    onTap: () {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.simulation,
+        arguments: {'bloc': context.read<PlantDetailBloc>()},
+      );
+    },
+    child: Container(
+      height: 180,
+      padding: const EdgeInsets.all(AppTheme.spacingMD),
+      decoration: AppTheme.cardDecoration,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '5. Scenario Simulation',
+                  style: AppTheme.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFB388FF).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+                child: const Icon(
+                  Icons.account_tree,
+                  color: Color(0xFFB388FF),
+                  size: 16,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFB388FF).withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFB388FF),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFB388FF).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFB388FF).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 60,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFB388FF).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Container(
+            width: double.infinity,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.textMuted,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class _MiniSparklinePainter extends CustomPainter {
   final Color color;
   _MiniSparklinePainter({required this.color});
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -1078,7 +1111,6 @@ class _MiniSparklinePainter extends CustomPainter {
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-
     final path = Path();
     path.moveTo(0, size.height * 0.8);
     path.quadraticBezierTo(
@@ -1099,7 +1131,6 @@ class _MiniSparklinePainter extends CustomPainter {
       size.width,
       size.height * 0.4,
     );
-
     canvas.drawPath(path, paint);
   }
 

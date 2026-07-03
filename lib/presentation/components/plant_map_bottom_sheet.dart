@@ -8,42 +8,54 @@ import '../../core/enums/risk_level.dart';
 class PlantMapBottomSheet extends StatelessWidget {
   final PowerPlant plant;
   final CVSResult cvs;
-
   const PlantMapBottomSheet({
     super.key,
     required this.plant,
     required this.cvs,
   });
-
   IconData _getIconForFuel(PlantType fuelType) {
     switch (fuelType) {
-      case PlantType.hydro: return Icons.water_drop;
-      case PlantType.solar: return Icons.wb_sunny;
-      case PlantType.wind: return Icons.air;
-      case PlantType.coal: return Icons.factory;
-      case PlantType.gas: return Icons.local_fire_department;
-      case PlantType.nuclear: return Icons.science;
-      case PlantType.biomass: return Icons.eco;
-      case PlantType.geothermal: return Icons.thermostat;
-      case PlantType.waste: return Icons.delete;
-      case PlantType.storage: return Icons.battery_charging_full;
-      case PlantType.cogeneration: return Icons.sync;
-      default: return Icons.bolt;
+      case PlantType.hydro:
+        return Icons.water_drop;
+      case PlantType.solar:
+        return Icons.wb_sunny;
+      case PlantType.wind:
+        return Icons.air;
+      case PlantType.coal:
+        return Icons.factory;
+      case PlantType.gas:
+        return Icons.local_fire_department;
+      case PlantType.nuclear:
+        return Icons.science;
+      case PlantType.biomass:
+        return Icons.eco;
+      case PlantType.geothermal:
+        return Icons.thermostat;
+      case PlantType.waste:
+        return Icons.delete;
+      case PlantType.storage:
+        return Icons.battery_charging_full;
+      case PlantType.cogeneration:
+        return Icons.sync;
+      default:
+        return Icons.bolt;
     }
   }
 
   Color _getRiskColor(RiskLevel risk) {
     switch (risk) {
-      case RiskLevel.high: return AppTheme.riskHigh;
-      case RiskLevel.medium: return AppTheme.riskMedium;
-      case RiskLevel.low: return AppTheme.riskLow;
+      case RiskLevel.high:
+        return AppTheme.riskHigh;
+      case RiskLevel.medium:
+        return AppTheme.riskMedium;
+      case RiskLevel.low:
+        return AppTheme.riskLow;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final riskColor = _getRiskColor(cvs.riskLevel);
-    
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surface,
@@ -55,7 +67,6 @@ class PlantMapBottomSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Handle bar
             Center(
               child: Container(
                 width: 40,
@@ -67,8 +78,6 @@ class PlantMapBottomSheet extends StatelessWidget {
                 ),
               ),
             ),
-            
-            // Header: Icon + Name
             Row(
               children: [
                 Container(
@@ -88,10 +97,7 @@ class PlantMapBottomSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        plant.name,
-                        style: AppTheme.headingMedium,
-                      ),
+                      Text(plant.name, style: AppTheme.headingMedium),
                       const SizedBox(height: 4),
                       Text(
                         '${plant.countryLong ?? plant.country} • ${plant.primaryFuel.displayName}',
@@ -102,10 +108,7 @@ class PlantMapBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-            
             const SizedBox(height: AppTheme.spacingLG),
-            
-            // Stats Row
             Row(
               children: [
                 Expanded(
@@ -127,10 +130,7 @@ class PlantMapBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-            
             const SizedBox(height: AppTheme.spacingMD),
-            
-            // CVS Gauge
             Container(
               padding: const EdgeInsets.all(AppTheme.spacingMD),
               decoration: AppTheme.cardDecoration,
@@ -140,10 +140,15 @@ class PlantMapBottomSheet extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Climate Vulnerability Score', style: AppTheme.labelLarge),
+                      Text(
+                        'Climate Vulnerability Score',
+                        style: AppTheme.labelLarge,
+                      ),
                       Text(
                         cvs.score.toStringAsFixed(1),
-                        style: AppTheme.headingMedium.copyWith(color: riskColor),
+                        style: AppTheme.headingMedium.copyWith(
+                          color: riskColor,
+                        ),
                       ),
                     ],
                   ),
@@ -166,7 +171,12 @@ class PlantMapBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingMD),
       decoration: AppTheme.cardDecoration,

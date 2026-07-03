@@ -13,7 +13,6 @@ import '../../service/speech_to_text_service.dart';
 class SearchScreen extends StatefulWidget {
   final bool autoStartVoice;
   const SearchScreen({super.key, this.autoStartVoice = false});
-
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
@@ -22,9 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   List<String> _recentSearches = [];
   bool _isListening = false;
-
   SpeechToTextService get _stt => sl<SpeechToTextService>();
-
   @override
   void initState() {
     super.initState();
@@ -65,17 +62,13 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _addRecentSearch(String search) async {
     if (search.trim().isEmpty) return;
-
     final prefs = await SharedPreferences.getInstance();
     List<String> searches = prefs.getStringList('recent_searches') ?? [];
-
     searches.remove(search);
     searches.insert(0, search);
-
     if (searches.length > 5) {
       searches = searches.sublist(0, 5);
     }
-
     await prefs.setStringList('recent_searches', searches);
     if (mounted) {
       setState(() {
@@ -126,64 +119,53 @@ class _SearchScreenState extends State<SearchScreen> {
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, preset, _) {
         final isDark = ThemeController.instance.isDarkMode;
-        final isLight = !isDark;
         final screenWidth = MediaQuery.of(context).size.width;
-
         return Scaffold(
           resizeToAvoidBottomInset: false,
-          backgroundColor: isLight
-              ? const Color(0xFFEEF2F8)
-              : const Color(0xFF08080F),
+          backgroundColor: AppTheme.background,
           body: Stack(
             children: [
-              // Globe background, bottom right
               Positioned(
                 bottom: -screenWidth * 0.4,
                 right: -screenWidth * 0.4,
                 width: screenWidth,
                 height: screenWidth,
-                child: isLight
-                    ? const SizedBox.shrink()
-                    : Opacity(
-                        opacity: isDark ? 1.0 : 0.6,
-                        child: ShaderMask(
-                          shaderCallback: (rect) {
-                            return const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Colors.white],
-                              stops: [0.0, 0.35],
-                            ).createShader(rect);
-                          },
-                          blendMode: BlendMode.dstIn,
-                          child: FuturisticGlobeBackground(isDark: isDark),
-                        ),
-                      ),
+                child: Opacity(
+                  opacity: isDark ? 1.0 : 0.6,
+                  child: ShaderMask(
+                    shaderCallback: (rect) {
+                      return const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.white],
+                        stops: [0.0, 0.35],
+                      ).createShader(rect);
+                    },
+                    blendMode: BlendMode.dstIn,
+                    child: FuturisticGlobeBackground(isDark: isDark),
+                  ),
+                ),
               ),
-              // Global Glow Background
               Positioned.fill(
-                child: isLight
-                    ? const SizedBox.shrink()
-                    : Container(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: const Alignment(0, -0.5),
-                            radius: 1.2,
-                            colors: [
-                              const Color(
-                                0xFF00C8FF,
-                              ).withValues(alpha: isDark ? 0.15 : 0.08),
-                              Colors.transparent,
-                            ],
-                          ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(0, -0.5),
+                      radius: 1.2,
+                      colors: [
+                        AppTheme.primary.withValues(
+                          alpha: isDark ? 0.15 : 0.08,
                         ),
-                      ),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
               ),
               SafeArea(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Search Bar Area
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                       child: AppSearchBar(
@@ -214,17 +196,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         },
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Content
                     Expanded(
                       child: BlocBuilder<SearchBloc, SearchState>(
                         builder: (context, state) {
                           if (state.query.isEmpty) {
                             return _buildEmptyState();
                           }
-
                           if (state.isSearching) {
                             return Center(
                               child: CircularProgressIndicator(
@@ -232,7 +210,6 @@ class _SearchScreenState extends State<SearchScreen> {
                               ),
                             );
                           }
-
                           if (state.results.isEmpty &&
                               state.regionResults.isEmpty) {
                             return Center(
@@ -244,7 +221,6 @@ class _SearchScreenState extends State<SearchScreen> {
                               ),
                             );
                           }
-
                           return _buildResultsList(state);
                         },
                       ),
@@ -264,11 +240,11 @@ class _SearchScreenState extends State<SearchScreen> {
       case 'india':
         return const Color(0xFF00C853);
       case 'europe':
-        return const Color(0xFF4A90D9); // Blue
+        return const Color(0xFF4A90D9);
       case 'usa':
-        return const Color(0xFFFF5252); // Red
+        return const Color(0xFFFF5252);
       case 'china':
-        return const Color(0xFFB388FF); // Bright Purple
+        return const Color(0xFFB388FF);
       case 'africa':
         return const Color(0xFFE8A44A);
       case 'spain':
@@ -279,8 +255,6 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildEmptyState() {
-    final isDark = ThemeController.instance.isDarkMode;
-    final isLight = !isDark;
     final popularRegions = [
       'India',
       'China',
@@ -289,7 +263,6 @@ class _SearchScreenState extends State<SearchScreen> {
       'Africa',
       'Spain',
     ];
-
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
@@ -298,13 +271,9 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             Text(
               'POPULAR REGIONS',
-              style: TextStyle(
-                color: isLight
-                    ? const Color(0xFF6B80A0)
-                    : AppTheme.textSecondary,
-                fontSize: isLight ? 10 : 11,
-                fontWeight: isLight ? FontWeight.w500 : FontWeight.w700,
-                letterSpacing: isLight ? 0.8 : 2.2,
+              style: AppTheme.labelSmall.copyWith(
+                color: AppTheme.textSecondary,
+                letterSpacing: 2.2,
               ),
             ),
           ],
@@ -313,9 +282,9 @@ class _SearchScreenState extends State<SearchScreen> {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isLight ? 3 : 2,
-            childAspectRatio: isLight ? 1.0 : 2.8,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 2.8,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -323,131 +292,58 @@ class _SearchScreenState extends State<SearchScreen> {
           itemBuilder: (context, index) {
             final region = popularRegions[index];
             final rColor = _getRegionColor(region);
-            return isLight
-                ? GestureDetector(
-                    onTap: () {
-                      _controller.text = region;
-                      context.read<SearchBloc>().add(
-                        SearchQueryChanged(region),
-                      );
-                      setState(() {});
-                    },
-                    child: Container(
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                _controller.text = region;
+                context.read<SearchBloc>().add(SearchQueryChanged(region));
+                setState(() {});
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: rColor.withValues(alpha: 0.4),
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: rColor.withValues(alpha: 0.10),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFFD6E8F8),
-                            Color(0xFFB0CCF0),
-                            Color(0xFF7AAEE0),
-                            Color(0xFF4A82C8),
-                          ],
-                          stops: [0.0, 0.35, 0.70, 1.0],
-                        ),
-                        border: Border.all(
-                          color: const Color(0xFF2A5298),
-                          width: 1.2,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x332A5298),
-                            blurRadius: 8,
-                            offset: Offset(0, 3),
-                          ),
-                        ],
+                        color: rColor.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0x33FFFFFF),
-                              border: Border.all(
-                                color: const Color(0x662A5298),
-                                width: 0.8,
-                              ),
-                            ),
-                            child: Icon(Icons.public, color: rColor, size: 24),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            region,
-                            style: const TextStyle(
-                              color: Color(0xFF0D1F4A),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              letterSpacing: 0.2,
-                            ),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                      child: Center(
+                        child: Icon(Icons.public, color: rColor, size: 20),
                       ),
                     ),
-                  )
-                : InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      _controller.text = region;
-                      context.read<SearchBloc>().add(
-                        SearchQueryChanged(region),
-                      );
-                      setState(() {});
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardBackground,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: rColor.withValues(alpha: 0.4),
-                          width: 1.0,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        region,
+                        style: AppTheme.bodyMedium.copyWith(
+                          color: AppTheme.textPrimary,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: rColor.withValues(alpha: 0.10),
-                            blurRadius: 12,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: rColor.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.public,
-                                color: rColor,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              region,
-                              style: AppTheme.bodyMedium.copyWith(
-                                color: AppTheme.textPrimary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  );
+                  ],
+                ),
+              ),
+            );
           },
         ),
         const SizedBox(height: 24),
@@ -457,13 +353,9 @@ class _SearchScreenState extends State<SearchScreen> {
           children: [
             Text(
               'RECENT SEARCHES',
-              style: TextStyle(
-                color: isLight
-                    ? const Color(0xFF6B80A0)
-                    : AppTheme.textSecondary,
-                fontSize: isLight ? 10 : 11,
-                fontWeight: isLight ? FontWeight.w500 : FontWeight.w700,
-                letterSpacing: isLight ? 0.8 : 2.2,
+              style: AppTheme.labelSmall.copyWith(
+                color: AppTheme.textSecondary,
+                letterSpacing: 2.2,
               ),
             ),
             if (_recentSearches.isNotEmpty)
@@ -478,9 +370,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Text(
                     'Clear All',
                     style: TextStyle(
-                      color: isLight
-                          ? const Color(0xFF6B80A0)
-                          : const Color(0xFF00C8FF),
+                      color: AppTheme.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -502,140 +392,67 @@ class _SearchScreenState extends State<SearchScreen> {
           ..._recentSearches.map(
             (search) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: GestureDetector(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
                 onTap: () {
                   _controller.text = search;
                   context.read<SearchBloc>().add(SearchQueryChanged(search));
                   setState(() {});
                 },
-                child: isLight
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBackground,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.3),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primary.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(50),
-                          gradient: const LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Color(0xFF1F4489),
-                              Color(0xFF3567C0),
-                              Color(0xFF4A7ED4),
-                              Color(0xFF7AAEE0),
-                            ],
-                            stops: [0.0, 0.30, 0.65, 1.0],
-                          ),
-                          border: Border.all(
-                            color: const Color(0x665A8CD2),
-                            width: 0.5,
-                          ),
+                          color: AppTheme.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0x26FFFFFF),
-                              ),
-                              child: const Icon(
-                                Icons.history_rounded,
-                                color: Color(0xFFC5D8EE),
-                                size: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Text(
-                                search,
-                                style: const TextStyle(
-                                  color: Color(0xFFFFFFFF),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Color(0xFF9BBCE0),
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                      )
-                    : InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          _controller.text = search;
-                          context.read<SearchBloc>().add(
-                            SearchQueryChanged(search),
-                          );
-                          setState(() {});
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(
-                                0xFF00C8FF,
-                              ).withValues(alpha: 0.3),
-                              width: 1.0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF00C8FF,
-                                ).withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF00C8FF,
-                                  ).withValues(alpha: 0.15),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.history,
-                                    color: Color(0xFF00C8FF),
-                                    size: 16,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  search,
-                                  style: AppTheme.bodyMedium.copyWith(
-                                    color: AppTheme.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right,
-                                color: Color(0xFF00C8FF),
-                                size: 20,
-                              ),
-                            ],
+                        child: Center(
+                          child: Icon(
+                            Icons.history,
+                            color: AppTheme.primary,
+                            size: 16,
                           ),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          search,
+                          style: AppTheme.bodyMedium.copyWith(
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: AppTheme.primary,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

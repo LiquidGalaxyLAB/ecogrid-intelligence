@@ -1,6 +1,5 @@
 import 'package:equatable/equatable.dart';
 
-/// Domain entity representing a geographic region for exploration.
 class Region extends Equatable {
   final String id;
   final String name;
@@ -14,7 +13,6 @@ class Region extends Equatable {
   final String? imageAsset;
   final double defaultZoom;
   final List<String>? countries;
-
   const Region({
     required this.id,
     required this.name,
@@ -29,11 +27,8 @@ class Region extends Equatable {
     this.defaultZoom = 5.0,
     this.countries,
   });
-
   @override
   List<Object?> get props => [id, name];
-
-  /// Pre-defined quick-access regions matching the home screen chips.
   static const List<Region> quickRegions = [
     Region(
       id: 'india',

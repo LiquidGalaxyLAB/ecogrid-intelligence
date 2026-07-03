@@ -1,4 +1,3 @@
-/// Types of power generation plants in the WRI database.
 enum PlantType {
   hydro('Hydro', 'Hydroelectric'),
   nuclear('Nuclear', 'Nuclear'),
@@ -18,10 +17,7 @@ enum PlantType {
 
   final String csvLabel;
   final String displayName;
-
   const PlantType(this.csvLabel, this.displayName);
-
-  /// Map WRI CSV fuel type string to enum.
   static PlantType fromCsvFuel(String fuel) {
     final lower = fuel.toLowerCase().trim();
     if (lower.contains('hydro')) return PlantType.hydro;

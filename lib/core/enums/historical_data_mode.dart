@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum HistoricalDataMode {
-  fast,
-  balanced,
-  accurate,
-}
+enum HistoricalDataMode { fast, balanced, accurate }
 
 extension HistoricalDataModeExtension on HistoricalDataMode {
   int get yearsBack {
