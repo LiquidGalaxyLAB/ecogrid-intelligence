@@ -6,11 +6,9 @@ import '../../../repository/climate_repository.dart';
 class GetMultiYearTrendUsecase
     implements UseCase<DataState<List<ClimateData>>, Map<String, dynamic>> {
   final ClimateRepository _repository;
-
   GetMultiYearTrendUsecase(this._repository);
-
   @override
-  Future<DataState<List<ClimateData>>> call({Map<String, dynamic>? params}) {
+  Stream<DataState<List<ClimateData>>> call({Map<String, dynamic>? params}) {
     return _repository.getMultiYearTrend(
       params!['lat'] as double,
       params['lon'] as double,

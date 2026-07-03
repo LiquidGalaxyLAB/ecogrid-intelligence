@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../config/theme/app_theme.dart';
 import '../plant_detail/bloc/plant_detail_bloc.dart';
+import '../plant_detail/bloc/plant_detail_data.dart';
+import '../plant_detail/bloc/plant_detail_event.dart';
+import '../../core/resources/app_state.dart';
 
-/// Slide-up bottom sheet for conversational AI chat about a specific plant.
-/// The chat panel shows which plant is being discussed and maintains
-/// conversation history within the session (cleared on close).
 class PlantChatBottomSheet extends StatefulWidget {
   final String plantName;
-
   const PlantChatBottomSheet({super.key, required this.plantName});
-
   @override
   State<PlantChatBottomSheet> createState() => _PlantChatBottomSheetState();
 }
@@ -18,7 +16,6 @@ class PlantChatBottomSheet extends StatefulWidget {
 class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-
   @override
   void dispose() {
     _controller.dispose();
@@ -29,11 +26,8 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
   void _sendMessage() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-
     context.read<PlantDetailBloc>().add(PlantDetailChatMessageSent(text));
     _controller.clear();
-
-    // Scroll to bottom after a short delay to let the new message render
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -55,7 +49,6 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
       ),
       child: Column(
         children: [
-          // ── Handle ──────────────────────────────────
           const SizedBox(height: 12),
           Container(
             width: 40,
@@ -66,8 +59,6 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // ── Header ──────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
             child: Row(
@@ -110,26 +101,22 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
           ),
           const SizedBox(height: 8),
           Divider(color: AppTheme.cardBorder.withValues(alpha: 0.5), height: 1),
-
-          // ── Messages ────────────────────────────────
           Expanded(
-            child: BlocBuilder<PlantDetailBloc, PlantDetailState>(
+            child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
               builder: (context, state) {
-                if (state is! PlantDetailLoaded) return const SizedBox.shrink();
-
-                final messages = state.chatMessages;
-
+                if (state is! AppSuccess<PlantDetailData>)
+                  return const SizedBox.shrink();
+                final messages = state.data!.chatMessages;
                 if (messages.isEmpty) {
                   return _buildEmptyState();
                 }
-
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(AppTheme.spacingMD),
-                  itemCount: messages.length + (state.isChatLoading ? 1 : 0),
+                  itemCount:
+                      messages.length + (state.data!.isChatLoading ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index >= messages.length) {
-                      // Loading indicator for AI response
                       return _buildTypingIndicator();
                     }
                     final message = messages[index];
@@ -139,8 +126,6 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
               },
             ),
           ),
-
-          // ── Input ───────────────────────────────────
           Container(
             padding: const EdgeInsets.all(AppTheme.spacingMD),
             decoration: BoxDecoration(

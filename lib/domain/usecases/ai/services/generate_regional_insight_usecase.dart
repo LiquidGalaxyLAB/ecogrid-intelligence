@@ -5,11 +5,9 @@ import '../../../repository/ai_repository.dart';
 class GenerateRegionalInsightUsecase
     implements UseCase<DataState<String>, Map<String, dynamic>> {
   final AIRepository _repository;
-
   GenerateRegionalInsightUsecase(this._repository);
-
   @override
-  Future<DataState<String>> call({Map<String, dynamic>? params}) {
+  Stream<DataState<String>> call({Map<String, dynamic>? params}) {
     return _repository.generateRegionalInsight(
       regionName: params!['regionName'] as String,
       riskFilterName: params['riskFilterName'] as String,

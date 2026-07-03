@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../core/enums/risk_level.dart';
 
-/// Domain entity representing a computed Climate Vulnerability Score.
 class CVSResult extends Equatable {
   final String plantId;
   final double score;
@@ -11,7 +10,6 @@ class CVSResult extends Equatable {
   final double windStress;
   final DateTime computedAt;
   final bool isVerified;
-
   const CVSResult({
     required this.plantId,
     required this.score,
@@ -22,7 +20,6 @@ class CVSResult extends Equatable {
     required this.computedAt,
     this.isVerified = false,
   });
-
   @override
   List<Object?> get props => [plantId, score, computedAt, isVerified];
 }

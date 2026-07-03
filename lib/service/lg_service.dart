@@ -16,19 +16,12 @@ class LGService {
   ConnectionStatus _status = ConnectionStatus.disconnected;
   String? _currentRegion;
   LGDisplayMode _currentMode = LGDisplayMode.none;
-
   LGService({required this.remoteDataSource, required this.settingsDataSource});
-
   ConnectionStatus get connectionStatus => _status;
-
   String? get currentRegion => _currentRegion;
-
   void setCurrentRegion(String? region) => _currentRegion = region;
-
   LGDisplayMode get currentMode => _currentMode;
-
   void setCurrentMode(LGDisplayMode mode) => _currentMode = mode;
-
   bool _checkConnection({bool silent = false}) {
     if (_status != ConnectionStatus.connected) {
       if (!silent) {
@@ -37,7 +30,10 @@ class LGService {
           const SnackBar(
             content: Text(
               'Liquid Galaxy not connected',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             backgroundColor: Color(0xFFEF4444),
             behavior: SnackBarBehavior.floating,
@@ -60,39 +56,30 @@ class LGService {
         username: settings.username,
         password: settings.password,
       );
-
-      // Automatically upload the logos to the rig upon connection
       try {
         await sshService.uploadAsset(
           'assets/images/logos.png',
           '/var/www/html/logos.png',
         );
       } catch (e) {
-        // Just log the error, don't fail the entire connection if upload fails
         debugPrint('[EcoGrid] Failed to upload logo: $e');
       }
-
       _status = ConnectionStatus.connected;
-
-      // *** Critical: push the user's screen count into the data source ***
-      // This makes all SSH loop operations (clearKml, reboot, shutdown, relaunch,
-      // logos) target the correct number of screens on the actual rig.
       remoteDataSource.setScreenCount(settings.screenCount);
-      
-      // Automatically show logos when connected
       try {
         await remoteDataSource.showLogos();
       } catch (e) {
         debugPrint('[EcoGrid] Failed to show logo on connect: $e');
       }
-
       return const DataSuccess(true);
     } catch (e) {
       _status = ConnectionStatus.error;
-      return DataFailure(InvalidResponseException(
-        message: 'Failed to connect: $e',
-        response: null,
-      ));
+      return DataFailure(
+        InvalidResponseException(
+          message: 'Failed to connect: $e',
+          response: null,
+        ),
+      );
     }
   }
 
@@ -102,7 +89,9 @@ class LGService {
       _status = ConnectionStatus.disconnected;
       return const DataSuccess(null);
     } catch (e) {
-      return DataFailure(UnhandledException(message: 'Failed to disconnect: $e'));
+      return DataFailure(
+        UnhandledException(message: 'Failed to disconnect: $e'),
+      );
     }
   }
 
@@ -114,7 +103,8 @@ class LGService {
     double tilt,
     double range,
   ) async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.flyTo(lat, lon, altitude, heading, tilt, range);
       return const DataSuccess(null);
@@ -124,7 +114,8 @@ class LGService {
   }
 
   Future<DataState<void>> sendKmlToMaster(String kmlContent) async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.sendKmlToMaster(kmlContent);
       return const DataSuccess(null);
@@ -134,7 +125,8 @@ class LGService {
   }
 
   Future<DataState<void>> clearMasterScreen() async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection(silent: true))
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearMaster();
       return const DataSuccess(null);
@@ -143,11 +135,9 @@ class LGService {
     }
   }
 
-  Future<DataState<void>> sendKmlToSlave(
-    int slaveNumber,
-    String kml,
-  ) async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+  Future<DataState<void>> sendKmlToSlave(int slaveNumber, String kml) async {
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.sendKmlToSlave(slaveNumber, kml);
       return const DataSuccess(null);
@@ -160,7 +150,8 @@ class LGService {
     int slaveNumber,
     String balloonKml,
   ) async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.showBalloonOnSlave(slaveNumber, balloonKml);
       return const DataSuccess(null);
@@ -170,7 +161,8 @@ class LGService {
   }
 
   Future<DataState<void>> clearBalloonOnSlave(int slaveNumber) async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection(silent: true))
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearBalloonOnSlave(slaveNumber);
       return const DataSuccess(null);
@@ -185,9 +177,9 @@ class LGService {
     double range,
     double tilt,
   ) async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
-      // Step 1: Write the orbit tour KML to a dedicated file on LG
       final orbitKml = KmlUtils.orbitTour(
         lat: lat,
         lon: lon,
@@ -195,11 +187,7 @@ class LGService {
         tilt: tilt,
       );
       await remoteDataSource.sendOrbitKml(orbitKml);
-
-      // Step 2: Wait for Google Earth to load the KML before playing the tour
       await Future.delayed(const Duration(seconds: 2));
-
-      // Step 3: Play the tour named "Orbit" via query.txt
       await remoteDataSource.playTour('Orbit');
       return const DataSuccess(null);
     } catch (e) {
@@ -208,7 +196,8 @@ class LGService {
   }
 
   Future<DataState<void>> stopOrbit() async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection(silent: true))
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.exitTour();
       return const DataSuccess(null);
@@ -218,7 +207,8 @@ class LGService {
   }
 
   Future<DataState<void>> clearKml() async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection(silent: true))
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearKml();
       _currentRegion = null;
@@ -230,7 +220,8 @@ class LGService {
   }
 
   Future<DataState<void>> reboot() async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.reboot();
       _status = ConnectionStatus.disconnected;
@@ -241,7 +232,8 @@ class LGService {
   }
 
   Future<DataState<void>> shutdown() async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.shutdown();
       _status = ConnectionStatus.disconnected;
@@ -252,7 +244,8 @@ class LGService {
   }
 
   Future<DataState<void>> relaunch() async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.relaunch();
       return const DataSuccess(null);
@@ -266,12 +259,15 @@ class LGService {
       await remoteDataSource.removeRefreshIntervals();
       return const DataSuccess(null);
     } catch (e) {
-      return DataFailure(UnhandledException(message: 'Failed to remove refresh intervals: $e'));
+      return DataFailure(
+        UnhandledException(message: 'Failed to remove refresh intervals: $e'),
+      );
     }
   }
 
   Future<DataState<void>> showLogos() async {
-    if (!_checkConnection()) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection())
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.showLogos();
       return const DataSuccess(null);
@@ -281,7 +277,8 @@ class LGService {
   }
 
   Future<DataState<void>> clearLogos() async {
-    if (!_checkConnection(silent: true)) return DataFailure(UnhandledException(message: 'LG not connected'));
+    if (!_checkConnection(silent: true))
+      return DataFailure(UnhandledException(message: 'LG not connected'));
     try {
       await remoteDataSource.clearLogos();
       return const DataSuccess(null);
@@ -295,7 +292,9 @@ class LGService {
       await settingsDataSource.saveSettings(settings);
       return const DataSuccess(null);
     } catch (e) {
-      return DataFailure(UnhandledException(message: 'Failed to save settings: $e'));
+      return DataFailure(
+        UnhandledException(message: 'Failed to save settings: $e'),
+      );
     }
   }
 
@@ -303,7 +302,9 @@ class LGService {
     try {
       return DataSuccess(await settingsDataSource.loadSettings());
     } catch (e) {
-      return DataFailure(UnhandledException(message: 'Failed to load settings: $e'));
+      return DataFailure(
+        UnhandledException(message: 'Failed to load settings: $e'),
+      );
     }
   }
 }

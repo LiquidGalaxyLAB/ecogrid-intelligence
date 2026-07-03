@@ -86,6 +86,8 @@ flutter:
     - assets/images/regions/light/china.png
     - assets/images/regions/light/africa.png
     - assets/images/regions/light/spain.png
+    - assets/maps/style/
+    - assets/maps/theme/
     - assets/data/
     - .env
 

@@ -5,7 +5,6 @@ import '../../presentation/plant_detail/plant_detail_page.dart';
 import '../../presentation/simulation/simulation_screen.dart';
 import '../../presentation/lg_connection/lg_connection_page.dart';
 import '../../presentation/splash/splash_screen.dart';
-
 import '../../presentation/home/search_screen.dart';
 import '../../presentation/home/bloc/search_bloc.dart';
 import '../../presentation/about/about_screen.dart';
@@ -17,18 +16,15 @@ import '../../di/di.dart';
 
 class AppRoutes {
   AppRoutes._();
-
   static const String splash = '/splash';
   static const String home = '/';
   static const String explore = '/explore';
   static const String plantDetail = '/plant-detail';
   static const String simulation = '/simulation';
   static const String lgSettings = '/lg-settings';
-
   static const String search = '/search';
   static const String about = '/about';
   static const String infrastructureMap = '/infrastructure-map';
-
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
@@ -47,7 +43,6 @@ class AppRoutes {
           ),
           settings,
         );
-
       case simulation:
         return _buildRoute(
           ScenarioSimulationScreen(
@@ -55,10 +50,8 @@ class AppRoutes {
           ),
           settings,
         );
-
       case lgSettings:
         return _buildRoute(const LgSettingsScreen(), settings);
-
       case search:
         return _buildRoute(
           BlocProvider(

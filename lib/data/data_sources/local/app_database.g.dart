@@ -1,8 +1,5 @@
-// GENERATED CODE - DO NOT MODIFY BY HAND
-
 part of 'app_database.dart';
 
-// ignore_for_file: type=lint
 class $LgSettingsTableTable extends LgSettingsTable
     with TableInfo<$LgSettingsTableTable, LgSettingsTableData> {
   @override
@@ -1047,27 +1044,22 @@ class $$LgSettingsTableTableFilterComposer
     column: $table.id,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<String> get host => $composableBuilder(
     column: $table.host,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<int> get port => $composableBuilder(
     column: $table.port,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<String> get username => $composableBuilder(
     column: $table.username,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<String> get password => $composableBuilder(
     column: $table.password,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<int> get screenCount => $composableBuilder(
     column: $table.screenCount,
     builder: (column) => ColumnFilters(column),
@@ -1087,27 +1079,22 @@ class $$LgSettingsTableTableOrderingComposer
     column: $table.id,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<String> get host => $composableBuilder(
     column: $table.host,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<int> get port => $composableBuilder(
     column: $table.port,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<String> get username => $composableBuilder(
     column: $table.username,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<String> get password => $composableBuilder(
     column: $table.password,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<int> get screenCount => $composableBuilder(
     column: $table.screenCount,
     builder: (column) => ColumnOrderings(column),
@@ -1125,19 +1112,14 @@ class $$LgSettingsTableTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
-
   GeneratedColumn<String> get host =>
       $composableBuilder(column: $table.host, builder: (column) => column);
-
   GeneratedColumn<int> get port =>
       $composableBuilder(column: $table.port, builder: (column) => column);
-
   GeneratedColumn<String> get username =>
       $composableBuilder(column: $table.username, builder: (column) => column);
-
   GeneratedColumn<String> get password =>
       $composableBuilder(column: $table.password, builder: (column) => column);
-
   GeneratedColumn<int> get screenCount => $composableBuilder(
     column: $table.screenCount,
     builder: (column) => column,
@@ -1268,12 +1250,10 @@ class $$ClimateCacheTableTableFilterComposer
     column: $table.cacheKey,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<String> get data => $composableBuilder(
     column: $table.data,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnFilters(column),
@@ -1293,12 +1273,10 @@ class $$ClimateCacheTableTableOrderingComposer
     column: $table.cacheKey,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<String> get data => $composableBuilder(
     column: $table.data,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnOrderings(column),
@@ -1316,10 +1294,8 @@ class $$ClimateCacheTableTableAnnotationComposer
   });
   GeneratedColumn<String> get cacheKey =>
       $composableBuilder(column: $table.cacheKey, builder: (column) => column);
-
   GeneratedColumn<String> get data =>
       $composableBuilder(column: $table.data, builder: (column) => column);
-
   GeneratedColumn<DateTime> get cachedAt =>
       $composableBuilder(column: $table.cachedAt, builder: (column) => column);
 }
@@ -1445,17 +1421,14 @@ class $$AiInsightCacheTableTableFilterComposer
     column: $table.cacheKey,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<String> get insight => $composableBuilder(
     column: $table.insight,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnFilters(column),
   );
-
   ColumnFilters<double> get cvsScore => $composableBuilder(
     column: $table.cvsScore,
     builder: (column) => ColumnFilters(column),
@@ -1475,17 +1448,14 @@ class $$AiInsightCacheTableTableOrderingComposer
     column: $table.cacheKey,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<String> get insight => $composableBuilder(
     column: $table.insight,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnOrderings(column),
   );
-
   ColumnOrderings<double> get cvsScore => $composableBuilder(
     column: $table.cvsScore,
     builder: (column) => ColumnOrderings(column),
@@ -1503,13 +1473,10 @@ class $$AiInsightCacheTableTableAnnotationComposer
   });
   GeneratedColumn<String> get cacheKey =>
       $composableBuilder(column: $table.cacheKey, builder: (column) => column);
-
   GeneratedColumn<String> get insight =>
       $composableBuilder(column: $table.insight, builder: (column) => column);
-
   GeneratedColumn<DateTime> get cachedAt =>
       $composableBuilder(column: $table.cachedAt, builder: (column) => column);
-
   GeneratedColumn<double> get cvsScore =>
       $composableBuilder(column: $table.cvsScore, builder: (column) => column);
 }

@@ -1,5 +1,4 @@
 import 'dart:developer';
-
 import '../exception/invalid_response_exception.dart';
 import '../exception/unhandled_exception.dart';
 import 'data_state.dart';
@@ -10,23 +9,24 @@ Future<DataState<U>> handleResponse<T, U>({
 }) async {
   try {
     final response = await execute();
-
     if (response != null) {
       final data = mapper(response);
-
       if (data != null) {
         return DataSuccess(data);
       }
-
-      return DataFailure(InvalidResponseException(
-        message: "Error while mapping response",
-        response: "$response",
-      ));
+      return DataFailure(
+        InvalidResponseException(
+          message: "Error while mapping response",
+          response: "$response",
+        ),
+      );
     } else {
-      return DataFailure(InvalidResponseException(
-        message: "Empty response",
-        response: "$response",
-      ));
+      return DataFailure(
+        InvalidResponseException(
+          message: "Empty response",
+          response: "$response",
+        ),
+      );
     }
   } on InvalidResponseException catch (e) {
     log('$e');
@@ -34,10 +34,7 @@ Future<DataState<U>> handleResponse<T, U>({
   } catch (e) {
     log('$e');
     return const DataFailure(
-      UnhandledException(
-        message: "Something went wrong",
-      ),
+      UnhandledException(message: "Something went wrong"),
     );
   }
 }
-

@@ -13,16 +13,8 @@ import '../components/app_search_bar.dart';
 import '../components/atmospheric_globe_painter.dart';
 import '../components/lg_connection_pill.dart';
 
-const Color bgWhite = Color(0xFFF6FAFD); // screen background
-const Color deepNavy = Color(0xFF0A1931); // card base
-const Color midNavy = Color(0xFF1A3D63); // card border, elevated
-const Color steelBlue = Color(0xFF4A7FA7); // glow, accents, icons
-const Color powder = Color(0xFFB3CFE5); // muted text, subtle tints
-const Color snowWhite = Color(0xFFF6FAFD);
-
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MultiBlocProvider(
@@ -39,7 +31,6 @@ class HomePage extends StatelessWidget {
 
 class _HomePageBody extends StatelessWidget {
   const _HomePageBody();
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -47,11 +38,27 @@ class _HomePageBody extends StatelessWidget {
       builder: (context, preset, _) {
         final isDark = ThemeController.instance.isDarkMode;
         final screenWidth = MediaQuery.of(context).size.width;
-
         return Scaffold(
-          backgroundColor: isDark ? AppTheme.background : bgWhite,
+          backgroundColor: isDark ? AppTheme.background : Colors.white,
           body: Stack(
             children: [
+              if (!isDark)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFFE8F4FC),
+                          const Color(0xFFF4F9FD),
+                          Colors.white,
+                        ],
+                        stops: const [0.0, 0.4, 0.7],
+                      ),
+                    ),
+                  ),
+                ),
               isDark
                   ? Positioned(
                       bottom: -screenWidth * 0.3,
@@ -64,14 +71,24 @@ class _HomePageBody extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [Colors.transparent, Colors.white],
-                            stops: [0.0, 0.35], // Fade out the top 35% to erase the hard line
+                            stops: [0.0, 0.35],
                           ).createShader(rect);
                         },
                         blendMode: BlendMode.dstIn,
                         child: FuturisticGlobeBackground(isDark: isDark),
                       ),
                     )
-                  : const SizedBox.shrink(),
+                  : Positioned(
+                      bottom: -screenWidth * 0.05,
+                      left: -screenWidth * 0.15,
+                      right: -screenWidth * 0.15,
+                      height: screenWidth * 1.25,
+                      child: Image.asset(
+                        'assets/images/hero_globe_light.png',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.bottomCenter,
+                      ),
+                    ),
               SafeArea(
                 child: CustomScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -97,8 +114,8 @@ class _HomePageBody extends StatelessWidget {
                                 textAlign: TextAlign.center,
                                 style: AppTheme.bodySmall.copyWith(
                                   color: isDark
-                                      ? const Color(0xFF4A5568)
-                                      : steelBlue.withValues(alpha: 0.65),
+                                      ? AppTheme.textSecondary
+                                      : const Color(0xFF6B80A0),
                                   height: 1.5,
                                 ),
                               ),
@@ -115,7 +132,7 @@ class _HomePageBody extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const SizedBox(height: AppTheme.spacingLG),
-                            _GlobalOverviewButton(isDark: isDark),
+                            _InfrastructureMapButton(isDark: isDark),
                             const SizedBox(height: AppTheme.spacingXL),
                           ],
                         ),
@@ -135,7 +152,6 @@ class _HomePageBody extends StatelessWidget {
 class _HeaderSection extends StatelessWidget {
   final bool isDark;
   const _HeaderSection({required this.isDark});
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -150,13 +166,25 @@ class _HeaderSection extends StatelessWidget {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.surfaceLight,
-                  border: Border.all(color: AppTheme.cardBorder, width: 1.0),
+                  color: isDark ? AppTheme.surfaceLight : Colors.white,
+                  border: Border.all(
+                    color: isDark ? AppTheme.cardBorder : Colors.transparent,
+                    width: 1.0,
+                  ),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                 ),
                 child: Center(
                   child: Icon(
                     Icons.public,
-                    color: isDark ? const Color(0xFF00C8FF) : midNavy,
+                    color: isDark ? AppTheme.primary : const Color(0xFF00C8FF),
                     size: 28,
                   ),
                 ),
@@ -168,7 +196,9 @@ class _HeaderSection extends StatelessWidget {
                   Text(
                     'EcoGrid',
                     style: AppTheme.headingSmall.copyWith(
-                      color: isDark ? Colors.white : deepNavy,
+                      color: isDark
+                          ? AppTheme.textPrimary
+                          : const Color(0xFF0D1F4A),
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,
                       fontSize: 24,
@@ -177,7 +207,9 @@ class _HeaderSection extends StatelessWidget {
                   Text(
                     'Intelligence',
                     style: AppTheme.bodySmall.copyWith(
-                      color: isDark ? const Color(0xFF00C8FF) : steelBlue,
+                      color: isDark
+                          ? AppTheme.primary
+                          : const Color(0xFF0066FF),
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
                       letterSpacing: 1,
@@ -197,24 +229,63 @@ class _HeaderSection extends StatelessWidget {
 class _SearchBarSection extends StatelessWidget {
   final bool isDark;
   const _SearchBarSection({required this.isDark});
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
-      child: AppSearchBar(
-        hintText: 'Search regions or power plants...',
-        readOnly: true,
-        onTap: () => Navigator.pushNamed(context, AppRoutes.search),
-      ),
-    );
+    if (isDark) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+        child: AppSearchBar(
+          hintText: 'Search regions or power plants...',
+          readOnly: true,
+          onTap: () => Navigator.pushNamed(context, AppRoutes.search),
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+        child: GestureDetector(
+          onTap: () => Navigator.pushNamed(context, AppRoutes.search),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 20),
+                const Icon(Icons.search, color: Color(0xFF6B80A0), size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Search regions or power plants...',
+                    style: AppTheme.bodyLarge.copyWith(
+                      color: const Color(0xFF8A9BAE),
+                    ),
+                  ),
+                ),
+                const Icon(Icons.mic_none, color: Color(0xFF6B80A0), size: 24),
+                const SizedBox(width: 20),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 }
 
 class _QuickExploreSection extends StatelessWidget {
   final bool isDark;
   const _QuickExploreSection({required this.isDark});
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -227,15 +298,15 @@ class _QuickExploreSection extends StatelessWidget {
               Text(
                 'QUICK EXPLORE',
                 style: AppTheme.labelSmall.copyWith(
-                  color: isDark ? const Color(0xFF00C8FF) : midNavy,
-                  letterSpacing: isDark ? 2.5 : 2.0,
-                  fontWeight: isDark ? FontWeight.w700 : FontWeight.w600,
+                  color: isDark ? AppTheme.primary : const Color(0xFF0066FF),
+                  letterSpacing: 2.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(width: 4),
               Icon(
                 Icons.auto_awesome,
-                color: isDark ? const Color(0xFF00C8FF) : steelBlue,
+                color: isDark ? AppTheme.primary : const Color(0xFF0066FF),
                 size: 14,
               ),
             ],
@@ -247,7 +318,7 @@ class _QuickExploreSection extends StatelessWidget {
           child: GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
               crossAxisSpacing: 4,
               mainAxisSpacing: 4,
@@ -256,7 +327,7 @@ class _QuickExploreSection extends StatelessWidget {
             itemCount: Region.quickRegions.length,
             itemBuilder: (context, index) {
               final region = Region.quickRegions[index];
-              return _RegionCard(region: region);
+              return _RegionCard(region: region, isDark: isDark);
             },
           ),
         ),
@@ -267,8 +338,8 @@ class _QuickExploreSection extends StatelessWidget {
 
 class _RegionCard extends StatefulWidget {
   final Region region;
-  const _RegionCard({required this.region});
-
+  final bool isDark;
+  const _RegionCard({required this.region, required this.isDark});
   @override
   State<_RegionCard> createState() => _RegionCardState();
 }
@@ -277,7 +348,6 @@ class _RegionCardState extends State<_RegionCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -308,9 +378,9 @@ class _RegionCardState extends State<_RegionCard>
       case 'china':
         return const Color(0xFF7B8FD4);
       case 'africa':
-        return const Color(0xFF00C8FF); // Teal/Cyan for Africa in screenshot
+        return const Color(0xFF00C8FF);
       case 'spain':
-        return const Color(0xFFB388FF); // Purple for Spain
+        return const Color(0xFFB388FF);
       case 'south_asia':
         return const Color(0xFFB388FF);
       default:
@@ -320,16 +390,12 @@ class _RegionCardState extends State<_RegionCard>
 
   double _getRegionImageScale(String regionId) {
     if (regionId == 'europe') return 1.25;
-    if (regionId == 'africa') return 1.25;
-    if (regionId == 'spain') return 0.85;
     return 1.0;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ThemeController.instance.isDarkMode;
     final regionColor = _getRegionColor(widget.region.id);
-
     return GestureDetector(
       onTapDown: (_) => _controller.forward(),
       onTapUp: (_) {
@@ -345,7 +411,7 @@ class _RegionCardState extends State<_RegionCard>
         animation: _scaleAnimation,
         builder: (context, child) =>
             Transform.scale(scale: _scaleAnimation.value, child: child),
-        child: isDark
+        child: widget.isDark
             ? Container(
                 decoration: BoxDecoration(
                   color: AppTheme.cardBackground,
@@ -360,40 +426,81 @@ class _RegionCardState extends State<_RegionCard>
                     ),
                   ],
                 ),
-                child: _buildDarkCard(regionColor),
+                child: _buildCard(regionColor),
               )
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: deepNavy,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    border: Border.all(
-                      color: steelBlue.withValues(alpha: 0.55),
-                      width: 1.4,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: deepNavy.withValues(alpha: 0.28),
-                        blurRadius: 28,
-                        offset: const Offset(0, 12),
-                        spreadRadius: -2,
-                      ),
-                      BoxShadow(
-                        color: steelBlue.withValues(alpha: 0.20),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: _buildLightCard(regionColor),
-                ),
-              ),
+            : _buildLightCard(regionColor),
       ),
     );
   }
 
-  Widget _buildDarkCard(Color regionColor) {
+  Widget _buildLightCard(Color regionColor) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            flex: 3,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              child: Transform.scale(
+                scale: _getRegionImageScale(widget.region.id),
+                child: Image.asset(
+                  RegionAssetResolver.getRegionImage(
+                    widget.region.id,
+                    ThemeMode.light,
+                  ),
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  isAntiAlias: true,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox(),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.region.name,
+                  style: AppTheme.bodyMedium.copyWith(
+                    color: const Color(0xFF1A3D63),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: 20,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: regionColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCard(Color regionColor) {
     return Stack(
       children: [
         Positioned(
@@ -465,210 +572,57 @@ class _RegionCardState extends State<_RegionCard>
       ],
     );
   }
-
-  Widget _buildLightCard(Color regionColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          flex: 7,
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: powder.withValues(alpha: 0.18),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppTheme.radiusMedium),
-                topRight: Radius.circular(AppTheme.radiusMedium),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppTheme.radiusMedium),
-                topRight: Radius.circular(AppTheme.radiusMedium),
-              ),
-              child: Image.asset(
-                RegionAssetResolver.getRegionImage(widget.region.id),
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (context, error, stackTrace) => const SizedBox(),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  widget.region.name,
-                  style: AppTheme.labelLarge.copyWith(
-                    fontSize: 15,
-                    color: snowWhite,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: midNavy,
-                    border: Border.all(
-                      color: steelBlue.withValues(alpha: 0.60),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: steelBlue.withValues(alpha: 0.45),
-                        blurRadius: 8,
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.chevron_right,
-                    color: powder,
-                    size: 15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
-class _GlobalOverviewButton extends StatefulWidget {
+class _InfrastructureMapButton extends StatelessWidget {
   final bool isDark;
-  const _GlobalOverviewButton({required this.isDark});
-
-  @override
-  State<_GlobalOverviewButton> createState() => _GlobalOverviewButtonState();
-}
-
-class _GlobalOverviewButtonState extends State<_GlobalOverviewButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _shimmerController;
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    super.dispose();
-  }
-
+  const _InfrastructureMapButton({required this.isDark});
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.isDark;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL * 1.5), // Increased padding to reduce button width
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL * 1.5),
       child: GestureDetector(
         onTap: () {
           Navigator.pushNamed(context, AppRoutes.infrastructureMap);
         },
-        child: AnimatedBuilder(
-          animation: _shimmerController,
-          builder: (context, child) => Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            decoration: isDark
-                ? BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00C8FF).withValues(alpha: 0.25),
-                        blurRadius: 24,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  )
-                : BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                    gradient: const LinearGradient(
-                      colors: [deepNavy, midNavy, steelBlue, powder],
-                      stops: [0.0, 0.35, 0.70, 1.0],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: midNavy.withValues(alpha: 0.45),
-                        blurRadius: 28,
-                        offset: const Offset(0, 10),
-                      ),
-                      BoxShadow(
-                        color: steelBlue.withValues(alpha: 0.30),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: Border.all(
-                      color: powder.withValues(alpha: 0.25),
-                      width: 1.0,
-                    ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: isDark
+                ? AppTheme.primaryGradient
+                : const LinearGradient(
+                    colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
                   ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.public,
-                      color: isDark ? Colors.white : snowWhite,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Show Infrastructure Map',
-                      style: AppTheme.labelLarge.copyWith(
-                        color: isDark ? Colors.white : snowWhite,
-                        fontSize: 15,
-                        fontWeight: isDark ? FontWeight.w600 : FontWeight.w700,
-                      ),
+            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: const Color(0xFF0066FF).withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
                   ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(Icons.public, color: Colors.white, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Show Infrastructure Map',
+                style: AppTheme.labelLarge.copyWith(
+                  color: Colors.white,
+                  fontSize: 17,
+                  height: 1.0,
+                  fontWeight: FontWeight.w700,
                 ),
-                Positioned(
-                  right: 0,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.arrow_forward,
-                        color: isDark ? Colors.white : snowWhite,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

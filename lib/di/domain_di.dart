@@ -16,14 +16,11 @@ import '../domain/usecases/plant/services/get_all_plants_usecase.dart';
 import '../domain/usecases/plant/services/get_plants_by_region_usecase.dart';
 import '../domain/usecases/plant/services/search_plants_usecase.dart';
 import '../domain/usecases/plant/services/search_regions_usecase.dart';
-
-// Init Bloc UseCases
 import '../domain/usecases/cvs/bloc/init_cvs_bloc_usecase.dart';
 import '../domain/usecases/lg/bloc/init_lg_bloc_usecase.dart';
 import '../domain/usecases/plant/bloc/init_plant_bloc_usecase.dart';
 
 final sl = GetIt.instance;
-
 void initDomain() {
   sl.registerLazySingleton(() => GeneratePlantInsightUsecase(sl()));
   sl.registerLazySingleton(() => GenerateRegionalInsightUsecase(sl()));
@@ -31,22 +28,17 @@ void initDomain() {
   sl.registerLazySingleton(() => GenerateTrendInsightUsecase(sl()));
   sl.registerLazySingleton(() => StartPlantChatUsecase(sl()));
   sl.registerLazySingleton(() => SendChatMessageUsecase(sl()));
-
   sl.registerLazySingleton(() => GetMultiYearTrendUsecase(sl()));
-
   sl.registerLazySingleton(() => GetCvsForPlantUsecase(sl()));
   sl.registerLazySingleton(() => GetCachedCvsUsecase(sl()));
   sl.registerLazySingleton(() => PreComputeAllScoresUsecase(sl()));
   sl.registerLazySingleton(() => GetPlantsByRiskLevelUsecase(sl()));
   sl.registerLazySingleton(() => CountPlantsByRiskLevelUsecase(sl()));
   sl.registerLazySingleton(() => GetUnifiedScoreUsecase(sl()));
-
   sl.registerLazySingleton(() => GetAllPlantsUsecase(sl()));
   sl.registerLazySingleton(() => GetPlantsByRegionUsecase(sl()));
   sl.registerLazySingleton(() => SearchPlantsUsecase(sl()));
   sl.registerLazySingleton(() => SearchRegionsUsecase(sl()));
-
-  // Register Init Bloc UseCases
   sl.registerLazySingleton(() => InitCvsBlocUseCase(sl()));
   sl.registerLazySingleton(() => InitLgBlocUseCase(sl()));
   sl.registerLazySingleton(() => InitPlantBlocUseCase(sl()));

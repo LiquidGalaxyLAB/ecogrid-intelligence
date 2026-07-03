@@ -2,12 +2,9 @@ import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-
 class ApiClient {
-  /// Exposes Chucker's navigator key so [main.dart] can wire it into MaterialApp.
   static GlobalKey<NavigatorState> get navigatorKey =>
       ChuckerFlutter.navigatorKey;
-
   static Dio createDio({String? baseUrl}) {
     final dio = Dio(
       BaseOptions(
@@ -20,10 +17,7 @@ class ApiClient {
         },
       ),
     );
-
-    // Attach Chucker interceptor — captures all requests/responses
     dio.interceptors.add(ChuckerDioInterceptor());
-
     return dio;
   }
 }

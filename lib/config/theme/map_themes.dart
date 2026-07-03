@@ -1,6 +1,5 @@
 class MapThemes {
   static const String mapsThemeNone = "[]";
-
   static const String mapsThemeRed = """
 [
   {
@@ -163,7 +162,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemeYellow = """
 [
   {
@@ -326,7 +324,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemeGreen = """
 [
   {
@@ -489,7 +486,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemeBlue = """
 [
   {
@@ -652,7 +648,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemeIndigo = """
 [
   {
@@ -815,7 +810,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemePurple = """
 [
   {
@@ -978,7 +972,6 @@ class MapThemes {
   }
 ]
 """;
-
   static const String mapsThemePink = """
 [
   {

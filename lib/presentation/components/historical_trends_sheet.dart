@@ -5,12 +5,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../config/theme/app_theme.dart';
 import '../../domain/model/climate_data.dart';
 import '../plant_detail/bloc/plant_detail_bloc.dart';
+import '../plant_detail/bloc/plant_detail_data.dart';
+import '../plant_detail/bloc/plant_detail_event.dart';
+import '../../core/resources/app_state.dart';
 
 class HistoricalTrendsSheet extends StatelessWidget {
   final List<ClimateData> historicalData;
-
   const HistoricalTrendsSheet({super.key, required this.historicalData});
-
   @override
   Widget build(BuildContext context) {
     Logger().i('[UI] Opened HistoricalTrendsSheet');
@@ -20,8 +21,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
         child: const Center(child: Text('No historical data available')),
       );
     }
-
-    // Filter out entries that have completely null data (e.g. from API gaps)
     final validData = historicalData
         .where(
           (d) =>
@@ -30,8 +29,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
               d.windSpeed != null,
         )
         .toList();
-
-    // If not enough data, fallback to empty to avoid crashing
     if (validData.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(AppTheme.spacingLG),
@@ -47,7 +44,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
         ),
       );
     }
-
     double sumTemp = 0, sumPrecip = 0, sumWind = 0;
     int countTemp = 0, countPrecip = 0, countWind = 0;
     for (final d in validData) {
@@ -67,39 +63,28 @@ class HistoricalTrendsSheet extends StatelessWidget {
     final avgTemp = countTemp > 0 ? sumTemp / countTemp : 1.0;
     final avgPrecip = countPrecip > 0 ? sumPrecip / countPrecip : 1.0;
     final avgWind = countWind > 0 ? sumWind / countWind : 1.0;
-
     final tempSpots = <FlSpot>[];
     final precipSpots = <FlSpot>[];
     final windSpots = <FlSpot>[];
-
     for (int i = 0; i < validData.length; i++) {
       final x = i.toDouble();
       final d = validData[i];
-
-      // Normalize as percentage deviation from the multi-year mean.
-      // e.g., if avg temp is 20°C and this year is 22°C, that's +10%.
-      // This puts all three metrics on the same comparable scale.
       double tempVal = 0;
       if (d.temperature != null && avgTemp.abs() > 0.01) {
         tempVal = ((d.temperature! - avgTemp) / avgTemp) * 100;
       }
-
       double precipVal = 0;
       if (d.precipitation != null && avgPrecip.abs() > 0.01) {
         precipVal = ((d.precipitation! - avgPrecip) / avgPrecip) * 100;
       }
-
       double windVal = 0;
       if (d.windSpeed != null && avgWind.abs() > 0.01) {
         windVal = ((d.windSpeed! - avgWind) / avgWind) * 100;
       }
-
       tempSpots.add(FlSpot(x, tempVal));
       precipSpots.add(FlSpot(x, precipVal));
       windSpots.add(FlSpot(x, windVal));
     }
-
-    // Dynamically calculate Y-axis bounds from the actual data
     final allYValues = [
       ...tempSpots.map((s) => s.y),
       ...precipSpots.map((s) => s.y),
@@ -107,15 +92,11 @@ class HistoricalTrendsSheet extends StatelessWidget {
     ];
     double dataMinY = allYValues.reduce((a, b) => a < b ? a : b);
     double dataMaxY = allYValues.reduce((a, b) => a > b ? a : b);
-    // Add 15% padding and round to clean numbers
     final yPadding = ((dataMaxY - dataMinY) * 0.15).clamp(5.0, double.infinity);
     double minY = (dataMinY - yPadding).floorToDouble();
     double maxY = (dataMaxY + yPadding).ceilToDouble();
-
-    // Determine min/max X
     double minX = 0;
     double maxX = (validData.length - 1).toDouble();
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -128,7 +109,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header & Close Button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -143,8 +123,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: AppTheme.spacingMD),
-
-                // Legend
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -170,8 +148,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: AppTheme.spacingLG),
-
-                // Chart
                 SizedBox(
                   height: 300,
                   child: LineChart(
@@ -198,7 +174,7 @@ class HistoricalTrendsSheet extends StatelessWidget {
                           sideTitles: SideTitles(
                             showTitles: true,
                             reservedSize: 30,
-                            interval: 2, // Label every 2 years
+                            interval: 2,
                             getTitlesWidget: (value, meta) {
                               if (value < 0 || value >= validData.length) {
                                 return const SizedBox.shrink();
@@ -239,17 +215,14 @@ class HistoricalTrendsSheet extends StatelessWidget {
                       ),
                       borderData: FlBorderData(show: false),
                       lineBarsData: [
-                        // Temperature (Red)
                         LineChartBarData(
                           spots: tempSpots,
-                          isCurved:
-                              false, // Straight trend line connecting dots
+                          isCurved: false,
                           color: const Color(0xFFFF5252),
                           barWidth: 4,
                           isStrokeCapRound: true,
                           dotData: FlDotData(show: true),
                         ),
-                        // Precipitation (Blue)
                         LineChartBarData(
                           spots: precipSpots,
                           isCurved: false,
@@ -258,7 +231,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
                           isStrokeCapRound: true,
                           dotData: FlDotData(show: true),
                         ),
-                        // Wind (Green)
                         LineChartBarData(
                           spots: windSpots,
                           isCurved: false,
@@ -272,15 +244,12 @@ class HistoricalTrendsSheet extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: AppTheme.spacingLG),
-
-                // ── AI Trend Explanation (button-triggered only) ──
-                BlocBuilder<PlantDetailBloc, PlantDetailState>(
+                BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
                   builder: (context, state) {
-                    if (state is! PlantDetailLoaded) {
+                    if (state is! AppSuccess<PlantDetailData>) {
                       return const SizedBox.shrink();
                     }
-
-                    if (state.isLoadingTrendInsight) {
+                    if (state.data!.isLoadingTrendInsight) {
                       return Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Center(
@@ -291,8 +260,7 @@ class HistoricalTrendsSheet extends StatelessWidget {
                         ),
                       );
                     }
-
-                    if (state.trendInsight != null) {
+                    if (state.data!.trendInsight != null) {
                       return Container(
                         padding: const EdgeInsets.all(AppTheme.spacingMD),
                         decoration: BoxDecoration(
@@ -323,7 +291,7 @@ class HistoricalTrendsSheet extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              state.trendInsight!,
+                              state.data!.trendInsight!,
                               style: AppTheme.bodySmall.copyWith(
                                 color: AppTheme.textSecondary,
                                 height: 1.5,
@@ -333,7 +301,6 @@ class HistoricalTrendsSheet extends StatelessWidget {
                         ),
                       );
                     }
-
                     return SizedBox(
                       width: double.infinity,
                       height: 44,
@@ -371,9 +338,7 @@ class HistoricalTrendsSheet extends StatelessWidget {
 class _LegendItem extends StatelessWidget {
   final Color color;
   final String label;
-
   const _LegendItem({required this.color, required this.label});
-
   @override
   Widget build(BuildContext context) {
     return Row(

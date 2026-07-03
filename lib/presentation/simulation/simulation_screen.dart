@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
 import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
 import '../plant_detail/bloc/plant_detail_bloc.dart';
+import '../plant_detail/bloc/plant_detail_data.dart';
+import '../plant_detail/bloc/plant_detail_event.dart';
+import '../../core/resources/app_state.dart';
 import '../../core/enums/risk_level.dart';
 import '../../core/enums/plant_type.dart';
 import '../../core/utils/cvs_calculator.dart';
@@ -12,7 +16,6 @@ enum SimulationMode { simulateImpact, pathToDanger }
 class ScenarioSimulationScreen extends StatefulWidget {
   final PlantDetailBloc bloc;
   const ScenarioSimulationScreen({super.key, required this.bloc});
-
   @override
   State<ScenarioSimulationScreen> createState() =>
       _ScenarioSimulationScreenState();
@@ -30,7 +33,6 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
   double _tempMultiplier = 1.0;
   double _waterMultiplier = 1.0;
   double _windMultiplier = 1.0;
-
   void _generateInsight(double projectedCvs) {
     widget.bloc.add(
       PlantDetailScenarioInsightRequested(
@@ -56,22 +58,20 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: widget.bloc,
-      child: BlocBuilder<PlantDetailBloc, PlantDetailState>(
+      child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
         builder: (context, state) {
-          if (state is! PlantDetailLoaded) {
+          if (state is! AppSuccess<PlantDetailData>) {
             return Scaffold(
               backgroundColor: AppTheme.background,
               body: Center(child: CircularProgressIndicator()),
             );
           }
-
-          final plant = state.plant;
-          final baseCvs = state.cvsResult?.score ?? 0.0;
+          final plant = state.data!.plant;
+          final baseCvs = state.data!.cvsResult?.score ?? 0.0;
           final baseAnomalies = CVSCalculator.generateBaseAnomalies(
             plant.latitude,
             plant.longitude,
           );
-
           final projectedCvs = CVSCalculator.simulateScenario(
             plantType: plant.primaryFuel,
             tempAnomaly: baseAnomalies['temp'] ?? 0.15,
@@ -81,12 +81,10 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
             waterMultiplier: _waterMultiplier,
             windMultiplier: _windMultiplier,
           );
-
           final worstCaseCvs = CVSCalculator.calculateWorstCase(
             plant.primaryFuel,
             baseAnomalies,
           );
-
           final consequences = CVSCalculator.calculateHumanConsequences(
             plantType: plant.primaryFuel,
             baseCvs: baseCvs,
@@ -95,9 +93,9 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
             waterMultiplier: _waterMultiplier,
             windMultiplier: _windMultiplier,
           );
-
+          final isDark = ThemeController.instance.isDarkMode;
           return Scaffold(
-            backgroundColor: AppTheme.background,
+            backgroundColor: isDark ? AppTheme.background : Colors.white,
             appBar: AppBar(
               backgroundColor: AppTheme.surface,
               elevation: 0,
@@ -130,307 +128,334 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                 ),
               ),
             ),
-            body: Column(
+            body: Stack(
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(AppTheme.spacingLG),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Mode Toggle
-                        Container(
-                          decoration: BoxDecoration(
-                            color: AppTheme.surfaceLight,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _ModeToggle(
-                                  title: 'Simulate Impact',
-                                  isSelected:
-                                      _currentMode ==
-                                      SimulationMode.simulateImpact,
-                                  onTap: () => setState(
-                                    () => _currentMode =
-                                        SimulationMode.simulateImpact,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _ModeToggle(
-                                  title: 'Path to Danger',
-                                  isSelected:
-                                      _currentMode ==
-                                      SimulationMode.pathToDanger,
-                                  onTap: () => setState(
-                                    () => _currentMode =
-                                        SimulationMode.pathToDanger,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                if (!isDark)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFFE8F4FC),
+                            const Color(0xFFF4F9FD),
+                            Colors.white,
+                          ],
+                          stops: const [0.0, 0.4, 0.7],
                         ),
-                        SizedBox(height: AppTheme.spacingLG),
-
-                        if (_currentMode == SimulationMode.simulateImpact) ...[
-                          // 3-Column Comparison
-                          Text(
-                            'Scenario Comparison',
-                            style: AppTheme.labelSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _ScoreColumn(
-                                  title: 'Current',
-                                  score: baseCvs,
-                                  subtitle: 'Baseline',
-                                ),
+                      ),
+                    ),
+                  ),
+                Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppTheme.spacingLG),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: AppTheme.surfaceLight,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              Container(
-                                width: 1,
-                                height: 40,
-                                color: AppTheme.cardBorder,
-                              ),
-                              Expanded(
-                                child: _ScoreColumn(
-                                  title: 'Simulated',
-                                  score: projectedCvs,
-                                  subtitle: _selectedScenario,
-                                  isHighlight: true,
-                                ),
-                              ),
-                              Container(
-                                width: 1,
-                                height: 40,
-                                color: AppTheme.cardBorder,
-                              ),
-                              Expanded(
-                                child: _ScoreColumn(
-                                  title: 'Worst Case',
-                                  score: worstCaseCvs,
-                                  subtitle: 'Catastrophic shutdown likely',
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: AppTheme.spacingLG),
-
-                          // Tangible Human Consequences
-                          Container(
-                            padding: const EdgeInsets.all(AppTheme.spacingMD),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppTheme.primary.withValues(alpha: 0.2),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _ModeToggle(
+                                      title: 'Simulate Impact',
+                                      isSelected:
+                                          _currentMode ==
+                                          SimulationMode.simulateImpact,
+                                      onTap: () => setState(
+                                        () => _currentMode =
+                                            SimulationMode.simulateImpact,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _ModeToggle(
+                                      title: 'Path to Danger',
+                                      isSelected:
+                                          _currentMode ==
+                                          SimulationMode.pathToDanger,
+                                      onTap: () => setState(
+                                        () => _currentMode =
+                                            SimulationMode.pathToDanger,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.warning_amber_rounded,
-                                      color: AppTheme.primary,
-                                      size: 20,
+                            SizedBox(height: AppTheme.spacingLG),
+                            if (_currentMode ==
+                                SimulationMode.simulateImpact) ...[
+                              Text(
+                                'Scenario Comparison',
+                                style: AppTheme.labelSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _ScoreColumn(
+                                      title: 'Current',
+                                      score: baseCvs,
+                                      subtitle: 'Baseline',
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Estimated Real-world Impact',
-                                      style: AppTheme.headingSmall.copyWith(
-                                        color: AppTheme.primary,
-                                      ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 40,
+                                    color: AppTheme.cardBorder,
+                                  ),
+                                  Expanded(
+                                    child: _ScoreColumn(
+                                      title: 'Simulated',
+                                      score: projectedCvs,
+                                      subtitle: _selectedScenario,
+                                      isHighlight: true,
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 1,
+                                    height: 40,
+                                    color: AppTheme.cardBorder,
+                                  ),
+                                  Expanded(
+                                    child: _ScoreColumn(
+                                      title: 'Worst Case',
+                                      score: worstCaseCvs,
+                                      subtitle: 'Catastrophic shutdown likely',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: AppTheme.spacingLG),
+                              Container(
+                                padding: const EdgeInsets.all(
+                                  AppTheme.spacingMD,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary.withValues(
+                                    alpha: 0.05,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppTheme.primary.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.warning_amber_rounded,
+                                          color: AppTheme.primary,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Estimated Real-world Impact',
+                                          style: AppTheme.headingSmall.copyWith(
+                                            color: AppTheme.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _ConsequenceRow(
+                                      icon: Icons.bolt,
+                                      label: 'Output Capacity',
+                                      value: consequences['outputReduction']!,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _ConsequenceRow(
+                                      icon: Icons.water_drop,
+                                      label: 'Cooling Demand',
+                                      value: consequences['waterDemand']!,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _ConsequenceRow(
+                                      icon: Icons.health_and_safety,
+                                      label: 'Operational Risk',
+                                      value: consequences['operationalRisk']!,
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                _ConsequenceRow(
-                                  icon: Icons.bolt,
-                                  label: 'Output Capacity',
-                                  value: consequences['outputReduction']!,
-                                ),
-                                const SizedBox(height: 8),
-                                _ConsequenceRow(
-                                  icon: Icons.water_drop,
-                                  label: 'Cooling Demand',
-                                  value: consequences['waterDemand']!,
-                                ),
-                                const SizedBox(height: 8),
-                                _ConsequenceRow(
-                                  icon: Icons.health_and_safety,
-                                  label: 'Operational Risk',
-                                  value: consequences['operationalRisk']!,
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: AppTheme.spacingLG),
-
-                          // Presets
-                          Text('Select Scenario', style: AppTheme.labelSmall),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              _PresetCard(
-                                icon: Icons.auto_graph,
-                                title: 'Business as Usual',
-                                subtitle: 'Current trajectory',
-                                isSelected:
-                                    _selectedScenario == 'Business as Usual',
-                                onTap: () => _selectPreset(
-                                  'Business as Usual',
-                                  1.0,
-                                  1.0,
-                                  1.0,
-                                ),
                               ),
-                              _PresetCard(
-                                icon: Icons.trending_up,
-                                title: '2050 Projection',
-                                subtitle: 'IPCC RCP8.5',
-                                isSelected:
-                                    _selectedScenario == '2050 Projection',
-                                onTap: () => _selectPreset(
-                                  '2050 Projection',
-                                  1.8,
-                                  1.4,
-                                  1.2,
-                                ),
+                              SizedBox(height: AppTheme.spacingLG),
+                              Text(
+                                'Select Scenario',
+                                style: AppTheme.labelSmall,
                               ),
-                              _PresetCard(
-                                icon: Icons.local_fire_department,
-                                title: 'Extreme Heatwave',
-                                subtitle: '+12°C peak',
-                                isSelected:
-                                    _selectedScenario == 'Extreme Heatwave',
-                                onTap: () => _selectPreset(
-                                  'Extreme Heatwave',
-                                  2.5,
-                                  1.5,
-                                  1.0,
-                                ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  _PresetCard(
+                                    icon: Icons.auto_graph,
+                                    title: 'Business as Usual',
+                                    subtitle: 'Current trajectory',
+                                    isSelected:
+                                        _selectedScenario ==
+                                        'Business as Usual',
+                                    onTap: () => _selectPreset(
+                                      'Business as Usual',
+                                      1.0,
+                                      1.0,
+                                      1.0,
+                                    ),
+                                  ),
+                                  _PresetCard(
+                                    icon: Icons.trending_up,
+                                    title: '2050 Projection',
+                                    subtitle: 'IPCC RCP8.5',
+                                    isSelected:
+                                        _selectedScenario == '2050 Projection',
+                                    onTap: () => _selectPreset(
+                                      '2050 Projection',
+                                      1.8,
+                                      1.4,
+                                      1.2,
+                                    ),
+                                  ),
+                                  _PresetCard(
+                                    icon: Icons.local_fire_department,
+                                    title: 'Extreme Heatwave',
+                                    subtitle: '+12°C peak',
+                                    isSelected:
+                                        _selectedScenario == 'Extreme Heatwave',
+                                    onTap: () => _selectPreset(
+                                      'Extreme Heatwave',
+                                      2.5,
+                                      1.5,
+                                      1.0,
+                                    ),
+                                  ),
+                                  _PresetCard(
+                                    icon: Icons.water_drop,
+                                    title: 'Severe Drought',
+                                    subtitle: '-60% rainfall',
+                                    isSelected:
+                                        _selectedScenario == 'Severe Drought',
+                                    onTap: () => _selectPreset(
+                                      'Severe Drought',
+                                      1.2,
+                                      2.5,
+                                      1.0,
+                                    ),
+                                  ),
+                                  _PresetCard(
+                                    icon: Icons.storm,
+                                    title: 'Monsoon Flood',
+                                    subtitle: 'Extreme precipitation',
+                                    isSelected:
+                                        _selectedScenario == 'Monsoon Flood',
+                                    onTap: () => _selectPreset(
+                                      'Monsoon Flood',
+                                      1.0,
+                                      2.0,
+                                      2.5,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              _PresetCard(
-                                icon: Icons.water_drop,
-                                title: 'Severe Drought',
-                                subtitle: '-60% rainfall',
-                                isSelected:
-                                    _selectedScenario == 'Severe Drought',
-                                onTap: () => _selectPreset(
-                                  'Severe Drought',
-                                  1.2,
-                                  2.5,
-                                  1.0,
-                                ),
-                              ),
-                              _PresetCard(
-                                icon: Icons.storm,
-                                title: 'Monsoon Flood',
-                                subtitle: 'Extreme precipitation',
-                                isSelected:
-                                    _selectedScenario == 'Monsoon Flood',
-                                onTap: () => _selectPreset(
-                                  'Monsoon Flood',
-                                  1.0,
-                                  2.0,
-                                  2.5,
-                                ),
+                              SizedBox(height: AppTheme.spacingLG),
+                            ] else ...[
+                              _PathToDangerView(
+                                plantType: plant.primaryFuel,
+                                baseAnomalies: baseAnomalies,
+                                currentCvs: baseCvs,
+                                onApplyScenario: (tMult, wMult) {
+                                  setState(() {
+                                    _currentMode =
+                                        SimulationMode.simulateImpact;
+                                    _selectedScenario = 'Threshold Scenario';
+                                    _tempMultiplier = tMult;
+                                    _waterMultiplier = wMult;
+                                    _windMultiplier = 1.0;
+                                  });
+                                },
                               ),
                             ],
-                          ),
-                          SizedBox(height: AppTheme.spacingLG),
-                        ] else ...[
-                          // Path to Danger Mode
-                          _PathToDangerView(
-                            plantType: plant.primaryFuel,
-                            baseAnomalies: baseAnomalies,
-                            currentCvs: baseCvs,
-                            onApplyScenario: (tMult, wMult) {
-                              setState(() {
-                                _currentMode = SimulationMode.simulateImpact;
-                                _selectedScenario = 'Threshold Scenario';
-                                _tempMultiplier = tMult;
-                                _waterMultiplier = wMult;
-                                _windMultiplier = 1.0;
-                              });
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                // Fixed bottom action container
-                if (_currentMode == SimulationMode.simulateImpact)
-                  Container(
-                    padding: const EdgeInsets.all(AppTheme.spacingLG),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      border: Border(
-                        top: BorderSide(color: AppTheme.cardBorder, width: 1.0),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          offset: const Offset(0, -4),
-                          blurRadius: 16,
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                    child:
-                        (state.scenarioInsight != null ||
-                            state.isLoadingInsight)
-                        ? _ShareableInsightCard(
-                            plantName: plant.name,
-                            scenarioName: _selectedScenario,
-                            baseCvs: baseCvs,
-                            projectedCvs: projectedCvs,
-                            consequence: consequences['outputReduction']!,
-                            insight: state.scenarioInsight,
-                            isLoading: state.isLoadingInsight,
-                          )
-                        : SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: OutlinedButton.icon(
-                              icon: Icon(
-                                Icons.auto_awesome,
-                                color: AppTheme.primary,
-                              ),
-                              label: Text(
-                                'Generate AI Analysis',
-                                style: TextStyle(
-                                  color: AppTheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(
-                                  color: AppTheme.primary.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                  width: 1.5,
-                                ),
-                                backgroundColor: AppTheme.primary.withValues(
-                                  alpha: 0.1,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: () => _generateInsight(projectedCvs),
+                    if (_currentMode == SimulationMode.simulateImpact)
+                      Container(
+                        padding: const EdgeInsets.all(AppTheme.spacingLG),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          border: Border(
+                            top: BorderSide(
+                              color: AppTheme.cardBorder,
+                              width: 1.0,
                             ),
                           ),
-                  ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              offset: const Offset(0, -4),
+                              blurRadius: 16,
+                            ),
+                          ],
+                        ),
+                        child:
+                            (state.data!.scenarioInsight != null ||
+                                state.data!.isLoadingInsight)
+                            ? _ShareableInsightCard(
+                                plantName: plant.name,
+                                scenarioName: _selectedScenario,
+                                baseCvs: baseCvs,
+                                projectedCvs: projectedCvs,
+                                consequence: consequences['outputReduction']!,
+                                insight: state.data!.scenarioInsight,
+                                isLoading: state.data!.isLoadingInsight,
+                              )
+                            : SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  icon: Icon(
+                                    Icons.auto_awesome,
+                                    color: AppTheme.primary,
+                                  ),
+                                  label: Text(
+                                    'Generate AI Analysis',
+                                    style: TextStyle(
+                                      color: AppTheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(
+                                      color: AppTheme.primary.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      width: 1.5,
+                                    ),
+                                    backgroundColor: AppTheme.primary
+                                        .withValues(alpha: 0.1),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () =>
+                                      _generateInsight(projectedCvs),
+                                ),
+                              ),
+                      ),
+                  ],
+                ),
               ],
             ),
           );
@@ -444,13 +469,11 @@ class _ModeToggle extends StatelessWidget {
   final String title;
   final bool isSelected;
   final VoidCallback onTap;
-
   const _ModeToggle({
     required this.title,
     required this.isSelected,
     required this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -487,14 +510,12 @@ class _ScoreColumn extends StatelessWidget {
   final double score;
   final String subtitle;
   final bool isHighlight;
-
   const _ScoreColumn({
     required this.title,
     required this.score,
     required this.subtitle,
     this.isHighlight = false,
   });
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -536,13 +557,11 @@ class _ConsequenceRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-
   const _ConsequenceRow({
     required this.icon,
     required this.label,
     required this.value,
   });
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -578,7 +597,6 @@ class _PresetCard extends StatelessWidget {
   final String subtitle;
   final bool isSelected;
   final VoidCallback onTap;
-
   const _PresetCard({
     required this.icon,
     required this.title,
@@ -586,13 +604,10 @@ class _PresetCard extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
-    // 50% width minus spacing
     final width =
         (MediaQuery.of(context).size.width - (AppTheme.spacingLG * 2) - 12) / 2;
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -648,14 +663,12 @@ class _PathToDangerView extends StatelessWidget {
   final Map<String, double> baseAnomalies;
   final double currentCvs;
   final Function(double tMult, double wMult) onApplyScenario;
-
   const _PathToDangerView({
     required this.plantType,
     required this.baseAnomalies,
     required this.currentCvs,
     required this.onApplyScenario,
   });
-
   @override
   Widget build(BuildContext context) {
     final result = CVSCalculator.findPathToDanger(
@@ -663,7 +676,6 @@ class _PathToDangerView extends StatelessWidget {
       baseAnomalies,
       currentCvs,
     );
-
     if (result == null) {
       return Container(
         padding: const EdgeInsets.all(AppTheme.spacingLG),
@@ -677,9 +689,7 @@ class _PathToDangerView extends StatelessWidget {
         ),
       );
     }
-
     final isResilient = result['tempMultiplier'] == 3.0;
-
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingLG),
       decoration: AppTheme.cardDecoration,
@@ -733,7 +743,6 @@ class _ShareableInsightCard extends StatelessWidget {
   final String consequence;
   final String? insight;
   final bool isLoading;
-
   const _ShareableInsightCard({
     required this.plantName,
     required this.scenarioName,
@@ -743,7 +752,6 @@ class _ShareableInsightCard extends StatelessWidget {
     required this.insight,
     required this.isLoading,
   });
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -834,9 +842,7 @@ class _ShareableInsightCard extends StatelessWidget {
 class _MiniScore extends StatelessWidget {
   final String label;
   final double score;
-
   const _MiniScore({required this.label, required this.score});
-
   @override
   Widget build(BuildContext context) {
     return Column(

@@ -5,21 +5,7 @@ import '../../../core/enums/plant_type.dart';
 import '../../../core/enums/risk_level.dart';
 import '../../../core/enums/stress_filter.dart';
 
-abstract class ExploreState extends Equatable {
-  const ExploreState();
-  @override
-  List<Object?> get props => [];
-}
-
-class ExploreInitial extends ExploreState {
-  const ExploreInitial();
-}
-
-class ExploreLoading extends ExploreState {
-  const ExploreLoading();
-}
-
-class ExploreLoaded extends ExploreState {
+class ExploreData extends Equatable {
   final Region? region;
   final List<PowerPlant> plants;
   final List<PowerPlant> filteredPlants;
@@ -33,8 +19,7 @@ class ExploreLoaded extends ExploreState {
   final String searchQuery;
   final bool isScanning;
   final double scanProgress;
-
-  const ExploreLoaded({
+  const ExploreData({
     this.region,
     required this.plants,
     required this.filteredPlants,
@@ -49,7 +34,6 @@ class ExploreLoaded extends ExploreState {
     this.isScanning = false,
     this.scanProgress = 0.0,
   });
-
   @override
   List<Object?> get props => [
     region,
@@ -66,8 +50,7 @@ class ExploreLoaded extends ExploreState {
     isScanning,
     scanProgress,
   ];
-
-  ExploreLoaded copyWith({
+  ExploreData copyWith({
     Region? region,
     List<PowerPlant>? plants,
     List<PowerPlant>? filteredPlants,
@@ -83,7 +66,7 @@ class ExploreLoaded extends ExploreState {
     double? scanProgress,
     bool clearAiInsight = false,
   }) {
-    return ExploreLoaded(
+    return ExploreData(
       region: region ?? this.region,
       plants: plants ?? this.plants,
       filteredPlants: filteredPlants ?? this.filteredPlants,
@@ -105,11 +88,4 @@ class ExploreLoaded extends ExploreState {
       scanProgress: scanProgress ?? this.scanProgress,
     );
   }
-}
-
-class ExploreError extends ExploreState {
-  final String message;
-  const ExploreError(this.message);
-  @override
-  List<Object?> get props => [message];
 }

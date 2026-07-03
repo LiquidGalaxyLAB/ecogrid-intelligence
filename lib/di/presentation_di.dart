@@ -6,14 +6,8 @@ import '../presentation/lg_connection/bloc/lg_connection_bloc.dart';
 import '../presentation/home/bloc/search_bloc.dart';
 
 final sl = GetIt.instance;
-
 void initPresentation() {
-  sl.registerFactory(
-    () => HomeBloc(
-      lgService: sl(),
-      initPlantBlocUseCase: sl(),
-    ),
-  );
+  sl.registerFactory(() => HomeBloc(initPlantBlocUseCase: sl()));
   sl.registerFactory(
     () => ExploreBloc(
       lgService: sl(),
@@ -50,9 +44,6 @@ void initPresentation() {
     ),
   );
   sl.registerFactory(
-    () => SearchBloc(
-      searchPlantsUsecase: sl(),
-      searchRegionsUsecase: sl(),
-    ),
+    () => SearchBloc(searchPlantsUsecase: sl(), searchRegionsUsecase: sl()),
   );
 }

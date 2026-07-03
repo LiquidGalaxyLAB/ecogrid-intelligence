@@ -6,11 +6,9 @@ import '../../../repository/cvs_repository.dart';
 class GetCvsForPlantUsecase
     implements UseCase<DataState<CvsComputationResult>, PowerPlant> {
   final CvsRepository _repository;
-
   GetCvsForPlantUsecase(this._repository);
-
   @override
-  Future<DataState<CvsComputationResult>> call({PowerPlant? params}) {
+  Stream<DataState<CvsComputationResult>> call({PowerPlant? params}) {
     return _repository.getCvsForPlant(params!);
   }
 }

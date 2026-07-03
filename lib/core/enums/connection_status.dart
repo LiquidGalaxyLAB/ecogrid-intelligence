@@ -1,4 +1,3 @@
-/// LG connection state.
 enum ConnectionStatus {
   connected('Connected'),
   disconnected('Disconnected'),

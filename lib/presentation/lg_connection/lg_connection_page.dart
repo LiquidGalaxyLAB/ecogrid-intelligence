@@ -15,7 +15,6 @@ import '../../core/enums/historical_data_mode.dart';
 
 class LgSettingsScreen extends StatelessWidget {
   const LgSettingsScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final bloc = sl<LGConnectionBloc>()..add(const LGSettingsLoadRequested());
@@ -25,7 +24,6 @@ class LgSettingsScreen extends StatelessWidget {
 
 class _LgSettingsBody extends StatefulWidget {
   const _LgSettingsBody();
-
   @override
   State<_LgSettingsBody> createState() => _LgSettingsBodyState();
 }
@@ -33,7 +31,6 @@ class _LgSettingsBody extends StatefulWidget {
 class _LgSettingsBodyState extends State<_LgSettingsBody>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
   @override
   void initState() {
     super.initState();
@@ -52,11 +49,27 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, mode, _) {
         final isDark = ThemeController.instance.isDarkMode;
-
         return Scaffold(
-          backgroundColor: AppTheme.background,
+          backgroundColor: isDark ? AppTheme.background : Colors.white,
           body: Stack(
             children: [
+              if (!isDark)
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          const Color(0xFFE8F4FC),
+                          const Color(0xFFF4F9FD),
+                          Colors.white,
+                        ],
+                        stops: const [0.0, 0.4, 0.7],
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 top: -100,
                 right: -150,
@@ -67,7 +80,7 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                     height: 400,
                     child: FuturisticGlobeBackground(
                       isDark: isDark,
-                      animate: false, // Prevents 60FPS Opacity redraws
+                      animate: false,
                     ),
                   ),
                 ),
@@ -79,9 +92,6 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                     _buildCustomTabBar(isDark),
                     Expanded(
                       child: BlocBuilder<LGConnectionBloc, LGConnectionState>(
-                        // Only rebuild tabs when status or settings change.
-                        // Error messages are handled by BlocListener in ConnectionTab,
-                        // so they don't need to trigger a full tab tree rebuild.
                         buildWhen: (previous, current) =>
                             previous.status != current.status ||
                             previous.settings != current.settings,
@@ -118,8 +128,11 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLight,
+                color: isDark ? AppTheme.surfaceLight : Colors.white,
                 shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? Colors.transparent : const Color(0xFFE2E8F0),
+                ),
                 boxShadow: isDark
                     ? []
                     : [
@@ -134,7 +147,7 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
               child: Icon(
                 Icons.arrow_back_ios_new,
                 size: 20,
-                color: AppTheme.textPrimary,
+                color: isDark ? AppTheme.textPrimary : const Color(0xFF0D1F4A),
               ),
             ),
           ),
@@ -144,6 +157,7 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
             style: AppTheme.headingLarge.copyWith(
               fontSize: 32,
               letterSpacing: -0.5,
+              color: isDark ? AppTheme.textPrimary : const Color(0xFF0D1F4A),
             ),
           ),
         ],
@@ -156,19 +170,26 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       height: 44,
       decoration: BoxDecoration(
-        color: AppTheme.surfaceLight.withValues(alpha: 0.5),
+        color: isDark
+            ? AppTheme.surfaceLight.withValues(alpha: 0.5)
+            : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.transparent : const Color(0xFFE2E8F0),
+        ),
       ),
       child: TabBar(
         controller: _tabController,
         dividerColor: Colors.transparent,
         indicator: BoxDecoration(
-          color: AppTheme.primary,
+          color: isDark ? AppTheme.primary : const Color(0xFF0066FF),
           borderRadius: BorderRadius.circular(12),
         ),
         indicatorSize: TabBarIndicatorSize.tab,
         labelColor: Colors.white,
-        unselectedLabelColor: AppTheme.textMuted,
+        unselectedLabelColor: isDark
+            ? AppTheme.textMuted
+            : const Color(0xFF6B80A0),
         labelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
         unselectedLabelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
         tabs: const [
@@ -217,16 +238,10 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// GENERAL TAB
-// ════════════════════════════════════════════════════════════════════════════
-
 class _GeneralTab extends StatefulWidget {
   final ThemeMode mode;
   final bool isDark;
-
   const _GeneralTab({required this.mode, required this.isDark});
-
   @override
   State<_GeneralTab> createState() => _GeneralTabState();
 }
@@ -235,7 +250,6 @@ class _GeneralTabState extends State<_GeneralTab> {
   MapType _selectedMapType = MapType.normal;
   String _selectedMapTheme = MapThemes.mapsThemeNone;
   HistoricalDataMode _selectedHistoricalMode = HistoricalDataMode.fast;
-
   @override
   void initState() {
     super.initState();
@@ -249,12 +263,11 @@ class _GeneralTabState extends State<_GeneralTab> {
       _selectedMapType = MapType.values[mapTypeIndex];
     }
     _selectedMapTheme = prefs.getString('map_theme') ?? MapThemes.mapsThemeNone;
-    
-    final modeIndex = prefs.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
+    final modeIndex =
+        prefs.getInt('historical_data_mode') ?? HistoricalDataMode.fast.index;
     if (modeIndex >= 0 && modeIndex < HistoricalDataMode.values.length) {
       _selectedHistoricalMode = HistoricalDataMode.values[modeIndex];
     }
-    
     if (mounted) {
       setState(() {});
     }
@@ -322,12 +335,27 @@ class _GeneralTabState extends State<_GeneralTab> {
 
   Widget _buildMapStyleSection(bool isDark) {
     final styles = [
-      {'title': 'Normal', 'type': MapType.normal},
-      {'title': 'Terrain', 'type': MapType.terrain},
-      {'title': 'Satellite', 'type': MapType.satellite},
-      {'title': 'Hybrid', 'type': MapType.hybrid},
+      {
+        'title': 'Normal',
+        'type': MapType.normal,
+        'image': 'assets/maps/style/normal.png',
+      },
+      {
+        'title': 'Terrain',
+        'type': MapType.terrain,
+        'image': 'assets/maps/style/terrain.png',
+      },
+      {
+        'title': 'Satellite',
+        'type': MapType.satellite,
+        'image': 'assets/maps/style/satellite.png',
+      },
+      {
+        'title': 'Hybrid',
+        'type': MapType.hybrid,
+        'image': 'assets/maps/style/hybrid.png',
+      },
     ];
-
     return SizedBox(
       height: 120,
       child: ListView.builder(
@@ -341,8 +369,7 @@ class _GeneralTabState extends State<_GeneralTab> {
             title: style['title'] as String,
             isSelected: _selectedMapType == type,
             onTap: () => _setMapType(type),
-            mapType: type,
-            mapTheme: MapThemes.mapsThemeNone,
+            assetPath: style['image'] as String,
             isDark: isDark,
             delayMs: index * 150,
           );
@@ -353,16 +380,47 @@ class _GeneralTabState extends State<_GeneralTab> {
 
   Widget _buildMapThemeSection(bool isDark) {
     final themes = [
-      {'name': 'Default', 'json': MapThemes.mapsThemeNone},
-      {'name': 'Red', 'json': MapThemes.mapsThemeRed},
-      {'name': 'Yellow', 'json': MapThemes.mapsThemeYellow},
-      {'name': 'Green', 'json': MapThemes.mapsThemeGreen},
-      {'name': 'Blue', 'json': MapThemes.mapsThemeBlue},
-      {'name': 'Indigo', 'json': MapThemes.mapsThemeIndigo},
-      {'name': 'Purple', 'json': MapThemes.mapsThemePurple},
-      {'name': 'Pink', 'json': MapThemes.mapsThemePink},
+      {
+        'name': 'Default',
+        'json': MapThemes.mapsThemeNone,
+        'image': 'assets/maps/theme/none.png',
+      },
+      {
+        'name': 'Red',
+        'json': MapThemes.mapsThemeRed,
+        'image': 'assets/maps/theme/red.png',
+      },
+      {
+        'name': 'Yellow',
+        'json': MapThemes.mapsThemeYellow,
+        'image': 'assets/maps/theme/yellow.png',
+      },
+      {
+        'name': 'Green',
+        'json': MapThemes.mapsThemeGreen,
+        'image': 'assets/maps/theme/green.png',
+      },
+      {
+        'name': 'Blue',
+        'json': MapThemes.mapsThemeBlue,
+        'image': 'assets/maps/theme/blue.png',
+      },
+      {
+        'name': 'Indigo',
+        'json': MapThemes.mapsThemeIndigo,
+        'image': 'assets/maps/theme/indigo.png',
+      },
+      {
+        'name': 'Purple',
+        'json': MapThemes.mapsThemePurple,
+        'image': 'assets/maps/theme/purple.png',
+      },
+      {
+        'name': 'Pink',
+        'json': MapThemes.mapsThemePink,
+        'image': 'assets/maps/theme/pink.png',
+      },
     ];
-
     return SizedBox(
       height: 120,
       child: ListView.builder(
@@ -373,13 +431,11 @@ class _GeneralTabState extends State<_GeneralTab> {
           final theme = themes[index];
           final String title = theme['name'] as String;
           final String json = theme['json'] as String;
-
           return _MapPreviewCard(
             title: title,
             isSelected: _selectedMapTheme == json,
             onTap: () => _setMapTheme(json),
-            mapType: MapType.normal,
-            mapTheme: json,
+            assetPath: theme['image'] as String,
             isDark: isDark,
             delayMs: index * 150,
           );
@@ -395,7 +451,9 @@ class _GeneralTabState extends State<_GeneralTab> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isDark ? AppTheme.divider : Colors.black.withValues(alpha: 0.05),
+          color: isDark
+              ? AppTheme.divider
+              : Colors.black.withValues(alpha: 0.05),
         ),
       ),
       child: Theme(
@@ -416,15 +474,18 @@ class _GeneralTabState extends State<_GeneralTab> {
               InkWell(
                 onTap: () => _setHistoricalMode(mode),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                    color: _selectedHistoricalMode == mode 
-                        ? AppTheme.primary.withValues(alpha: 0.1) 
+                    color: _selectedHistoricalMode == mode
+                        ? AppTheme.primary.withValues(alpha: 0.1)
                         : Colors.transparent,
                     border: Border(
                       left: BorderSide(
-                        color: _selectedHistoricalMode == mode 
-                            ? AppTheme.primary 
+                        color: _selectedHistoricalMode == mode
+                            ? AppTheme.primary
                             : Colors.transparent,
                         width: 4,
                       ),
@@ -432,16 +493,28 @@ class _GeneralTabState extends State<_GeneralTab> {
                   ),
                   child: Row(
                     children: [
-                      Icon(mode.icon, color: _selectedHistoricalMode == mode ? AppTheme.primary : AppTheme.textMuted),
+                      Icon(
+                        mode.icon,
+                        color: _selectedHistoricalMode == mode
+                            ? AppTheme.primary
+                            : AppTheme.textMuted,
+                      ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(mode.displayName, style: AppTheme.bodyLarge.copyWith(
-                              fontWeight: _selectedHistoricalMode == mode ? FontWeight.w600 : FontWeight.w400,
-                              color: _selectedHistoricalMode == mode ? AppTheme.primary : AppTheme.textPrimary,
-                            )),
+                            Text(
+                              mode.displayName,
+                              style: AppTheme.bodyLarge.copyWith(
+                                fontWeight: _selectedHistoricalMode == mode
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: _selectedHistoricalMode == mode
+                                    ? AppTheme.primary
+                                    : AppTheme.textPrimary,
+                              ),
+                            ),
                             Text(mode.description, style: AppTheme.bodySmall),
                           ],
                         ),
@@ -470,6 +543,7 @@ class _GeneralTabState extends State<_GeneralTab> {
       ),
     );
   }
+
   Widget _buildSectionLabel(String label) {
     return Text(
       label,
@@ -740,20 +814,12 @@ class _GeneralTabState extends State<_GeneralTab> {
       ),
     );
   }
-
-
 }
-
-// ════════════════════════════════════════════════════════════════════════════
-// CONNECTION TAB
-// ════════════════════════════════════════════════════════════════════════════
 
 class _ConnectionTab extends StatefulWidget {
   final LGConnectionState state;
   final bool isDark;
-
   const _ConnectionTab({required this.state, required this.isDark});
-
   @override
   State<_ConnectionTab> createState() => _ConnectionTabState();
 }
@@ -765,7 +831,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
   final _passwordController = TextEditingController();
   final _screenCountController = TextEditingController(text: '3');
   bool _obscurePassword = true;
-
   @override
   void initState() {
     super.initState();
@@ -813,7 +878,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
     final ipText = widget.state.settings.host.isNotEmpty
         ? widget.state.settings.host
         : 'Not configured';
-
     return BlocListener<LGConnectionBloc, LGConnectionState>(
       listener: (context, state) {
         if (state.error != null) {
@@ -830,7 +894,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status Indicator
             Container(
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
@@ -889,7 +952,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
               ),
             ),
             const SizedBox(height: 32),
-
             Text(
               'CREDENTIALS',
               style: AppTheme.labelLarge.copyWith(
@@ -899,7 +961,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
               ),
             ),
             const SizedBox(height: 16),
-
             _buildField('Username', _usernameController, Icons.person),
             _buildField(
               'Password',
@@ -949,8 +1010,6 @@ class _ConnectionTabState extends State<_ConnectionTab> {
               ],
             ),
             const SizedBox(height: 32),
-
-            // Connect / Disconnect Button
             if (!isConnected)
               GestureDetector(
                 onTap: () {
@@ -959,8 +1018,7 @@ class _ConnectionTabState extends State<_ConnectionTab> {
                     port: int.tryParse(_portController.text) ?? 22,
                     username: _usernameController.text.trim(),
                     password: _passwordController.text.trim(),
-                    screenCount:
-                        int.tryParse(_screenCountController.text) ?? 3,
+                    screenCount: int.tryParse(_screenCountController.text) ?? 3,
                   );
                   context.read<LGConnectionBloc>()
                     ..add(LGSettingsSaveRequested(settings))
@@ -1012,13 +1070,19 @@ class _ConnectionTabState extends State<_ConnectionTab> {
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceLight,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.riskCritical.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: AppTheme.riskCritical.withValues(alpha: 0.5),
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.power_settings_new, color: AppTheme.riskCritical, size: 20),
+                      Icon(
+                        Icons.power_settings_new,
+                        color: AppTheme.riskCritical,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Disconnect',
@@ -1088,15 +1152,9 @@ class _ConnectionTabState extends State<_ConnectionTab> {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// LIQUID GALAXY TAB
-// ════════════════════════════════════════════════════════════════════════════
-
 class _LiquidGalaxyTab extends StatelessWidget {
   final bool isDark;
-
   const _LiquidGalaxyTab({required this.isDark});
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -1149,7 +1207,6 @@ class _LiquidGalaxyTab extends StatelessWidget {
               context.read<LGConnectionBloc>().add(const LGPowerOffRequested());
             },
           ),
-
           const SizedBox(height: 32),
           _buildSectionLabel('DISPLAY CONTROLS'),
           const SizedBox(height: 16),
@@ -1242,7 +1299,7 @@ class _LiquidGalaxyTab extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          splashColor: color.withValues(alpha: 0.2), // Glowing ripple
+          splashColor: color.withValues(alpha: 0.2),
           highlightColor: color.withValues(alpha: 0.1),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -1306,31 +1363,24 @@ class _MapPreviewCard extends StatefulWidget {
   final String title;
   final bool isSelected;
   final VoidCallback onTap;
-  final MapType mapType;
-  final String mapTheme;
+  final String assetPath;
   final bool isDark;
   final int delayMs;
-
   const _MapPreviewCard({
     required this.title,
     required this.isSelected,
     required this.onTap,
-    required this.mapType,
-    required this.mapTheme,
+    required this.assetPath,
     required this.isDark,
     required this.delayMs,
   });
-
   @override
   State<_MapPreviewCard> createState() => _MapPreviewCardState();
 }
 
 class _MapPreviewCardState extends State<_MapPreviewCard> {
-
-
   @override
   Widget build(BuildContext context) {
-
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
@@ -1357,16 +1407,10 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
           child: Stack(
             children: [
               Container(
-                color: _getMockColorForTheme(widget.mapTheme, widget.mapType, widget.isDark),
-                child: Center(
-                  child: Icon(
-                    Icons.map_outlined,
-                    size: 32,
-                    color: widget.isDark || 
-                           widget.mapType == MapType.satellite || 
-                           widget.mapType == MapType.hybrid
-                           ? Colors.white.withValues(alpha: 0.5)
-                           : Colors.black.withValues(alpha: 0.3),
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage(widget.assetPath),
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
@@ -1410,32 +1454,5 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
         ),
       ),
     );
-  }
-
-  Color _getMockColorForTheme(String mapTheme, MapType type, bool isDark) {
-    if (type == MapType.satellite || type == MapType.hybrid) {
-      return const Color(0xFF2E3D2B); // Dark earthy green for satellite
-    }
-    if (type == MapType.terrain) {
-      return const Color(0xFFC1D0B5); // Light greenish for terrain
-    }
-    
-    if (mapTheme == MapThemes.mapsThemeRed) {
-      return const Color(0xFFFFCDD2); // Light Red
-    } else if (mapTheme == MapThemes.mapsThemeYellow) {
-      return const Color(0xFFFFF9C4); // Light Yellow
-    } else if (mapTheme == MapThemes.mapsThemeGreen) {
-      return const Color(0xFFC8E6C9); // Light Green
-    } else if (mapTheme == MapThemes.mapsThemeBlue) {
-      return const Color(0xFFBBDEFB); // Light Blue
-    } else if (mapTheme == MapThemes.mapsThemeIndigo) {
-      return const Color(0xFFC5CAE9); // Light Indigo
-    } else if (mapTheme == MapThemes.mapsThemePurple) {
-      return const Color(0xFFE1BEE7); // Light Purple
-    } else if (mapTheme == MapThemes.mapsThemePink) {
-      return const Color(0xFFF8BBD0); // Light Pink
-    }
-    
-    return isDark ? const Color(0xFF303030) : const Color(0xFFF5F5F5);
   }
 }

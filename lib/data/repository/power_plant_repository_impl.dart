@@ -1,7 +1,6 @@
 import '../../core/exception/invalid_response_exception.dart';
 import '../../core/exception/unhandled_exception.dart';
 import '../../core/resources/data_state.dart';
-
 import '../data_sources/local/power_plant_local_ds.dart';
 import '../../domain/model/power_plant.dart';
 import '../../domain/model/region.dart';
@@ -9,67 +8,80 @@ import '../../domain/repository/power_plant_repository.dart';
 
 class PowerPlantRepositoryImpl implements PowerPlantRepository {
   final PowerPlantLocalDataSource _localDataSource;
-
   PowerPlantRepositoryImpl({required this._localDataSource});
-
   @override
-  Future<DataState<List<PowerPlant>>> getAllPlants() async {
+  Stream<DataState<List<PowerPlant>>> getAllPlants() async* {
+    yield const DataLoading();
     try {
       final plants = await _localDataSource.getAllPlants();
-      return DataSuccess(plants);
+      if (plants.isEmpty) {
+        yield const DataEmpty();
+      } else {
+        yield DataSuccess(plants);
+      }
     } on ParseException catch (e) {
-      return DataFailure(InvalidResponseException(
-        message: e.message,
-        response: null,
-      ));
+      yield DataFailure(
+        InvalidResponseException(message: e.message, response: null),
+      );
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      yield DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<DataState<List<PowerPlant>>> getPlantsByRegion(Region region) async {
+  Stream<DataState<List<PowerPlant>>> getPlantsByRegion(Region region) async* {
+    yield const DataLoading();
     try {
       final plants = await _localDataSource.getPlantsByRegion(region);
-      return DataSuccess(plants);
+      if (plants.isEmpty) {
+        yield const DataEmpty();
+      } else {
+        yield DataSuccess(plants);
+      }
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      yield DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<DataState<List<PowerPlant>>> searchPlants(String query) async {
+  Stream<DataState<List<PowerPlant>>> searchPlants(String query) async* {
+    yield const DataLoading();
     try {
       final plants = await _localDataSource.searchPlants(query);
-      return DataSuccess(plants);
+      yield DataSuccess(plants);
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      yield DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<DataState<List<Region>>> searchRegions(String query) async {
+  Stream<DataState<List<Region>>> searchRegions(String query) async* {
+    yield const DataLoading();
     try {
       final regions = await _localDataSource.searchRegions(query);
-      return DataSuccess(regions);
+      yield DataSuccess(regions);
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      yield DataFailure(UnhandledException(message: e.toString()));
     }
   }
 
   @override
-  Future<DataState<PowerPlant>> getPlantById(String id) async {
+  Stream<DataState<PowerPlant>> getPlantById(String id) async* {
+    yield const DataLoading();
     try {
       final plant = await _localDataSource.getPlantById(id);
       if (plant == null) {
-        return DataFailure(InvalidResponseException(
-          message: 'Power plant not found',
-          response: id,
-        ));
+        yield DataFailure(
+          InvalidResponseException(
+            message: 'Power plant not found',
+            response: id,
+          ),
+        );
+      } else {
+        yield DataSuccess(plant);
       }
-      return DataSuccess(plant);
     } catch (e) {
-      return DataFailure(UnhandledException(message: e.toString()));
+      yield DataFailure(UnhandledException(message: e.toString()));
     }
   }
 }
