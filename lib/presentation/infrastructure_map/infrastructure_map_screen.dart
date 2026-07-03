@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme/app_theme.dart';
 import '../../config/theme/map_themes.dart';
 import '../../core/enums/risk_level.dart';
+import '../../core/enums/plant_type.dart';
 import '../../core/utils/kml_utils.dart';
 import '../../di/di.dart';
 import '../../domain/model/power_plant.dart';
@@ -39,6 +42,8 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
   bool _lgSyncEnabled = true;
   Set<Marker> _markers = {};
   Set<Marker>? _cachedWorldMarkers;
+  // Cache keyed by "fuelType_riskLevel" — only ~42 unique combos ever generated
+  final Map<String, BitmapDescriptor> _markerBitmapCache = {};
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(20.0, 0.0),
     zoom: 2.0,
@@ -149,17 +154,171 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     }).toList();
   }
 
-  BitmapDescriptor _riskToMarkerColor(RiskLevel risk) {
+  IconData _plantTypeIcon(PlantType fuel) {
+    switch (fuel) {
+      case PlantType.hydro:
+        return FluentIcons.water_24_filled;
+      case PlantType.solar:
+        return FluentIcons.weather_sunny_24_filled;
+      case PlantType.wind:
+        return FluentIcons.weather_squalls_24_filled;
+      case PlantType.coal:
+        return FluentIcons.fire_24_filled;
+      case PlantType.gas:
+        return FluentIcons.gas_24_filled;
+      case PlantType.nuclear:
+        return FluentIcons.warning_24_filled;
+      case PlantType.biomass:
+        return FluentIcons.leaf_one_24_filled;
+      case PlantType.geothermal:
+        return FluentIcons.temperature_24_filled;
+      case PlantType.waste:
+        return FluentIcons.delete_24_filled;
+      case PlantType.storage:
+        return FluentIcons.battery_charge_24_filled;
+      case PlantType.cogeneration:
+        return FluentIcons.building_24_filled;
+      case PlantType.oil:
+        return FluentIcons.drop_24_filled;
+      case PlantType.petcoke:
+        return FluentIcons.cube_24_filled;
+      default:
+        return FluentIcons.flash_24_filled;
+    }
+  }
+
+  Color _plantTypeColor(PlantType fuel) {
+    switch (fuel) {
+      case PlantType.hydro:
+        return const Color(0xFF2196F3);
+      case PlantType.solar:
+        return const Color(0xFFFFC107);
+      case PlantType.wind:
+        return const Color(0xFF4CAF50);
+      case PlantType.coal:
+        return const Color(0xFFFF5722);
+      case PlantType.gas:
+        return const Color(0xFFF44336);
+      case PlantType.nuclear:
+        return const Color(0xFF00BCD4);
+      case PlantType.biomass:
+        return const Color(0xFF8BC34A);
+      case PlantType.geothermal:
+        return const Color(0xFFFF9800);
+      case PlantType.waste:
+        return const Color(0xFF9E9E9E);
+      case PlantType.storage:
+        return const Color(0xFF9C27B0);
+      case PlantType.cogeneration:
+        return const Color(0xFF607D8B);
+      case PlantType.oil:
+        return const Color(0xFF795548);
+      case PlantType.petcoke:
+        return const Color(0xFF616161);
+      default:
+        return const Color(0xFF607D8B);
+    }
+  }
+
+  Color _riskToColor(RiskLevel risk) {
     switch (risk) {
       case RiskLevel.high:
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+        return const Color(0xFFE53935);
       case RiskLevel.medium:
-        return BitmapDescriptor.defaultMarkerWithHue(
-          BitmapDescriptor.hueOrange,
-        );
+        return const Color(0xFFFB8C00);
       case RiskLevel.low:
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+        return const Color(0xFF43A047);
     }
+  }
+
+  /// Generates a bitmap once per unique fuel+risk combo and caches it.
+  Future<BitmapDescriptor> _buildCachedFuelMarker(
+    PlantType fuel,
+    RiskLevel risk,
+  ) async {
+    final cacheKey = '${fuel.name}_${risk.name}';
+    if (_markerBitmapCache.containsKey(cacheKey)) {
+      return _markerBitmapCache[cacheKey]!;
+    }
+
+    const double size = 96.0;
+    const double ringWidth = 6.0;
+    final Color ringColor = _riskToColor(risk);
+    final Color iconColor = _plantTypeColor(fuel);
+    final IconData icon = _plantTypeIcon(fuel);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // Dark background circle
+    final bgPaint = Paint()..color = const Color(0xFF1A1A2E);
+    canvas.drawCircle(
+      const Offset(size / 2, size / 2),
+      size / 2 - ringWidth,
+      bgPaint,
+    );
+
+    // Risk-colored outer ring
+    final ringPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringWidth;
+    canvas.drawCircle(
+      const Offset(size / 2, size / 2),
+      size / 2 - ringWidth / 2,
+      ringPaint,
+    );
+
+    // Fuel-type icon in its own color
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: size * 0.55,
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+        color: iconColor,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size - textPainter.width) / 2,
+        (size - textPainter.height) / 2,
+      ),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final descriptor = BitmapDescriptor.fromBytes(
+      bytes!.buffer.asUint8List(),
+    );
+    _markerBitmapCache[cacheKey] = descriptor;
+    return descriptor;
+  }
+
+  Future<Set<Marker>> _buildFuelMarkers(List<PowerPlant> plants) async {
+    final cvsRepo = context.read<CvsRepository>();
+    final Set<Marker> markers = {};
+    for (final plant in plants) {
+      final cvs =
+          cvsRepo.getCachedCvs(plant) ?? cvsRepo.computeInstantCvs(plant);
+      final risk = cvs.riskLevel;
+      final bitmap =
+          await _buildCachedFuelMarker(plant.primaryFuel, risk);
+      markers.add(
+        Marker(
+          markerId: MarkerId(plant.id),
+          position: LatLng(plant.latitude, plant.longitude),
+          icon: bitmap,
+          anchor: const Offset(0.5, 0.5),
+          onTap: () => _showBottomSheet(plant, cvs),
+        ),
+      );
+    }
+    return markers;
   }
 
   void _showBottomSheet(PowerPlant plant, CVSResult cvs) {
@@ -171,20 +330,7 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     );
   }
 
-  Set<Marker> _buildMarkers(List<PowerPlant> plants) {
-    return plants.map((plant) {
-      final cvsRepo = context.read<CvsRepository>();
-      final cvs =
-          cvsRepo.getCachedCvs(plant) ?? cvsRepo.computeInstantCvs(plant);
-      final risk = cvs.riskLevel;
-      return Marker(
-        markerId: MarkerId(plant.id),
-        position: LatLng(plant.latitude, plant.longitude),
-        icon: _riskToMarkerColor(risk),
-        onTap: () => _showBottomSheet(plant, cvs),
-      );
-    }).toSet();
-  }
+
 
   Future<Set<Marker>> _buildWorldViewMarkers(List<PowerPlant> allPlants) async {
     final Map<String, List<PowerPlant>> byCountry = {};
@@ -273,9 +419,10 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     final viewportPlants = await _getPlantsInViewport(allPlants, bounds);
     final limit = _getMarkerLimitForZoom(zoom);
     final selectedPlants = _selectProportionalSample(viewportPlants, limit);
+    final fuelMarkers = await _buildFuelMarkers(selectedPlants);
     if (mounted) {
       setState(() {
-        _markers = _buildMarkers(selectedPlants);
+        _markers = fuelMarkers;
       });
     }
     await _syncMarkersToLG(selectedPlants);

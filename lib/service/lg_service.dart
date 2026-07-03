@@ -17,6 +17,7 @@ class LGService {
   String? _currentRegion;
   LGDisplayMode _currentMode = LGDisplayMode.none;
   LGService({required this.remoteDataSource, required this.settingsDataSource});
+  DateTime? _lastSnackbarTime;
   ConnectionStatus get connectionStatus => _status;
   String? get currentRegion => _currentRegion;
   void setCurrentRegion(String? region) => _currentRegion = region;
@@ -25,21 +26,27 @@ class LGService {
   bool _checkConnection({bool silent = false}) {
     if (_status != ConnectionStatus.connected) {
       if (!silent) {
-        snackbarKey.currentState?.clearSnackBars();
-        snackbarKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Liquid Galaxy not connected',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+        final now = DateTime.now();
+        final lastShown = _lastSnackbarTime;
+        if (lastShown == null ||
+            now.difference(lastShown).inSeconds > 5) {
+          _lastSnackbarTime = now;
+          snackbarKey.currentState?.clearSnackBars();
+          snackbarKey.currentState?.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Liquid Galaxy not connected',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              backgroundColor: Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
             ),
-            backgroundColor: Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 3),
-          ),
-        );
+          );
+        }
       }
       return false;
     }

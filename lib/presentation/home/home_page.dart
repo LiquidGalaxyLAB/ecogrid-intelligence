@@ -59,36 +59,19 @@ class _HomePageBody extends StatelessWidget {
                     ),
                   ),
                 ),
-              isDark
-                  ? Positioned(
-                      bottom: -screenWidth * 0.3,
-                      left: 0,
-                      right: 0,
-                      height: screenWidth * 0.9,
-                      child: ShaderMask(
-                        shaderCallback: (rect) {
-                          return const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.white],
-                            stops: [0.0, 0.35],
-                          ).createShader(rect);
-                        },
-                        blendMode: BlendMode.dstIn,
-                        child: FuturisticGlobeBackground(isDark: isDark),
-                      ),
-                    )
-                  : Positioned(
-                      bottom: -screenWidth * 0.05,
-                      left: -screenWidth * 0.15,
-                      right: -screenWidth * 0.15,
-                      height: screenWidth * 1.25,
-                      child: Image.asset(
-                        'assets/images/hero_globe_light.png',
-                        fit: BoxFit.cover,
-                        alignment: Alignment.bottomCenter,
-                      ),
-                    ),
+              Positioned(
+                bottom: isDark ? screenWidth * 0.05 : -screenWidth * 0.05,
+                left: isDark ? 0 : -screenWidth * 0.15,
+                right: isDark ? 0 : -screenWidth * 0.15,
+                height: isDark ? screenWidth * 0.9 : screenWidth * 1.25,
+                child: Image.asset(
+                  isDark
+                      ? 'assets/images/hero_globe_dark.png'
+                      : 'assets/images/hero_globe_light.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.bottomCenter,
+                ),
+              ),
               SafeArea(
                 child: CustomScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -580,7 +563,11 @@ class _InfrastructureMapButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL * 1.5),
+      padding: const EdgeInsets.only(
+        left: AppTheme.spacingXL * 1.5,
+        right: AppTheme.spacingXL * 1.5,
+        bottom: 28,
+      ),
       child: GestureDetector(
         onTap: () {
           Navigator.pushNamed(context, AppRoutes.infrastructureMap);
