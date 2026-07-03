@@ -727,17 +727,14 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          gradient: (isSelected && isAllPill && isDark)
-              ? const LinearGradient(
-                  colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
-                )
-              : null,
           color: (isSelected && !isAllPill)
               ? (isDark
                     ? riskColor.withValues(alpha: 0.2)
                     : riskColor.withValues(alpha: 0.1))
               : (isSelected && isAllPill)
-              ? (isDark ? null : const Color(0xFFE8F4FC))
+              ? (isDark
+                    ? const Color(0xFF0066FF).withValues(alpha: 0.2)
+                    : const Color(0xFFE8F4FC))
               : (isDark ? DesignConstants.cardSurface(context) : Colors.white),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(

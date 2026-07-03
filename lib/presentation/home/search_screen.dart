@@ -6,7 +6,6 @@ import '../../config/theme/theme_controller.dart';
 import 'bloc/search_bloc.dart';
 import '../../config/routes/app_routes.dart';
 import '../components/app_search_bar.dart';
-import '../components/atmospheric_globe_painter.dart';
 import '../../di/service_di.dart';
 import '../../service/speech_to_text_service.dart';
 
@@ -120,29 +119,26 @@ class _SearchScreenState extends State<SearchScreen> {
       builder: (context, preset, _) {
         final isDark = ThemeController.instance.isDarkMode;
         final screenWidth = MediaQuery.of(context).size.width;
+        final screenHeight = MediaQuery.of(context).size.height;
         return Scaffold(
           resizeToAvoidBottomInset: false,
           backgroundColor: AppTheme.background,
           body: Stack(
             children: [
               Positioned(
-                bottom: -screenWidth * 0.4,
-                right: -screenWidth * 0.4,
-                width: screenWidth,
-                height: screenWidth,
-                child: Opacity(
-                  opacity: isDark ? 1.0 : 0.6,
-                  child: ShaderMask(
-                    shaderCallback: (rect) {
-                      return const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.white],
-                        stops: [0.0, 0.35],
-                      ).createShader(rect);
-                    },
-                    blendMode: BlendMode.dstIn,
-                    child: FuturisticGlobeBackground(isDark: isDark),
+                bottom: -screenWidth * 0.05,
+                right: -screenWidth * 0.3,
+                width: screenWidth * 1.35,
+                height: screenWidth * 1.35,
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()..scale(-1.0, 1.0),
+                  child: Image.asset(
+                    isDark
+                        ? 'assets/images/hero_globe_dark.png'
+                        : 'assets/images/hero_globe_light.png',
+                    fit: BoxFit.cover,
+                    alignment: Alignment.bottomRight,
                   ),
                 ),
               ),
@@ -152,12 +148,17 @@ class _SearchScreenState extends State<SearchScreen> {
                     gradient: RadialGradient(
                       center: const Alignment(0, -0.5),
                       radius: 1.2,
-                      colors: [
-                        AppTheme.primary.withValues(
-                          alpha: isDark ? 0.15 : 0.08,
-                        ),
-                        Colors.transparent,
-                      ],
+                      colors: isDark
+                          ? [
+                              AppTheme.primary.withValues(alpha: 0.15),
+                              Colors.transparent,
+                            ]
+                          : [
+                              const Color(0xFF00C8FF).withValues(alpha: 0.12),
+                              const Color(0xFF0066FF).withValues(alpha: 0.04),
+                              Colors.transparent,
+                            ],
+                      stops: isDark ? null : const [0.0, 0.4, 1.0],
                     ),
                   ),
                 ),
@@ -235,26 +236,27 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Color _getRegionColor(String region) {
+  Color _getRegionColor(String region, bool isDark) {
     switch (region.toLowerCase()) {
       case 'india':
-        return const Color(0xFF00C853);
+        return isDark ? const Color(0xFF00C853) : const Color(0xFF81C784);
       case 'europe':
-        return const Color(0xFF4A90D9);
+        return isDark ? const Color(0xFF4A90D9) : const Color(0xFF90CAF9);
       case 'usa':
-        return const Color(0xFFFF5252);
+        return isDark ? const Color(0xFFFF5252) : const Color(0xFFEF9A9A);
       case 'china':
-        return const Color(0xFFB388FF);
+        return isDark ? const Color(0xFFB388FF) : const Color(0xFFB39DDB);
       case 'africa':
-        return const Color(0xFFE8A44A);
+        return isDark ? const Color(0xFFE8A44A) : const Color(0xFFFFCC80);
       case 'spain':
-        return const Color(0xFFE75480);
+        return isDark ? const Color(0xFFE75480) : const Color(0xFFF48FB1);
       default:
-        return const Color(0xFF00C8FF);
+        return isDark ? const Color(0xFF00C8FF) : const Color(0xFF81D4FA);
     }
   }
 
   Widget _buildEmptyState() {
+    final isDark = ThemeController.instance.isDarkMode;
     final popularRegions = [
       'India',
       'China',
@@ -291,7 +293,7 @@ class _SearchScreenState extends State<SearchScreen> {
           itemCount: popularRegions.length,
           itemBuilder: (context, index) {
             final region = popularRegions[index];
-            final rColor = _getRegionColor(region);
+            final rColor = _getRegionColor(region, isDark);
             return InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () {
@@ -304,13 +306,13 @@ class _SearchScreenState extends State<SearchScreen> {
                   color: AppTheme.cardBackground,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: rColor.withValues(alpha: 0.4),
-                    width: 1.0,
+                    color: rColor.withValues(alpha: isDark ? 0.4 : 0.8),
+                    width: isDark ? 1.0 : 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: rColor.withValues(alpha: 0.10),
-                      blurRadius: 12,
+                      color: rColor.withValues(alpha: isDark ? 0.10 : 0.15),
+                      blurRadius: isDark ? 12 : 8,
                       spreadRadius: 0,
                       offset: const Offset(0, 4),
                     ),
