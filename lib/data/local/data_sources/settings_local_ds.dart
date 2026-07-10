@@ -1,5 +1,5 @@
 import '../../../domain/model/lg_settings.dart';
-import 'app_database.dart';
+import '../app_database.dart';
 
 class SettingsLocalDataSource {
   final SettingsDao _dao;

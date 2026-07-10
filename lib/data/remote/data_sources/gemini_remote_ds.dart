@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/network/api_endpoints.dart';
 import '../../../core/resources/network_state.dart';
 import 'ai_data_source.dart';
 
@@ -21,15 +22,7 @@ class GeminiRemoteDataSource implements AIDataSource {
   static DateTime? _lastCallTime;
   static const int _maxRetries = 3;
   static const Duration _retryDelay = Duration(seconds: 2);
-  GeminiRemoteDataSource()
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: ApiConstants.geminiBaseUrl,
-          connectTimeout: const Duration(seconds: 60),
-          receiveTimeout: const Duration(seconds: 90),
-          sendTimeout: const Duration(seconds: 30),
-        ),
-      );
+  GeminiRemoteDataSource({required Dio dio}) : _dio = dio;
   void _enforceCooldown() {
     if (_lastCallTime != null) {
       final elapsed = DateTime.now().difference(_lastCallTime!);
@@ -120,7 +113,7 @@ class GeminiRemoteDataSource implements AIDataSource {
       try {
         final startTime = DateTime.now();
         final response = await _dio.post(
-          '/chat/completions',
+          ApiEndpoints.geminiChatCompletions,
           options: Options(
             receiveTimeout: const Duration(seconds: 90),
             sendTimeout: const Duration(seconds: 30),

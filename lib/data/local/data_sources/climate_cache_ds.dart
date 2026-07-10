@@ -1,7 +1,7 @@
 import 'dart:convert';
 import '../../../core/constants/cache_constants.dart';
 import '../../../core/utils/cache_manager.dart';
-import 'app_database.dart';
+import '../app_database.dart';
 
 class ClimateCacheDataSource {
   final ClimateDao _dao;

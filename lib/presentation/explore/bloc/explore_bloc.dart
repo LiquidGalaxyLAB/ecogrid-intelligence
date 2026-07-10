@@ -495,53 +495,8 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
   }
 
   void _startBackgroundWarmer() async {
-    _isCancelled = false;
-    while (!_isCancelled && !isClosed) {
-      if (state is! AppSuccess<ExploreData>) break;
-      final data = (state as AppSuccess<ExploreData>).data!;
-      PowerPlant? nextToScan;
-      for (final p in data.plants) {
-        if (getCachedCvsUsecase(p) == null) {
-          nextToScan = p;
-          break;
-        }
-      }
-      if (nextToScan == null) {
-        if (data.isScanning && !isClosed) {
-          emit(
-            AppSuccess(
-              _applyFilters(
-                data,
-              ).copyWith(isScanning: false, scanProgress: 1.0),
-            ),
-          );
-        }
-        break;
-      }
-      if (!data.isScanning && !isClosed) {
-        emit(AppSuccess(data.copyWith(isScanning: true)));
-      }
-      await getCvsForPlantUsecase(params: nextToScan).last;
-      if (_isCancelled || isClosed) break;
-      final cachedResult = getCachedCvsUsecase(nextToScan);
-      final wasRateLimited = cachedResult != null && !cachedResult.isVerified;
-      if (state is AppSuccess<ExploreData> && !isClosed) {
-        final latestData = (state as AppSuccess<ExploreData>).data!;
-        final unCachedCount = latestData.plants
-            .where((p) => getCachedCvsUsecase(p) == null)
-            .length;
-        final progress = 1.0 - (unCachedCount / latestData.plants.length);
-        emit(
-          AppSuccess(
-            latestData.copyWith(scanProgress: progress, isScanning: true),
-          ),
-        );
-      }
-      if (wasRateLimited) {
-        await Future.delayed(const Duration(milliseconds: 8000));
-      } else {
-        await Future.delayed(const Duration(milliseconds: 3000));
-      }
-    }
+    // Disabled background warmer as per user request to stop continuous API polling.
+    // The data will be fetched on-demand when the user views a plant.
+    return;
   }
 }

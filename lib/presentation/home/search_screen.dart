@@ -6,6 +6,7 @@ import '../../config/theme/theme_controller.dart';
 import 'bloc/search_bloc.dart';
 import '../../config/routes/app_routes.dart';
 import '../components/app_search_bar.dart';
+import '../components/atmospheric_globe_painter.dart';
 import '../../di/service_di.dart';
 import '../../service/speech_to_text_service.dart';
 
@@ -118,50 +119,53 @@ class _SearchScreenState extends State<SearchScreen> {
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, preset, _) {
         final isDark = ThemeController.instance.isDarkMode;
+        final isLight = !isDark;
         final screenWidth = MediaQuery.of(context).size.width;
-        final screenHeight = MediaQuery.of(context).size.height;
         return Scaffold(
           resizeToAvoidBottomInset: false,
           backgroundColor: AppTheme.background,
           body: Stack(
             children: [
+              // Globe background — dark only
               Positioned(
-                bottom: -screenWidth * 0.05,
-                right: -screenWidth * 0.3,
-                width: screenWidth * 1.35,
-                height: screenWidth * 1.35,
-                child: Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()..scale(-1.0, 1.0),
-                  child: Image.asset(
-                    isDark
-                        ? 'assets/images/hero_globe_dark.png'
-                        : 'assets/images/hero_globe_light.png',
-                    fit: BoxFit.cover,
-                    alignment: Alignment.bottomRight,
-                  ),
-                ),
+                bottom: -screenWidth * 0.4,
+                right: -screenWidth * 0.4,
+                width: screenWidth,
+                height: screenWidth,
+                child: isLight
+                    ? const SizedBox.shrink()
+                    : Opacity(
+                        opacity: 1.0,
+                        child: ShaderMask(
+                          shaderCallback: (rect) {
+                            return const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.white],
+                              stops: [0.0, 0.35],
+                            ).createShader(rect);
+                          },
+                          blendMode: BlendMode.dstIn,
+                          child: FuturisticGlobeBackground(isDark: isDark),
+                        ),
+                      ),
               ),
+              // Radial glow overlay — dark only
               Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -0.5),
-                      radius: 1.2,
-                      colors: isDark
-                          ? [
-                              AppTheme.primary.withValues(alpha: 0.15),
-                              Colors.transparent,
-                            ]
-                          : [
-                              const Color(0xFF00C8FF).withValues(alpha: 0.12),
-                              const Color(0xFF0066FF).withValues(alpha: 0.04),
+                child: isLight
+                    ? const SizedBox.shrink()
+                    : Container(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0, -0.5),
+                            radius: 1.2,
+                            colors: [
+                              const Color(0xFF00C8FF).withValues(alpha: 0.15),
                               Colors.transparent,
                             ],
-                      stops: isDark ? null : const [0.0, 0.4, 1.0],
-                    ),
-                  ),
-                ),
+                          ),
+                        ),
+                      ),
               ),
               SafeArea(
                 child: Column(
