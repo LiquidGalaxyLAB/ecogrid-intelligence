@@ -28,10 +28,10 @@ class DesignConstants {
   static const Color fuelGas = Color(0xFFF44336);
   static const Color fuelOther = Color(0xFF607D8B);
   static const Color regionIndia = Color(0xFF00C853);
-  static const Color regionEurope = Color(0xFF4A90D9);
+  static const Color regionItaly = Color(0xFF4A90D9);
   static const Color regionUsa = Color(0xFF4A90D9);
   static const Color regionChina = Color(0xFF7B8FD4);
-  static const Color regionAfrica = Color(0xFFE8A44A);
+  static const Color regionKenya = Color(0xFFE8A44A);
   static const Color regionSpain = Color(0xFFE85D4A);
   static const double borderRadiusSmall = 8.0;
   static const double borderRadiusMedium = 16.0;

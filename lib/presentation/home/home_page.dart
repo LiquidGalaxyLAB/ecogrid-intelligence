@@ -371,13 +371,13 @@ class _RegionCardState extends State<_RegionCard>
     switch (regionId) {
       case 'india':
         return const Color(0xFF00C853);
-      case 'europe':
+      case 'italy':
         return const Color(0xFF00C8FF);
       case 'usa':
         return const Color(0xFF4A90D9);
       case 'china':
         return const Color(0xFF7B8FD4);
-      case 'africa':
+      case 'kenya':
         return const Color(0xFF00C8FF);
       case 'spain':
         return const Color(0xFFB388FF);
@@ -391,14 +391,14 @@ class _RegionCardState extends State<_RegionCard>
   double _getRegionImageScale(String regionId, {bool isDark = false}) {
     if (isDark) {
       switch (regionId) {
-        case 'africa': return 1.35;
-        case 'europe': return 1.40;
+        case 'kenya': return 1.35;
+        case 'italy': return 1.40;
         case 'spain':  return 0.85;
         default: return 1.0;
       }
     }
     // Light theme — keep original values
-    if (regionId == 'europe') return 1.25;
+    if (regionId == 'italy') return 1.25;
     return 1.0;
   }
 

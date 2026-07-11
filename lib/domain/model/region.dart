@@ -13,6 +13,9 @@ class Region extends Equatable {
   final String? imageAsset;
   final double defaultZoom;
   final List<String>? countries;
+  /// The search query to send to Nominatim to fetch this region's boundary.
+  /// Falls back to [name] if null.
+  final String? nominatimQuery;
   const Region({
     required this.id,
     required this.name,
@@ -26,6 +29,7 @@ class Region extends Equatable {
     this.imageAsset,
     this.defaultZoom = 5.0,
     this.countries,
+    this.nominatimQuery,
   });
   @override
   List<Object?> get props => [id, name];
@@ -43,19 +47,22 @@ class Region extends Equatable {
       imageAsset: 'assets/images/regions/dark/india.png',
       defaultZoom: 5.0,
       countries: ['India'],
+      nominatimQuery: 'India',
     ),
     Region(
-      id: 'europe',
-      name: 'Europe',
-      displayName: 'Europe',
-      centerLat: 54.5260,
-      centerLon: 15.2551,
-      minLat: 34.0,
-      minLon: -25.0,
-      maxLat: 72.0,
-      maxLon: 45.0,
-      imageAsset: 'assets/images/regions/dark/europe.png',
-      defaultZoom: 4.0,
+      id: 'italy',
+      name: 'Italy',
+      displayName: 'Italy',
+      centerLat: 41.8719,
+      centerLon: 12.5674,
+      minLat: 36.6,
+      minLon: 6.6,
+      maxLat: 47.1,
+      maxLon: 18.5,
+      imageAsset: 'assets/images/regions/dark/italy.png',
+      defaultZoom: 4.5,
+      countries: ['Italy'],
+      nominatimQuery: 'Italy',
     ),
     Region(
       id: 'usa',
@@ -70,6 +77,7 @@ class Region extends Equatable {
       imageAsset: 'assets/images/regions/dark/usa.png',
       defaultZoom: 4.0,
       countries: ['United States of America', 'USA', 'United States'],
+      nominatimQuery: 'United States of America',
     ),
     Region(
       id: 'china',
@@ -84,19 +92,22 @@ class Region extends Equatable {
       imageAsset: 'assets/images/regions/dark/china.png',
       defaultZoom: 4.5,
       countries: ['China'],
+      nominatimQuery: 'China',
     ),
     Region(
-      id: 'africa',
-      name: 'Africa',
-      displayName: 'Africa',
-      centerLat: -8.7832,
-      centerLon: 34.5085,
-      minLat: -35.0,
-      minLon: -18.0,
-      maxLat: 37.0,
-      maxLon: 52.0,
-      imageAsset: 'assets/images/regions/dark/africa.png',
-      defaultZoom: 3.5,
+      id: 'kenya',
+      name: 'Kenya',
+      displayName: 'Kenya',
+      centerLat: 0.0236,
+      centerLon: 37.9062,
+      minLat: -4.7,
+      minLon: 33.9,
+      maxLat: 5.5,
+      maxLon: 41.9,
+      imageAsset: 'assets/images/regions/dark/kenya.png',
+      defaultZoom: 5.0,
+      countries: ['Kenya'],
+      nominatimQuery: 'Kenya',
     ),
     Region(
       id: 'spain',
@@ -111,6 +122,7 @@ class Region extends Equatable {
       imageAsset: 'assets/images/regions/dark/spain.png',
       defaultZoom: 2.0,
       countries: ['Spain'],
+      nominatimQuery: 'Spain',
     ),
   ];
 }

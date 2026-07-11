@@ -4,16 +4,64 @@ import '../../../core/utils/kml_utils.dart';
 import '../../../service/ssh_service.dart';
 import '../../../core/constants/lg_constants.dart';
 
+/// Handles all communication with the Liquid Galaxy rig.
+///
+/// Rules for writing KML to LG:
+///   • Small KML (< ~4 KB): use `echo '...' > file` via SSH exec.
+///     This is the standard LG pattern, fast, and reliable.
+///   • Large KML (region boundaries, plant batches): use SFTP.
+///     Shell argument length has a ~128 KB limit; SFTP has no limit.
+///   • Query file (`/tmp/query.txt`): always use `echo` (tiny strings).
+///   • `kmls.txt`: always use `echo` (one-line URL).
 class LGRemoteDataSource {
   final SSHService sshService;
   bool _isLogoVisible = true;
   int _screenCount = 3;
+
   void setScreenCount(int count) {
     _screenCount = count < 1 ? 1 : count;
     debugPrint('[EcoGrid] LG screen count set to $_screenCount');
   }
 
   LGRemoteDataSource({required this.sshService});
+
+  /// Initialize necessary directories on the master node.
+  Future<void> initialize() async {
+    try {
+      final pw = sshService.password;
+      await sshService.execute(
+        'echo $pw | sudo -S mkdir -p ${LGConstants.kmlPath}',
+      );
+      await sshService.execute(
+        'echo $pw | sudo -S chmod 777 ${LGConstants.kmlPath}',
+      );
+      await sshService.execute(
+        'echo $pw | sudo -S touch /var/www/html/kmls.txt',
+      );
+      await sshService.execute(
+        'echo $pw | sudo -S chmod 777 /var/www/html/kmls.txt',
+      );
+    } catch (e) {
+      debugPrint('[EcoGrid] Initialization failed: $e');
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  /// Escape a KML string for safe use inside single-quoted `echo '...'`.
+  /// Replaces every `'` with `'\''` (end quote, escaped quote, reopen quote).
+  String _escapeForEcho(String kml) => kml.replaceAll("'", "'\\''");
+
+  /// Write a small KML string to [remotePath] using `echo` via SSH exec.
+  /// This is the standard Liquid Galaxy pattern — fast and reliable for
+  /// content under ~4 KB.
+  Future<void> _writeSmallKml(String remotePath, String kml) async {
+    final escaped = _escapeForEcho(kml);
+    await sshService.execute("echo '$escaped' > $remotePath");
+  }
+
+  // ─── Camera Control ───────────────────────────────────────────────────────
+
   Future<void> flyTo(
     double lat,
     double lon,
@@ -37,15 +85,17 @@ class LGRemoteDataSource {
     }
   }
 
+  // ─── Master KML ───────────────────────────────────────────────────────────
+
   Future<void> sendKmlToMaster(String kmlContent) async {
     try {
-      final escapedKml = kmlContent.replaceAll("'", "'\\''");
-      await sshService.execute(
-        "echo '$escapedKml' > ${LGConstants.masterKmlFile}",
-      );
-      await sshService.execute(
-        "echo 'http://lg1:81/kml/kmls.kml' > /var/www/html/kmls.txt",
-      );
+      final escaped = _escapeForEcho(kmlContent);
+      final ts = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final commands = [
+        "echo '$escaped' > ${LGConstants.masterKmlFile}",
+        "echo 'http://lg1:81/kml/kmls.kml?t=$ts' > /var/www/html/kmls.txt",
+      ];
+      await sshService.execute(commands.join(' ; '));
     } catch (e) {
       throw ConnectionException(message: 'Send KML to Master failed: $e');
     }
@@ -53,9 +103,9 @@ class LGRemoteDataSource {
 
   Future<void> clearMaster() async {
     try {
-      final escapedKml = KmlUtils.emptyKml().replaceAll("'", "'\\''");
+      final emptyKml = _escapeForEcho(KmlUtils.emptyKml());
       await sshService.execute(
-        "echo '$escapedKml' > ${LGConstants.masterKmlFile}",
+        "echo '$emptyKml' > ${LGConstants.masterKmlFile}",
       );
       await sshService.execute("echo '' > /var/www/html/kmls.txt");
     } catch (e) {
@@ -63,12 +113,12 @@ class LGRemoteDataSource {
     }
   }
 
+  // ─── Slave KML ────────────────────────────────────────────────────────────
+
   Future<void> sendKmlToSlave(int slaveNumber, String kml) async {
     try {
-      final escapedKml = kml.replaceAll("'", "'\\''");
-      await sshService.execute(
-        "echo '$escapedKml' > ${LGConstants.kmlPath}slave_$slaveNumber.kml",
-      );
+      await _writeSmallKml(
+          '${LGConstants.kmlPath}slave_$slaveNumber.kml', kml);
     } catch (e) {
       throw ConnectionException(
         message: 'Send KML to slave $slaveNumber failed: $e',
@@ -76,12 +126,12 @@ class LGRemoteDataSource {
     }
   }
 
+  /// Show a balloon on a slave screen.
+  /// Balloons are typically 2-8 KB — safe for echo.
   Future<void> showBalloonOnSlave(int slaveNumber, String balloonKml) async {
     try {
-      final escapedKml = balloonKml.replaceAll("'", "'\\''");
-      await sshService.execute(
-        "echo '$escapedKml' > ${LGConstants.kmlPath}slave_$slaveNumber.kml",
-      );
+      await _writeSmallKml(
+          '${LGConstants.kmlPath}slave_$slaveNumber.kml', balloonKml);
     } catch (e) {
       throw ConnectionException(
         message: 'Show balloon on slave $slaveNumber failed: $e',
@@ -91,16 +141,17 @@ class LGRemoteDataSource {
 
   Future<void> clearBalloonOnSlave(int slaveNumber) async {
     try {
-      final emptyBalloonKml = KmlUtils.emptyBalloon().replaceAll("'", "'\\''");
-      await sshService.execute(
-        "echo '$emptyBalloonKml' > ${LGConstants.kmlPath}slave_$slaveNumber.kml",
-      );
+      await _writeSmallKml(
+          '${LGConstants.kmlPath}slave_$slaveNumber.kml',
+          KmlUtils.emptyBalloon());
     } catch (e) {
       throw ConnectionException(
         message: 'Clear balloon on slave $slaveNumber failed: $e',
       );
     }
   }
+
+  // ─── Tours ────────────────────────────────────────────────────────────────
 
   Future<void> playTour(String tourName) async {
     try {
@@ -122,68 +173,98 @@ class LGRemoteDataSource {
     }
   }
 
+  /// Send orbit tour KML. Uses echo (safe since orbit KML is only ~5-10KB).
   Future<void> sendOrbitKml(String orbitKml) async {
     try {
-      final escaped = orbitKml.replaceAll("'", "'\\''");
-      await sshService.execute("echo '$escaped' > /var/www/html/orbit.kml");
-      await sshService.execute(
+      final escaped = _escapeForEcho(orbitKml);
+      final commands = [
+        "echo '$escaped' > /var/www/html/orbit.kml",
         "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
-      );
+      ];
+      await sshService.execute(commands.join(' ; '));
     } catch (e) {
       throw ConnectionException(message: 'Send orbit KML failed: $e');
     }
   }
 
+  // ─── Clear All ────────────────────────────────────────────────────────────
+
+  /// Clear ALL KML from the rig. Uses echo for everything (small files only).
+  /// No SFTP channels opened — avoids channel exhaustion entirely.
   Future<void> clearKml() async {
     try {
-      await sshService.execute(
+      final commands = <String>[
         'echo "exittour=true" > ${LGConstants.queryFile}',
-      );
-      // Clear kmls.txt FIRST so LG Earth unloads the current KML (including
-      // any placemark pins) from memory before we overwrite the file.
-      await sshService.execute("echo '' > /var/www/html/kmls.txt");
-      final empty = KmlUtils.emptyKml().replaceAll("'", "'\\''");
-      await sshService.execute("echo '$empty' > ${LGConstants.masterKmlFile}");
-      final emptyBalloonKml = KmlUtils.emptyBalloon().replaceAll("'", "'\\''");
+        "echo '' > /var/www/html/kmls.txt",
+        "echo '${_escapeForEcho(KmlUtils.emptyKml())}' > ${LGConstants.masterKmlFile}",
+      ];
+      final emptyBalloon = _escapeForEcho(KmlUtils.emptyBalloon());
       for (int i = 2; i <= _screenCount; i++) {
-        try {
-          await sshService.execute(
-            "echo '$emptyBalloonKml' > ${LGConstants.kmlPath}slave_$i.kml",
-          );
-        } catch (_) {}
+        commands.add("echo '$emptyBalloon' > ${LGConstants.kmlPath}slave_$i.kml");
       }
       if (_isLogoVisible) {
-        await showLogos();
+        final leftScreen = _leftScreenIndex();
+        final kml = _escapeForEcho(KmlUtils.screenOverlayKml());
+        commands.add("echo '$kml' > ${LGConstants.kmlPath}slave_$leftScreen.kml");
       }
-    } catch (e) {}
+      // Execute all commands in a single SSH channel to prevent exhaustion
+      await sshService.execute(commands.join(' ; '));
+    } catch (e) {
+      debugPrint('[EcoGrid] clearKml failed: $e');
+    }
+  }
+
+  // ─── Refresh Intervals ────────────────────────────────────────────────────
+
+  Future<void> setRefreshIntervals() async {
+    final pw = sshService.password;
+    final commands = <String>[];
+    const search = '<href>##LG_PHPIFACE##kml\\/slave_{{slave}}.kml<\\/href>';
+    const replace = '<href>##LG_PHPIFACE##kml\\/slave_{{slave}}.kml<\\/href><refreshMode>onInterval<\\/refreshMode><refreshInterval>2<\\/refreshInterval>';
+    for (var i = 2; i <= _screenCount; i++) {
+      final s = search.replaceAll('{{slave}}', i.toString());
+      final r = replace.replaceAll('{{slave}}', i.toString());
+      commands.add('sshpass -p $pw ssh -o ConnectTimeout=2 -q lg$i \'echo $pw | sudo -S sed -i "s/$s/$r/" ~/earth/kml/slave/myplaces.kml\'');
+    }
+    try {
+      await sshService.execute(commands.join(' ; '));
+    } catch (e) {
+      debugPrint('[EcoGrid] setRefreshIntervals failed: $e');
+    }
   }
 
   Future<void> removeRefreshIntervals() async {
+    final pw = sshService.password;
+    final commands = <String>[];
     const search = '<href>##LG_PHPIFACE##kml\\/slave_{{slave}}.kml<\\/href>';
-    const replace =
-        '<href>##LG_PHPIFACE##kml\\/slave_{{slave}}.kml<\\/href><refreshMode>onInterval<\\/refreshMode><refreshInterval>5<\\/refreshInterval>';
-    final clear =
-        'echo ${sshService.password} | sudo -S sed -i "s/$replace/$search/" ~/earth/kml/slave/myplaces.kml';
+    const replace = '<href>##LG_PHPIFACE##kml\\/slave_{{slave}}.kml<\\/href><refreshMode>onInterval<\\/refreshMode><refreshInterval>2<\\/refreshInterval>';
     for (var i = 2; i <= _screenCount; i++) {
-      final clearCmd = clear.replaceAll('{{slave}}', i.toString());
-      try {
-        await sshService.execute(
-          'sshpass -p ${sshService.password} ssh -t lg$i \'$clearCmd\'',
-        );
-      } catch (_) {}
+      final s = search.replaceAll('{{slave}}', i.toString());
+      final r = replace.replaceAll('{{slave}}', i.toString());
+      commands.add('sshpass -p $pw ssh -o ConnectTimeout=2 -q lg$i \'echo $pw | sudo -S sed -i "s/$r/$s/" ~/earth/kml/slave/myplaces.kml\'');
+    }
+    try {
+      await sshService.execute(commands.join(' ; '));
+    } catch (e) {
+      debugPrint('[EcoGrid] removeRefreshIntervals failed: $e');
     }
   }
+
+  // ─── System Control ───────────────────────────────────────────────────────
 
   Future<void> reboot() async {
     for (int i = _screenCount; i >= 2; i--) {
       try {
         await sshService.execute(
-          'sshpass -p ${sshService.password} ssh -t lg$i "echo ${sshService.password} | sudo -S reboot"',
+          'sshpass -p ${sshService.password} ssh -t lg$i '
+          '"echo ${sshService.password} | sudo -S reboot"',
         );
       } catch (_) {}
     }
     try {
-      await sshService.execute('echo ${sshService.password} | sudo -S reboot');
+      await sshService.execute(
+        'echo ${sshService.password} | sudo -S reboot',
+      );
     } catch (_) {}
   }
 
@@ -191,7 +272,8 @@ class LGRemoteDataSource {
     for (int i = _screenCount; i >= 2; i--) {
       try {
         await sshService.execute(
-          'sshpass -p ${sshService.password} ssh -t lg$i "echo ${sshService.password} | sudo -S poweroff"',
+          'sshpass -p ${sshService.password} ssh -t lg$i '
+          '"echo ${sshService.password} | sudo -S poweroff"',
         );
       } catch (_) {}
     }
@@ -223,6 +305,8 @@ class LGRemoteDataSource {
     } catch (_) {}
   }
 
+  // ─── Logos ────────────────────────────────────────────────────────────────
+
   int _leftScreenIndex() {
     if (_screenCount == 1) return 1;
     return (_screenCount / 2).floor() + 2;
@@ -232,9 +316,8 @@ class LGRemoteDataSource {
     _isLogoVisible = true;
     try {
       final leftScreen = _leftScreenIndex();
-      final kml = KmlUtils.screenOverlayKml().replaceAll("'", "'\\''");
+      final kml = _escapeForEcho(KmlUtils.screenOverlayKml());
       await sshService.execute(
-        "chmod 777 ${LGConstants.kmlPath}slave_$leftScreen.kml; "
         "echo '$kml' > ${LGConstants.kmlPath}slave_$leftScreen.kml",
       );
     } catch (e) {
@@ -246,9 +329,8 @@ class LGRemoteDataSource {
     _isLogoVisible = false;
     try {
       final leftScreen = _leftScreenIndex();
-      final emptyKml = KmlUtils.emptyBalloon().replaceAll("'", "'\\''");
+      final emptyKml = _escapeForEcho(KmlUtils.emptyBalloon());
       await sshService.execute(
-        "chmod 777 ${LGConstants.kmlPath}slave_$leftScreen.kml; "
         "echo '$emptyKml' > ${LGConstants.kmlPath}slave_$leftScreen.kml",
       );
     } catch (e) {

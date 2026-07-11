@@ -244,13 +244,13 @@ class _SearchScreenState extends State<SearchScreen> {
     switch (region.toLowerCase()) {
       case 'india':
         return isDark ? const Color(0xFF00C853) : const Color(0xFF81C784);
-      case 'europe':
+      case 'italy':
         return isDark ? const Color(0xFF4A90D9) : const Color(0xFF90CAF9);
       case 'usa':
         return isDark ? const Color(0xFFFF5252) : const Color(0xFFEF9A9A);
       case 'china':
         return isDark ? const Color(0xFFB388FF) : const Color(0xFFB39DDB);
-      case 'africa':
+      case 'kenya':
         return isDark ? const Color(0xFFE8A44A) : const Color(0xFFFFCC80);
       case 'spain':
         return isDark ? const Color(0xFFE75480) : const Color(0xFFF48FB1);
@@ -264,9 +264,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final popularRegions = [
       'India',
       'China',
-      'Europe',
+      'Italy',
       'USA',
-      'Africa',
+      'Kenya',
       'Spain',
     ];
     return ListView(

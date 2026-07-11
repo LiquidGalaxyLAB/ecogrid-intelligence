@@ -22,7 +22,7 @@ class GeminiRemoteDataSource implements AIDataSource {
   static DateTime? _lastCallTime;
   static const int _maxRetries = 3;
   static const Duration _retryDelay = Duration(seconds: 2);
-  GeminiRemoteDataSource({required Dio dio}) : _dio = dio;
+  GeminiRemoteDataSource({required this._dio});
   void _enforceCooldown() {
     if (_lastCallTime != null) {
       final elapsed = DateTime.now().difference(_lastCallTime!);

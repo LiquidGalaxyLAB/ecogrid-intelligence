@@ -5,7 +5,7 @@ import '../app_database.dart';
 
 class ClimateCacheDataSource {
   final ClimateDao _dao;
-  ClimateCacheDataSource({required ClimateDao dao}) : _dao = dao;
+  ClimateCacheDataSource({required this._dao});
   String _cacheKey(double lat, double lon, {String prefix = 'current'}) {
     final decimals = prefix == 'historical' ? 1 : 2;
     final latKey = lat.toStringAsFixed(decimals);

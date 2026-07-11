@@ -1,3 +1,4 @@
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/resources/app_state.dart';
 import '../../../domain/model/region.dart';
@@ -7,6 +8,7 @@ import '../../../core/enums/risk_level.dart';
 import '../../../core/enums/stress_filter.dart';
 import '../../../core/enums/lg_display_mode.dart';
 import '../../../core/utils/kml_utils.dart';
+import '../../../core/utils/region_boundary_service.dart';
 import '../../../domain/model/lg_settings.dart';
 import '../../../domain/usecases/cvs/bloc/init_cvs_bloc_usecase.dart';
 import '../../../domain/usecases/plant/services/get_plants_by_region_usecase.dart';
@@ -35,7 +37,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
   final GetCachedCvsUsecase getCachedCvsUsecase;
   final GetCvsForPlantUsecase getCvsForPlantUsecase;
   final InitCvsBlocUseCase initCvsBlocUseCase;
-  bool _isCancelled = false;
   ExploreBloc({
     required this.lgService,
     required this.initCvsBlocUseCase,
@@ -49,15 +50,20 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     required this.getCachedCvsUsecase,
     required this.getCvsForPlantUsecase,
   }) : super(const AppLoading()) {
-    on<ExploreRegionLoaded>(_onRegionLoaded);
+    // restartable() cancels the previous handler (including its emit.forEach)
+    // when a new event of the same type arrives. Without this, switching
+    // regions while a plant stream is still open causes the new region event
+    // to be queued forever behind the old emit.forEach — so the LG never
+    // flies to the new location.
+    on<ExploreRegionLoaded>(_onRegionLoaded, transformer: restartable());
     on<ExploreFilterChanged>(_onFilterChanged);
-    on<ExploreGlobalLoaded>(_onGlobalLoaded);
+    on<ExploreGlobalLoaded>(_onGlobalLoaded, transformer: restartable());
     on<ExploreSearchQueryChanged>(_onSearchQueryChanged);
     on<ExploreLoadMore>(_onLoadMore);
     on<ExploreRiskFilterChanged>(_onRiskFilterChanged);
     on<ExploreGenerateRegionalInsight>(_onGenerateRegionalInsight);
     on<ExploreShowPlantsOnLG>(_onShowPlantsOnLG);
-    on<ExploreLGRestoreRequested>(_onLGRestoreRequested);
+    on<ExploreLGRestoreRequested>(_onLGRestoreRequested, transformer: restartable());
     on<ExploreDismissInsight>((event, emit) {
       if (state is AppSuccess<ExploreData>) {
         final data = (state as AppSuccess<ExploreData>).data!;
@@ -69,27 +75,42 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     ExploreRegionLoaded event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
-    _isCancelled = true;
     emit(const AppLoading<ExploreData>());
     initCvsBlocUseCase();
     lgService.setCurrentRegion(event.region.name);
     lgService.setCurrentMode(LGDisplayMode.regionOverview);
     if (lgService.connectionStatus == ConnectionStatus.connected) {
       await lgService.clearKml();
+      final latDiff = event.region.maxLat - event.region.minLat;
+      final lonDiff = event.region.maxLon - event.region.minLon;
+      final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
+      double optimalRange = maxDiff * 111000.0 * 1.5;
+      if (optimalRange < 500000) optimalRange = 500000;
+
       await lgService.flyTo(
         event.region.centerLat,
         event.region.centerLon,
         0,
         0,
         0,
-        event.region.defaultZoom * 150000,
+        optimalRange,
       );
-      final regionKml = KmlUtils.regionPlacemark(
-        regionName: event.region.name,
-        lat: event.region.centerLat,
-        lon: event.region.centerLon,
-      );
-      await lgService.sendKmlToMaster(regionKml);
+      // Fetch real country boundary polygon from OpenStreetMap (Nominatim) in the background
+      // so it doesn't block the UI from immediately loading the power plant list.
+      Future.microtask(() async {
+        final regionKml = await RegionBoundaryService.fetchBoundaryKml(
+          regionName: event.region.nominatimQuery ?? event.region.name,
+          displayName: event.region.displayName ?? event.region.name,
+          minLat: event.region.minLat,
+          minLon: event.region.minLon,
+          maxLat: event.region.maxLat,
+          maxLon: event.region.maxLon,
+          countries: event.region.countries,
+        );
+        if (lgService.connectionStatus == ConnectionStatus.connected) {
+          await lgService.sendKmlToMaster(regionKml);
+        }
+      });
     }
     await emit.forEach<DataState<List<PowerPlant>>>(
       getPlantsByRegionUsecase(params: event.region),
@@ -108,6 +129,18 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         } else if (dataState is DataSuccess<List<PowerPlant>>) {
           final plants = dataState.data!;
           Future.microtask(() async {
+            final regionKml = await RegionBoundaryService.fetchBoundaryKml(
+              regionName: event.region.nominatimQuery ?? event.region.name,
+              displayName: event.region.displayName ?? event.region.name,
+              minLat: event.region.minLat,
+              minLon: event.region.minLon,
+              maxLat: event.region.maxLat,
+              maxLon: event.region.maxLon,
+              countries: event.region.countries,
+            );
+            if (lgService.connectionStatus == ConnectionStatus.connected) {
+              await lgService.sendKmlToMaster(regionKml);
+            }
             await preComputeAllScoresUsecase(plants);
             _startBackgroundWarmer();
             await _updateRightScreenOverlay(event.region, plants);
@@ -201,10 +234,14 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     );
     if (lgService.connectionStatus != ConnectionStatus.connected) return;
     await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
-    final masterRegionKml = KmlUtils.regionPlacemark(
-      lat: region.centerLat,
-      lon: region.centerLon,
-      regionName: region.name,
+    final masterRegionKml = await RegionBoundaryService.fetchBoundaryKml(
+      regionName: region.nominatimQuery ?? region.name,
+      displayName: region.displayName ?? region.name,
+      minLat: region.minLat,
+      minLon: region.minLon,
+      maxLat: region.maxLat,
+      maxLon: region.maxLon,
+      countries: region.countries,
     );
     await lgService.sendKmlToMaster(masterRegionKml);
   }
@@ -249,7 +286,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     ExploreGlobalLoaded event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
-    _isCancelled = true;
     emit(const AppLoading<ExploreData>());
     initCvsBlocUseCase();
     await emit.forEach<DataState<List<PowerPlant>>>(
@@ -297,7 +333,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     final stressFilter = event.clearStressFilter
         ? null
         : (event.stressFilter ?? data.activeStressFilter);
-    _isCancelled = true;
     final nextData = data.copyWith(
       activeTypeFilter: event.clearTypeFilter ? null : typeFilter,
       activeStressFilter: event.clearStressFilter ? null : stressFilter,
@@ -336,7 +371,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
   ) {
     if (state is! AppSuccess<ExploreData>) return;
     final data = (state as AppSuccess<ExploreData>).data!;
-    _isCancelled = true;
     final newRiskFilter = event.riskLevel == data.activeRiskFilter
         ? null
         : event.riskLevel;

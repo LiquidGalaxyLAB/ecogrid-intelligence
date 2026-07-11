@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../config/theme/app_theme.dart';
@@ -36,7 +37,7 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Text('Comparing ${widget.plants.length} Plants'),
+        title: Text('Plant Comparison'),
         actions: [
           IconButton(
             onPressed: () =>
@@ -87,32 +88,131 @@ class _CarouselView extends StatefulWidget {
   State<_CarouselView> createState() => _CarouselViewState();
 }
 
-class _CarouselViewState extends State<_CarouselView> {
-  late PageController _pageController;
+class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
   int _currentPage = 0;
+  double _rotationOffset = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.88, initialPage: 0);
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  void _rotate(int direction) {
+    if (_controller.isAnimating) return;
+    
+    int count = widget.plants.length;
+    int next = (_currentPage + direction) % count;
+    if (next < 0) next += count;
+    
+    final double start = _rotationOffset;
+    final double end = start + (direction * (2 * math.pi / count));
+    
+    Animation<double> anim = Tween<double>(begin: start, end: end).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic)
+    );
+    
+    anim.addListener(() {
+      setState(() {
+        _rotationOffset = anim.value;
+      });
+    });
+    
+    _controller.forward(from: 0.0).then((_) {
+      setState(() {
+        _currentPage = next;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final int count = widget.plants.length;
+    final double angleStep = 2 * math.pi / count;
+
+    List<Widget> cardStack = [];
+    List<Map<String, dynamic>> cardData = [];
+
+    for (int i = 0; i < count; i++) {
+      double currentAngle = (i * angleStep) - _rotationOffset + (math.pi / 2);
+      
+      double sinValue = math.sin(currentAngle);
+      double cosValue = math.cos(currentAngle);
+      
+      double depth = (sinValue + 1) / 2;
+      
+      double minScale = count == 4 ? 0.55 : 0.75;
+      double minOpacity = count == 4 ? 0.25 : 0.5;
+      
+      double scale = minScale + ((1.0 - minScale) * depth);
+      double opacity = minOpacity + ((1.0 - minOpacity) * depth);
+      
+      double xOffset = cosValue * (MediaQuery.of(context).size.width * 0.4);
+      double yOffset = (1 - depth) * -60; 
+
+      cardData.add({
+        'index': i,
+        'widget': widget.plants[i],
+        'depth': depth,
+        'scale': scale,
+        'opacity': opacity,
+        'x': xOffset,
+        'y': yOffset,
+      });
+    }
+
+    cardData.sort((a, b) => a['depth'].compareTo(b['depth']));
+
+    for (var data in cardData) {
+      cardStack.add(
+        Positioned(
+          top: 40,
+          bottom: 120, // Leave room for arrows and dots
+          left: 16,
+          right: 16,
+          child: Transform.translate(
+            offset: Offset(data['x'], data['y']),
+            child: Transform.scale(
+              scale: data['scale'],
+              alignment: Alignment.center,
+              child: Opacity(
+                opacity: data['opacity'],
+                child: IgnorePointer(
+                  ignoring: data['depth'] < 0.95,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 400),
+                      child: _PlantCard(
+                        plant: data['widget'],
+                        cvsRepository: widget.cvsRepository,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
-        // ── Dot indicators ─────────────────────────────────────────────────
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
-            widget.plants.length,
+            count,
             (i) => AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -127,31 +227,53 @@ class _CarouselViewState extends State<_CarouselView> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-
-        // ── Cards ──────────────────────────────────────────────────────────
+        
         Expanded(
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: widget.plants.length,
-            onPageChanged: (i) => setState(() => _currentPage = i),
-            itemBuilder: (context, index) => AnimatedScale(
-              scale: _currentPage == index ? 1.0 : 0.92,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              child: _PlantCard(
-                plant: widget.plants[index],
-                cvsRepository: widget.cvsRepository,
+          child: GestureDetector(
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity! > 200) {
+                _rotate(-1); // swipe right -> show previous card (which is logically at the left, so wheel turns clockwise)
+              } else if (details.primaryVelocity! < -200) {
+                _rotate(1); // swipe left -> show next card
+              }
+            },
+            child: Container(
+              color: Colors.transparent,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  ...cardStack,
+                  
+                  // Arrow buttons fallback
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () => _rotate(-1),
+                          icon: const Icon(Icons.arrow_back_ios_rounded),
+                          color: AppTheme.textMuted,
+                          iconSize: 28,
+                        ),
+                        Text(
+                          'Swipe to compare',
+                          style: AppTheme.caption.copyWith(color: AppTheme.textMuted),
+                        ),
+                        IconButton(
+                          onPressed: () => _rotate(1),
+                          icon: const Icon(Icons.arrow_forward_ios_rounded),
+                          color: AppTheme.textMuted,
+                          iconSize: 28,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.only(bottom: 18, top: 10),
-          child: Text(
-            'Swipe to compare plants',
-            style: AppTheme.caption.copyWith(color: AppTheme.textMuted),
           ),
         ),
       ],
@@ -180,13 +302,11 @@ class _PlantCardState extends State<_PlantCard> {
   @override
   void initState() {
     super.initState();
-    _loadInsight();
   }
 
   Future<void> _loadInsight() async {
-    final CVSResult? cvs =
-        widget.cvsRepository.getCachedCvs(widget.plant);
-    if (cvs == null) return; // CVS not ready yet — skip AI for now
+    final CVSResult cvs =
+        widget.cvsRepository.getUnifiedScore(widget.plant); // CVS not ready yet — skip AI for now
     setState(() {
       _isLoadingInsight = true;
       _insightError = false;
@@ -197,7 +317,7 @@ class _PlantCardState extends State<_PlantCard> {
         cvs: cvs,
       );
       final result = await sl<GeneratePlantInsightUsecase>()(
-        params: {'context': payload, 'isUserInitiated': false},
+        params: {'context': payload, 'isUserInitiated': true},
       ).last.timeout(const Duration(seconds: 14));
 
       if (mounted) {
@@ -225,9 +345,9 @@ class _PlantCardState extends State<_PlantCard> {
 
   @override
   Widget build(BuildContext context) {
-    final CVSResult? cvs = widget.cvsRepository.getCachedCvs(widget.plant);
-    final risk = cvs?.riskLevel ?? RiskLevel.low;
-    final score = cvs?.score ?? 0.0;
+    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+    final risk = cvs.riskLevel ?? RiskLevel.low;
+    final score = cvs.score ?? 0.0;
     final riskColor = _riskColor(risk);
     final hasCvs = cvs != null;
 
@@ -271,34 +391,11 @@ class _PlantCardState extends State<_PlantCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Fuel chip ─────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: riskColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: riskColor.withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  widget.plant.primaryFuel.displayName.toUpperCase(),
-                  style: TextStyle(
-                    color: riskColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
               // ── Plant name ────────────────────────────────────────────
               Text(
                 widget.plant.name,
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                   height: 1.15,
@@ -308,112 +405,81 @@ class _PlantCardState extends State<_PlantCard> {
                 overflow: TextOverflow.ellipsis,
               ),
 
-              const SizedBox(height: 6),
+              const SizedBox(height: 16),
 
-              // ── Location · capacity · year ────────────────────────────
+              // ── Top Section: 2 Columns ───────────────────────────────
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.location_on_rounded,
-                      size: 12, color: AppTheme.textMuted),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      widget.plant.countryLong ?? widget.plant.country,
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.textMuted),
-                      overflow: TextOverflow.ellipsis,
+                  // Left Column: CVS Score
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (!hasCvs)
+                          _PendingScoreBanner()
+                        else ...[
+                          Text(
+                            score.toStringAsFixed(0),
+                            style: TextStyle(
+                              fontSize: 64,
+                              fontWeight: FontWeight.w900,
+                              color: riskColor,
+                              height: 1.0,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: riskColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: riskColor.withValues(alpha: 0.4)),
+                            ),
+                            child: Text(
+                              riskLabel,
+                              style: TextStyle(
+                                color: riskColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ]
+                      ],
                     ),
                   ),
-                  if (widget.plant.capacityMw != null) ...[
-                    Text('  ·  ',
-                        style: TextStyle(color: AppTheme.textMuted)),
-                    Text(
-                      '${widget.plant.capacityMw!.toStringAsFixed(0)} MW',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  const SizedBox(width: 12),
+                  // Right Column: 2x2 Metadata Grid
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: _MetaItem(icon: Icons.location_on_rounded, label: 'Location', value: widget.plant.countryLong ?? widget.plant.country)),
+                            Expanded(child: _MetaItem(icon: Icons.bolt_rounded, label: 'Capacity', value: widget.plant.capacityMw != null ? '${widget.plant.capacityMw!.toStringAsFixed(0)} MW' : 'Unknown')),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(child: _MetaItem(icon: Icons.factory_rounded, label: 'Fuel', value: widget.plant.primaryFuel.displayName)),
+                            const Expanded(child: SizedBox()),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                  if (widget.plant.commissioningYear != null) ...[
-                    Text('  ·  ',
-                        style: TextStyle(color: AppTheme.textMuted)),
-                    Text(
-                      'Est. ${widget.plant.commissioningYear}',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.textMuted),
-                    ),
-                  ],
+                  ),
                 ],
               ),
 
               const SizedBox(height: 20),
               _CardDivider(),
-
-              // ── CVS Score section ─────────────────────────────────────
               const SizedBox(height: 16),
-              if (!hasCvs)
-                _PendingScoreBanner()
-              else ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      score.toStringAsFixed(0),
-                      style: TextStyle(
-                        fontSize: 76,
-                        fontWeight: FontWeight.w900,
-                        color: riskColor,
-                        height: 1.0,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10, left: 6),
-                      child: Text(
-                        '/100',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppTheme.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: riskColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: riskColor.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        riskLabel,
-                        style: TextStyle(
-                          color: riskColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: (score / 100).clamp(0.0, 1.0),
-                    minHeight: 7,
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    valueColor: AlwaysStoppedAnimation(riskColor),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 18),
 
               // ── Stress breakdown ───────────────────────────────────────
               _SectionHeader(
@@ -434,23 +500,23 @@ class _PlantCardState extends State<_PlantCard> {
                     _StressRow(
                       icon: '🌡',
                       label: 'TEMP',
-                      value: cvs?.temperatureStress ?? 0,
+                      value: cvs.temperatureStress ?? 0,
                       color: const Color(0xFFEF4444),
                       hasCvs: hasCvs,
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     _StressRow(
                       icon: '💧',
                       label: 'WATER',
-                      value: cvs?.waterStress ?? 0,
+                      value: cvs.waterStress ?? 0,
                       color: const Color(0xFF3B82F6),
                       hasCvs: hasCvs,
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     _StressRow(
                       icon: '🌬',
                       label: 'WIND',
-                      value: cvs?.windStress ?? 0,
+                      value: cvs.windStress ?? 0,
                       color: const Color(0xFF10B981),
                       hasCvs: hasCvs,
                     ),
@@ -472,7 +538,7 @@ class _PlantCardState extends State<_PlantCard> {
                 '${widget.plant.latitude.toStringAsFixed(4)}° N, '
                 '${widget.plant.longitude.toStringAsFixed(4)}° E',
                 style: const TextStyle(
-                  color: Color(0xFF94A3B8),
+                  color: Colors.white70,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   fontFeatures: [FontFeature.tabularFigures()],
@@ -499,7 +565,7 @@ class _PlantCardState extends State<_PlantCard> {
                   const Text(
                     'AI INSIGHT',
                     style: TextStyle(
-                      color: Color(0xFF64748B),
+                      color: Colors.white70,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.5,
@@ -530,6 +596,7 @@ class _PlantCardState extends State<_PlantCard> {
                 hasError: _insightError,
                 insight: _aiInsight,
                 hasCvs: hasCvs,
+                onGenerate: _loadInsight,
               ),
             ],
           ),
@@ -564,11 +631,13 @@ class _PendingScoreBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(
-            'CVS score computing…',
-            style: TextStyle(
-              color: AppTheme.textMuted,
-              fontSize: 13,
+          Flexible(
+            child: Text(
+              'CVS score computing…',
+              style: TextStyle(
+                color: AppTheme.textMuted,
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -586,12 +655,14 @@ class _AiInsightBody extends StatelessWidget {
   final bool hasError;
   final String? insight;
   final bool hasCvs;
+  final VoidCallback? onGenerate;
 
   const _AiInsightBody({
     required this.isLoading,
     required this.hasError,
     required this.insight,
     required this.hasCvs,
+    this.onGenerate,
   });
 
   @override
@@ -615,8 +686,22 @@ class _AiInsightBody extends StatelessWidget {
         ],
       );
     }
-    if (hasError || insight == null) {
+    if (hasError) {
       return _muted('Could not generate insight for this plant.');
+    }
+    if (insight == null) {
+      return Center(
+        child: TextButton.icon(
+          onPressed: onGenerate,
+          icon: Icon(Icons.auto_awesome, size: 14, color: AppTheme.secondary),
+          label: Text('Generate Insight', style: TextStyle(color: AppTheme.secondary, fontSize: 12)),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            backgroundColor: AppTheme.secondary.withValues(alpha: 0.1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      );
     }
     return Container(
       padding: const EdgeInsets.all(14),
@@ -673,9 +758,9 @@ class _ComparisonGridView extends StatelessWidget {
         mainAxisSpacing: 10,
         childAspectRatio: 0.7,
         children: plants.map((plant) {
-          final cvs = cvsRepository.getCachedCvs(plant);
-          final risk = cvs?.riskLevel ?? RiskLevel.low;
-          final score = cvs?.score ?? 0.0;
+          final cvs = cvsRepository.getUnifiedScore(plant);
+          final risk = cvs.riskLevel ?? RiskLevel.low;
+          final score = cvs.score ?? 0.0;
           final riskColor = _riskColor(risk);
 
           return Container(
@@ -731,14 +816,7 @@ class _ComparisonGridView extends StatelessWidget {
                   ],
                 ),
                 Center(
-                  child: cvs == null
-                      ? Text('—',
-                          style: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.textMuted,
-                          ))
-                      : Text(
+                  child: Text(
                           score.toStringAsFixed(0),
                           style: TextStyle(
                             fontSize: 44,
@@ -753,7 +831,7 @@ class _ComparisonGridView extends StatelessWidget {
                     _StressRow(
                       icon: '🌡',
                       label: 'TEMP',
-                      value: cvs?.temperatureStress ?? 0,
+                      value: cvs.temperatureStress ?? 0,
                       color: const Color(0xFFEF4444),
                       hasCvs: cvs != null,
                     ),
@@ -761,7 +839,7 @@ class _ComparisonGridView extends StatelessWidget {
                     _StressRow(
                       icon: '💧',
                       label: 'WATER',
-                      value: cvs?.waterStress ?? 0,
+                      value: cvs.waterStress ?? 0,
                       color: const Color(0xFF3B82F6),
                       hasCvs: cvs != null,
                     ),
@@ -769,7 +847,7 @@ class _ComparisonGridView extends StatelessWidget {
                     _StressRow(
                       icon: '🌬',
                       label: 'WIND',
-                      value: cvs?.windStress ?? 0,
+                      value: cvs.windStress ?? 0,
                       color: const Color(0xFF10B981),
                       hasCvs: cvs != null,
                     ),
@@ -819,7 +897,7 @@ class _SectionHeader extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            color: Color(0xFF64748B),
+            color: Colors.white70,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
@@ -858,54 +936,54 @@ class _StressRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(icon, style: const TextStyle(fontSize: 13)),
-        const SizedBox(width: 6),
+        Text(icon, style: const TextStyle(fontSize: 14)),
+        const SizedBox(width: 8),
         SizedBox(
-          width: 42,
+          width: 50,
           child: Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
             ),
           ),
         ),
         Expanded(
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: hasCvs
                 ? LinearProgressIndicator(
                     value: (value / 100).clamp(0.0, 1.0),
-                    minHeight: 6,
+                    minHeight: 12,
                     backgroundColor: Colors.white.withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(color),
                   )
                 : LinearProgressIndicator(
                     value: null,
-                    minHeight: 6,
+                    minHeight: 12,
                     backgroundColor: Colors.white.withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(
                         color.withValues(alpha: 0.3)),
                   ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         SizedBox(
-          width: 28,
+          width: 50,
           child: hasCvs
               ? Text(
-                  value.toStringAsFixed(0),
+                  '${value.toStringAsFixed(0)}/100',
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     color: color,
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 )
               : Text(
-                  '—',
+                  '—/100',
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     color: color.withValues(alpha: 0.4),
@@ -985,3 +1063,29 @@ Color _riskColor(RiskLevel risk) => switch (risk) {
       RiskLevel.medium => const Color(0xFFF97316),
       RiskLevel.low => const Color(0xFF22C55E),
     };
+
+class _MetaItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _MetaItem({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 12, color: Colors.white70),
+            const SizedBox(width: 4),
+            Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+}
+

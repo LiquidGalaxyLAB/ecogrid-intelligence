@@ -167,7 +167,7 @@ class CVSCalculator {
       risk = plantType == PlantType.wind
           ? "Extreme risk of turbine lock-down to prevent structural damage."
           : "High risk of forced curtailment due to severe environmental stress.";
-    } else if (projectedCvs > 66) {
+    } else if (projectedCvs > 60) {
       risk = "Elevated operational stress; partial output reduction likely.";
     }
     return {
@@ -203,11 +203,15 @@ class CVSCalculator {
     Map<String, double> baseAnomalies,
     double currentCvs,
   ) {
-    if (currentCvs >= 67) return null;
+    if (currentCvs >= 61) return null; // Already in danger
+
+    // Iteratively increase temp and water together to find the breaking point
     double tMult = 1.0;
     double wMult = 1.0;
     double simulatedCvs = currentCvs;
-    while (simulatedCvs < 67 && tMult <= 3.0) {
+
+    // Max 3.0 multiplier to prevent infinite loops
+    while (simulatedCvs < 61 && tMult <= 3.0) {
       tMult += 0.1;
       wMult += 0.2;
       simulatedCvs = simulateScenario(
@@ -220,7 +224,7 @@ class CVSCalculator {
         windMultiplier: 1.0,
       );
     }
-    if (simulatedCvs >= 67) {
+    if (simulatedCvs >= 61) {
       final tempIncrease = ((tMult - 1.0) * 5.0).toStringAsFixed(1);
       final rainDrop = ((wMult - 1.0) * 25.0).toStringAsFixed(0);
       return {
