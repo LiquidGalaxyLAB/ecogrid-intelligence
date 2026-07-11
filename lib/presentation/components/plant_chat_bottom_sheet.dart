@@ -104,8 +104,9 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
           Expanded(
             child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
               builder: (context, state) {
-                if (state is! AppSuccess<PlantDetailData>)
+                if (state is! AppSuccess<PlantDetailData>) {
                   return const SizedBox.shrink();
+                }
                 final messages = state.data!.chatMessages;
                 if (messages.isEmpty) {
                   return _buildEmptyState();

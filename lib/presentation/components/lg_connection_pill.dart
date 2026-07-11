@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../config/theme/app_theme.dart';
-import '../../config/theme/theme_controller.dart';
 import '../../config/routes/app_routes.dart';
 import '../../core/enums/connection_status.dart';
 import '../lg_connection/bloc/lg_connection_bloc.dart';

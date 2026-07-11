@@ -152,58 +152,39 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // ── Compare FAB ────────────────────────────────────────────────
-          FloatingActionButton.extended(
-            heroTag: 'compare_fab',
-            onPressed: _toggleCompareMode,
-            backgroundColor: AppTheme.secondary,
-            icon: Icon(
-              _isCompareMode ? Icons.close_rounded : Icons.compare_arrows_rounded,
-              color: Colors.white,
-            ),
-            label: Text(
-              _isCompareMode
-                  ? (_selectedPlants.isEmpty
-                      ? 'Cancel'
-                      : 'Compare (${_selectedPlants.length})')
-                  : 'Compare',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-          if (_isCompareMode && _selectedPlants.length >= 2)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: FloatingActionButton.extended(
-                heroTag: 'open_compare_fab',
-                onPressed: _openComparisonScreen,
-                backgroundColor: const Color(0xFF22C55E),
-                icon: const Icon(Icons.open_in_new_rounded, color: Colors.white),
-                label: const Text(
-                  'View',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700),
-                ),
+          if (!_isCompareMode)
+            FloatingActionButton(
+              heroTag: 'compare_fab',
+              onPressed: _toggleCompareMode,
+              backgroundColor: AppTheme.secondary,
+              child: const Icon(
+                Icons.compare_arrows_rounded,
+                color: Colors.white,
               ),
             ),
-          const SizedBox(height: 10),
+
           // ── AI Insight FAB ─────────────────────────────────────────────
           BlocBuilder<ExploreBloc, AppState<ExploreData>>(
             builder: (context, state) {
+              if (_isCompareMode) return const SizedBox.shrink();
               if (state is AppSuccess<ExploreData>) {
                 final data = state.data!;
                 if (data.isLoadingInsight || data.aiInsight != null) {
                   return const SizedBox.shrink();
                 }
               }
-              return FloatingActionButton(
-                heroTag: 'ai_fab',
-                onPressed: () {
-                  context.read<ExploreBloc>().add(
-                        const ExploreGenerateRegionalInsight(),
-                      );
-                },
-                backgroundColor: AppTheme.secondary,
-                child: const Icon(Icons.auto_awesome, color: Colors.white),
+              return Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: FloatingActionButton(
+                  heroTag: 'ai_fab',
+                  onPressed: () {
+                    context.read<ExploreBloc>().add(
+                          const ExploreGenerateRegionalInsight(),
+                        );
+                  },
+                  backgroundColor: AppTheme.secondary,
+                  child: const Icon(Icons.auto_awesome, color: Colors.white),
+                ),
               );
             },
           ),
@@ -273,6 +254,121 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 }
                 return const SizedBox.shrink();
               },
+            ),
+          ),
+          // ── Compare Bottom Bar ──────────────────────────────────────────
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: AnimatedSlide(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              offset: _isCompareMode ? Offset.zero : const Offset(0, 1.5),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: _isCompareMode ? 1.0 : 0.0,
+                child: Container(
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 16,
+                    bottom: 16 + MediaQuery.of(context).padding.bottom,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark ? DesignConstants.elevatedSurface(context) : Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${_selectedPlants.length} / 4 Selected',
+                              style: TextStyle(
+                                color: isDark ? DesignConstants.primaryText(context) : const Color(0xFF0D1F4A),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (_selectedPlants.isNotEmpty)
+                              Wrap(
+                                spacing: 4,
+                                children: _selectedPlants.map((p) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.secondary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    p.name.length > 10 ? '${p.name.substring(0, 10)}...' : p.name,
+                                    style: TextStyle(
+                                      color: AppTheme.secondary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                )).toList(),
+                              )
+                            else
+                              Text(
+                                'Select at least 2 plants',
+                                style: TextStyle(
+                                  color: isDark ? DesignConstants.secondaryText(context) : const Color(0xFF6B80A0),
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      AnimatedScale(
+                        duration: const Duration(milliseconds: 300),
+                        scale: _selectedPlants.length >= 2 ? 1.0 : 0.95,
+                        child: ElevatedButton(
+                          onPressed: _selectedPlants.length >= 2 ? _openComparisonScreen : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.secondary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+                            disabledForegroundColor: Colors.grey,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                          ),
+                          child: const Text(
+                            'Compare',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: _toggleCompareMode,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF6B80A0)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -931,16 +1027,10 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     return BlocBuilder<LGConnectionBloc, LGConnectionState>(
       builder: (context, lgState) {
         final isLgConnected = lgState.status == ConnectionStatus.connected;
-        final showLgButton =
-            state.region != null &&
-            state.activeRiskFilter != null &&
-            isLgConnected &&
-            state.filteredPlants.isNotEmpty;
         final plantsCount = state.filteredPlants.length;
         final showLoadMore = plantsCount > state.displayLimit;
         final displayCount = showLoadMore ? state.displayLimit : plantsCount;
         int totalItems = displayCount;
-        if (showLgButton) totalItems++;
         if (showLoadMore) totalItems++;
         return ListView.builder(
           controller: _scrollController,
@@ -982,35 +1072,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 ),
               );
             }
-            final isLgButtonIndex = showLgButton && index == displayCount;
             final isLoadMoreIndex = showLoadMore && index == (totalItems - 1);
-            if (isLgButtonIndex) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 16,
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    context.read<ExploreBloc>().add(
-                      const ExploreShowPlantsOnLG(),
-                    );
-                  },
-                  icon: const Icon(Icons.public, size: 20),
-                  label: const Text('Show Plants on LG'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark
-                        ? AppTheme.primary
-                        : const Color(0xFF0066FF),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                    ),
-                  ),
-                ),
-              );
-            }
             if (isLoadMoreIndex) {
               return Padding(
                 padding: const EdgeInsets.only(
@@ -1271,42 +1333,65 @@ class _CompareListItemWrapper extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          child,
-          if (isCompareMode)
-            Positioned(
-              right: 16,
-              top: 0,
-              bottom: 0,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                child: Center(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.secondary
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected
-                            ? AppTheme.secondary
-                            : AppTheme.cardBorder,
-                        width: 2,
+          // Slide the tile to the right
+          AnimatedSlide(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            offset: isCompareMode ? const Offset(0.1, 0) : Offset.zero,
+            child: Stack(
+              children: [
+                child,
+                // Selection border overlay
+                if (isCompareMode)
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isSelected ? AppTheme.secondary : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: isSelected
-                        ? const Icon(Icons.check_rounded,
-                            color: Colors.white, size: 16)
-                        : null,
                   ),
+              ],
+            ),
+          ),
+          // Checkbox sliding from left
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            left: isCompareMode ? 20 : -40,
+            top: 0,
+            bottom: 8, // adjust for child margin
+            child: Center(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: isCompareMode ? 1.0 : 0.0,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppTheme.secondary : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected ? AppTheme.secondary : const Color(0xFFE2E8F0),
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                      : null,
                 ),
               ),
             ),
+          ),
         ],
       ),
     );

@@ -96,7 +96,10 @@ class PlantDetailBloc
         ),
       ),
     );
-    _triggerPlantLGSequence(plant, activeCvs, emit);
+    // Await the LG fly-to + KML sequence BEFORE starting the CVS stream.
+    // Running both concurrently caused SFTP channel races that silently
+    // dropped the plant KML (LG stayed stuck on the region view).
+    await _triggerPlantLGSequence(plant, activeCvs, emit);
     await emit.forEach<DataState<CvsComputationResult>>(
       getCvsForPlantUsecase(params: plant),
       onData: (dataState) {
@@ -149,41 +152,52 @@ class PlantDetailBloc
     CVSResult cvs,
     Emitter<AppState<PlantDetailData>> emit,
   ) async {
-    if (lgService.connectionStatus != ConnectionStatus.connected) return;
+    if (lgService.connectionStatus != ConnectionStatus.connected) {
+      debugPrint('[LG] Skipping plant sequence — not connected');
+      return;
+    }
     try {
-      await lgService.clearKml();
-      final optimalRange = _calculateOptimalRange(plant);
-      await lgService.flyTo(
-        plant.latitude,
-        plant.longitude,
-        0,
-        0,
-        0,
-        optimalRange,
-      );
+      debugPrint('[LG] Starting plant sequence for ${plant.name}');
+
+      // 1. Clear screen + fly to plant in parallel (independent operations).
+      await Future.wait([
+        lgService.clearKml(),
+        lgService.flyTo(
+          plant.latitude,
+          plant.longitude,
+          0, 0, 0,
+          _calculateOptimalRange(plant),
+        ),
+      ]);
+      debugPrint('[LG] clearKml + flyTo done');
+
+      // 2. Send concentric ring KML.
       final pinKml = KmlUtils.plantPinKml(
         plant: plant,
         riskLevel: cvs.riskLevel,
       );
       await lgService.sendKmlToMaster(pinKml);
+      debugPrint('[LG] pinKml sent');
+
+      // 3. Load settings once to position the balloon on the correct screen.
       final settingsResult = await lgService.loadSettings();
-      int screenCount = LGSettings.empty.screenCount;
       int rightmostScreen = LGSettings.empty.rightmostScreen;
+      int screenCount = LGSettings.empty.screenCount;
       if (settingsResult is DataSuccess<LGSettings>) {
-        screenCount = settingsResult.data!.screenCount;
         rightmostScreen = settingsResult.data!.rightmostScreen;
+        screenCount = settingsResult.data!.screenCount;
       }
+
+      // 4. Offset balloon to rightmost LG screen.
       const offsetPerSideScreen = 10.0;
       final sideScreens = (screenCount - 1) / 2;
-      final rightmostLonOffset =
-          plant.longitude + (offsetPerSideScreen * sideScreens);
-      final adjustedLon = rightmostLonOffset > 180.0
-          ? rightmostLonOffset - 360.0
-          : rightmostLonOffset;
+      final rawLon = plant.longitude + (offsetPerSideScreen * sideScreens);
+      final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+      // 5. Build + send balloon.
       ClimateData? currentClimate;
       if (state is AppSuccess<PlantDetailData>) {
-        currentClimate =
-            (state as AppSuccess<PlantDetailData>).data!.climateData;
+        currentClimate = (state as AppSuccess<PlantDetailData>).data!.climateData;
       }
       final balloonKml = KmlUtils.plantDetailBalloon(
         plant: plant,
@@ -195,10 +209,11 @@ class PlantDetailBloc
       await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
       lgService.setCurrentMode(LGDisplayMode.plantDetail);
       debugPrint('[LG] Plant detail sequence complete for ${plant.name}');
-    } catch (e) {
-      debugPrint('[LG] Plant detail sequence failed: $e');
+    } catch (e, st) {
+      debugPrint('[LG] Plant detail sequence FAILED for ${plant.name}: $e\n$st');
     }
   }
+
 
   Future<void> _onGenerateInsightRequested(
     PlantDetailGenerateInsightRequested event,

@@ -48,8 +48,9 @@ class PlantDetailScreen extends StatelessWidget {
           listenWhen: (prev, curr) {
             if (curr is! AppSuccess<PlantDetailData>) return false;
             final currData = curr.data!;
-            if (prev is! AppSuccess<PlantDetailData>)
+            if (prev is! AppSuccess<PlantDetailData>) {
               return currData.lgError != null;
+            }
             final prevData = prev.data!;
             return currData.lgError != null &&
                 currData.lgError != prevData.lgError;
@@ -89,8 +90,9 @@ class _PlantDetailBody extends StatelessWidget {
       floatingActionButton:
           BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
             builder: (context, state) {
-              if (state is! AppSuccess<PlantDetailData>)
+              if (state is! AppSuccess<PlantDetailData>) {
                 return const SizedBox.shrink();
+              }
               final data = state.data!;
               if (data.cvsResult == null) {
                 return const SizedBox.shrink();

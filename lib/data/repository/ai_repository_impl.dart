@@ -28,8 +28,7 @@ class AIRepositoryImpl implements AIRepository {
   static const double _cvsDeltaThreshold = 1.0;
   final Map<String, List<Map<String, String>>> _chatSessions = {};
   static const _uuid = Uuid();
-  AIRepositoryImpl({required this.dataSource, required AiCacheDao aiCacheDao})
-    : _aiCacheDao = aiCacheDao;
+  AIRepositoryImpl({required this.dataSource, required this._aiCacheDao});
   @override
   Stream<DataState<String>> generatePlantInsight({
     required PlantContextPayload context,

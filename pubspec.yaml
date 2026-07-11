@@ -13,6 +13,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   # State Management
   flutter_bloc: ^9.1.0
+  bloc_concurrency: ^0.3.0
   equatable: ^2.0.7
 
   # Dependency Injection
@@ -75,16 +76,16 @@ flutter:
   assets:
     - assets/images/
     - assets/images/regions/dark/india.png
-    - assets/images/regions/dark/europe.png
+    - assets/images/regions/dark/italy.png
     - assets/images/regions/dark/usa.png
     - assets/images/regions/dark/china.png
-    - assets/images/regions/dark/africa.png
+    - assets/images/regions/dark/kenya.png
     - assets/images/regions/dark/spain.png
     - assets/images/regions/light/india.png
-    - assets/images/regions/light/europe.png
+    - assets/images/regions/light/italy.png
     - assets/images/regions/light/usa.png
     - assets/images/regions/light/china.png
-    - assets/images/regions/light/africa.png
+    - assets/images/regions/light/kenya.png
     - assets/images/regions/light/spain.png
     - assets/maps/style/
     - assets/maps/theme/

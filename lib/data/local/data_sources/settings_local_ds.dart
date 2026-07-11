@@ -3,7 +3,7 @@ import '../app_database.dart';
 
 class SettingsLocalDataSource {
   final SettingsDao _dao;
-  SettingsLocalDataSource({required SettingsDao dao}) : _dao = dao;
+  SettingsLocalDataSource({required this._dao});
   Future<void> saveSettings(LGSettings settings) => _dao.saveSettings(
     host: settings.host,
     port: settings.port,

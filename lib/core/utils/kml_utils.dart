@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import '../enums/risk_level.dart';
 import '../../domain/model/power_plant.dart';
 import '../../domain/model/cvs_result.dart';
 import '../../domain/model/climate_data.dart';
+import '../../domain/model/region.dart';
 
 class KmlUtils {
   KmlUtils._();
@@ -61,35 +63,58 @@ class KmlUtils {
   }
 
   static String createLogos() => screenOverlayKml();
-  static String regionPlacemark({
-    required String regionName,
-    required double lat,
-    required double lon,
-  }) {
-    final content =
-        '''
+  // Generates a KML polygon that fills the entire region bounding box.
+  // Uses clampToGround so the fill drapes on the terrain and is visible at
+  // any camera altitude — from street-level to watching the whole planet.
+  // Only 5 corner points — keeps the SSH command short and reliable.
+  static String regionPlacemark(Region region) {
+    final name = region.displayName ?? region.name;
+    final minLat = region.minLat;
+    final minLon = region.minLon;
+    final maxLat = region.maxLat;
+    final maxLon = region.maxLon;
+
+    // KML color format: aabbggrr  (alpha, blue, green, red in hex)
+    // EcoGrid cyan #38BDF8 → KML component order: f8bd38
+    // Fill: 0xcc = 204/255 = 80% opacity  → solid, deeply visible like the reference image
+    // Outline: 0xff = 100% opaque bright cyan border
+    const fillColor    = 'ccf8bd38';
+    const outlineColor = 'fff8bd38';
+
+    // 5 points closing the ring — clampToGround handles curvature automatically.
+    final coordStr =
+        '$minLon,$minLat,0 '
+        '$maxLon,$minLat,0 '
+        '$maxLon,$maxLat,0 '
+        '$minLon,$maxLat,0 '
+        '$minLon,$minLat,0';
+
+    final content = '''
     <Placemark>
-      <name>$regionName</name>
+      <name>$name</name>
       <Style>
-        <IconStyle>
-          <color>ffff0000</color>
-          <scale>1.8</scale>
-          <Icon>
-            <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
-          </Icon>
-          <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
-        </IconStyle>
-        <LabelStyle>
-          <color>ffffffff</color>
-          <scale>1.0</scale>
-        </LabelStyle>
+        <PolyStyle>
+          <color>$fillColor</color>
+          <fill>1</fill>
+          <outline>1</outline>
+        </PolyStyle>
+        <LineStyle>
+          <color>$outlineColor</color>
+          <width>4</width>
+        </LineStyle>
+        <LabelStyle><scale>0</scale></LabelStyle>
+        <IconStyle><scale>0</scale></IconStyle>
       </Style>
-      <Point>
-        <altitudeMode>relativeToGround</altitudeMode>
-        <coordinates>$lon,$lat,0</coordinates>
-      </Point>
+      <Polygon>
+        <altitudeMode>clampToGround</altitudeMode>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>$coordStr</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
     </Placemark>''';
-    return wrapInKmlDocument(content, name: regionName);
+    return wrapInKmlDocument(content, name: name);
   }
 
   static String plantPlacemarksBatch({
@@ -306,43 +331,114 @@ ${buffer.toString()}    </gx:Playlist>
     String? aiInsight,
   }) {
     final top3Html = top3Plants.isEmpty
-        ? '<p><font color="#94A3B8">No critical plants.</font></p>'
+        ? '<p style="color:#94A3B8;font-size:22px;">No critical plants identified.</p>'
         : top3Plants
-              .map((p) => '<p><font color="#FF5555">&#9888;</font> $p</p>')
+              .map((p) => '<p style="color:#F87171;font-size:22px;margin:6px 0;">&#9888; $p</p>')
               .join('');
     final formattedAiInsight = aiInsight?.replaceAll('\\n', '<br/>') ?? '';
     final aiSection = aiInsight != null && aiInsight.isNotEmpty
-        ? '<br/><hr color="#334155" /><h3><font color="#A855F7">&#10024; AI Risk Analysis</font></h3><p><font color="#E2E8F0">$formattedAiInsight</font></p>'
+        ? '''
+          <div style="margin-top:18px;border-top:2px solid #334155;padding-top:14px;">
+            <p style="color:#A855F7;font-size:26px;font-weight:bold;margin:0 0 10px;">&#10024; AI Risk Analysis</p>
+            <p style="color:#E2E8F0;font-size:21px;line-height:1.5;">$formattedAiInsight</p>
+          </div>'''
         : '';
-    final content =
-        '''
+
+    final highPct  = totalPlants > 0 ? (highRiskCount   * 100 ~/ totalPlants) : 0;
+    final medPct   = totalPlants > 0 ? (mediumRiskCount * 100 ~/ totalPlants) : 0;
+    final lowPct   = totalPlants > 0 ? (lowRiskCount    * 100 ~/ totalPlants) : 0;
+
+    final highPctRemain = 100 - highPct;
+    final medPctRemain = 100 - medPct;
+    final lowPctRemain = 100 - lowPct;
+
+    final content = '''
     <Style id="dashboard_style">
-      <IconStyle>
-        <scale>0</scale>
-      </IconStyle>
+      <IconStyle><scale>0</scale></IconStyle>
       <BalloonStyle>
-        <bgColor>ff1a0e0a</bgColor>
+        <bgColor>ff0d1117</bgColor>
         <textColor>ffffffff</textColor>
         <text><![CDATA[
-          <table width="380" cellpadding="8" cellspacing="0"><tr><td>
-          <h2><font color="#38BDF8">🌍 $regionName Climate Risk Dashboard</font></h2>
-          <hr color="#334155" />
-          <font size="+2">
-            <p><b>🏭 Total Monitored Plants:</b> <font color="#FFFFFF">$totalPlants</font></p>
-            <br/>
-            <h3><font color="#94A3B8">📊 Risk Breakdown</font></h3>
-            <p><font color="#EF4444">&#9679;</font> <b>High Risk:</b> <font color="#EF4444">$highRiskCount</font></p>
-            <p><font color="#F59E0B">&#9679;</font> <b>Medium Risk:</b> <font color="#F59E0B">$mediumRiskCount</font></p>
-            <p><font color="#10B981">&#9679;</font> <b>Low Risk:</b> <font color="#10B981">$lowRiskCount</font></p>
-            <br/>
-            <h3><font color="#94A3B8">⚠️ Primary Regional Threat</font></h3>
-            <p><font color="#EF4444" size="+2"><b>$dominantRisk</b></font></p>
-            <br/>
-            <h3><font color="#94A3B8">📍 Critical Infrastructure (Top 3)</font></h3>
-            $top3Html
-          </font>
-          $aiSection
-          </td></tr></table>
+          <div style="font-family:Arial,sans-serif;width:720px;background:#0d1117;color:#fff;border-radius:12px;overflow:hidden;">
+
+            <!-- ── Header gradient strip ─────────────────────────────── -->
+            <div style="background:linear-gradient(135deg,#0f4c75 0%,#1b262c 100%);padding:22px 28px 18px;border-bottom:3px solid #38BDF8;">
+              <p style="font-size:15px;color:#38BDF8;margin:0 0 4px;letter-spacing:3px;text-transform:uppercase;">EcoGrid Intelligence</p>
+              <p style="font-size:36px;font-weight:bold;color:#fff;margin:0;">&#127757; $regionName</p>
+              <p style="font-size:20px;color:#94A3B8;margin:6px 0 0;">Climate Risk Dashboard</p>
+            </div>
+
+            <!-- ── Stats row ─────────────────────────────────────────── -->
+            <div style="display:flex;padding:20px 28px;border-bottom:1px solid #1e293b;">
+              <div style="flex:1;text-align:center;">
+                <p style="font-size:48px;font-weight:bold;color:#fff;margin:0;">$totalPlants</p>
+                <p style="font-size:18px;color:#64748B;margin:4px 0 0;">Monitored Plants</p>
+              </div>
+              <div style="flex:1;text-align:center;border-left:1px solid #334155;">
+                <p style="font-size:48px;font-weight:bold;color:#EF4444;margin:0;">$highRiskCount</p>
+                <p style="font-size:18px;color:#64748B;margin:4px 0 0;">High Risk</p>
+              </div>
+              <div style="flex:1;text-align:center;border-left:1px solid #334155;">
+                <p style="font-size:48px;font-weight:bold;color:#F59E0B;margin:0;">$mediumRiskCount</p>
+                <p style="font-size:18px;color:#64748B;margin:4px 0 0;">Medium Risk</p>
+              </div>
+              <div style="flex:1;text-align:center;border-left:1px solid #334155;">
+                <p style="font-size:48px;font-weight:bold;color:#10B981;margin:0;">$lowRiskCount</p>
+                <p style="font-size:18px;color:#64748B;margin:4px 0 0;">Low Risk</p>
+              </div>
+            </div>
+
+            <!-- ── Risk bars ──────────────────────────────────────────── -->
+            <div style="padding:20px 28px;border-bottom:1px solid #1e293b;">
+              <p style="font-size:20px;color:#94A3B8;margin:0 0 14px;font-weight:bold;">&#128202; Risk Distribution</p>
+              <table width="100%" cellpadding="4">
+                <tr>
+                  <td width="120"><font color="#EF4444" style="font-size:20px;">&#9679; High</font></td>
+                  <td><table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td width="$highPct%" bgcolor="#EF4444" height="16" style="border-radius:4px 0 0 4px;"></td>
+                    <td width="$highPctRemain%" bgcolor="#1E293B" height="16"></td>
+                  </tr></table></td>
+                  <td width="60" align="right"><font color="#EF4444" style="font-size:20px;font-weight:bold;">$highPct%</font></td>
+                </tr>
+                <tr><td colspan="3" height="6"></td></tr>
+                <tr>
+                  <td><font color="#F59E0B" style="font-size:20px;">&#9679; Med</font></td>
+                  <td><table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td width="$medPct%" bgcolor="#F59E0B" height="16"></td>
+                    <td width="$medPctRemain%" bgcolor="#1E293B" height="16"></td>
+                  </tr></table></td>
+                  <td align="right"><font color="#F59E0B" style="font-size:20px;font-weight:bold;">$medPct%</font></td>
+                </tr>
+                <tr><td colspan="3" height="6"></td></tr>
+                <tr>
+                  <td><font color="#10B981" style="font-size:20px;">&#9679; Low</font></td>
+                  <td><table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td width="$lowPct%" bgcolor="#10B981" height="16" style="border-radius:4px 0 0 4px;"></td>
+                    <td width="$lowPctRemain%" bgcolor="#1E293B" height="16"></td>
+                  </tr></table></td>
+                  <td align="right"><font color="#10B981" style="font-size:20px;font-weight:bold;">$lowPct%</font></td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- ── Dominant threat + critical plants ──────────────────── -->
+            <div style="padding:20px 28px;">
+              <table width="100%">
+                <tr>
+                  <td width="50%" valign="top">
+                    <p style="font-size:20px;color:#94A3B8;margin:0 0 8px;font-weight:bold;">&#9888; Primary Regional Threat</p>
+                    <p style="font-size:30px;color:#EF4444;font-weight:bold;margin:0;">$dominantRisk</p>
+                  </td>
+                  <td width="50%" valign="top" style="padding-left:24px;border-left:1px solid #334155;">
+                    <p style="font-size:20px;color:#94A3B8;margin:0 0 8px;font-weight:bold;">&#128205; Critical Infrastructure</p>
+                    $top3Html
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            $aiSection
+          </div>
         ]]></text>
       </BalloonStyle>
     </Style>
@@ -351,52 +447,139 @@ ${buffer.toString()}    </gx:Playlist>
       <description>Dashboard</description>
       <styleUrl>#dashboard_style</styleUrl>
       <gx:balloonVisibility>1</gx:balloonVisibility>
-      <Point>
-        <coordinates>$lon,$lat,0</coordinates>
-      </Point>
+      <Point><coordinates>$lon,$lat,0</coordinates></Point>
     </Placemark>''';
     return wrapInKmlDocument(content, name: 'EcoGrid Dashboard');
   }
 
+  /// Plant pin KML: 4 concentric donut rings clamped to the terrain, sized to
+  /// be fully visible at plant-detail zoom (camera range 400 – 15 000 m).
+  /// Rings are coloured by climate risk level with decreasing opacity outward.
   static String plantPinKml({
     required PowerPlant plant,
     required RiskLevel riskLevel,
   }) {
+    final lat = plant.latitude;
+    final lon = plant.longitude;
+
+    // ── Risk colour in KML aabbggrr format ────────────────────────────────
+    // Colours match the app palette: high=red #EF4444, med=amber #F59E0B, low=green #10B981
+    // KML byte order: alpha · blue · green · red  (all hex)
+    //   #EF4444 → r=ef g=44 b=44 → KML bbggrr = 4444ef
+    //   #F59E0B → r=f5 g=9e b=0b → KML bbggrr = 0b9ef5
+    //   #10B981 → r=10 g=b9 b=81 → KML bbggrr = 81b910
+    final String colorBBGGRR;
     final String iconHref;
     switch (riskLevel) {
       case RiskLevel.high:
+        colorBBGGRR = '4444ef';
         iconHref = 'http://maps.google.com/mapfiles/kml/paddle/red-blank.png';
         break;
       case RiskLevel.medium:
+        colorBBGGRR = '0b9ef5';
         iconHref = 'http://maps.google.com/mapfiles/kml/paddle/ylw-blank.png';
         break;
       case RiskLevel.low:
+        colorBBGGRR = '81b910';
         iconHref = 'http://maps.google.com/mapfiles/kml/paddle/grn-blank.png';
         break;
     }
-    final content =
-        '''
+
+    // ── Ring geometry ──────────────────────────────────────────────────────
+    // radii in degrees: 0.0009° ≈ 100 m, 0.0018° ≈ 200 m,
+    //                   0.0032° ≈ 350 m, 0.0045° ≈ 500 m
+    // inner = 72 % of outer → 28 % ring width
+    // alphas decrease from innermost (ff) to outermost (55)
+    const rings = [
+      (outerDeg: 0.0009, innerDeg: 0.000648, alpha: 'ff'),
+      (outerDeg: 0.0018, innerDeg: 0.001296, alpha: 'cc'),
+      (outerDeg: 0.0032, innerDeg: 0.002304, alpha: '99'),
+      (outerDeg: 0.0045, innerDeg: 0.003240, alpha: '55'),
+    ];
+
+    final buf = StringBuffer();
+
+    // Draw outermost first so inner rings paint on top
+    for (int r = rings.length - 1; r >= 0; r--) {
+      final ring = rings[r];
+      final fillKml    = '${ring.alpha}$colorBBGGRR';
+      final outlineKml = 'ff$colorBBGGRR';
+
+      // Circular approximation with 64 segments → smooth rings
+      final outerPts = _circleKmlCoords(lat: lat, lon: lon,
+          radiusDeg: ring.outerDeg, clockwise: false);
+      final innerPts = _circleKmlCoords(lat: lat, lon: lon,
+          radiusDeg: ring.innerDeg, clockwise: true); // reversed for hole
+
+      buf.writeln('''
+    <Placemark>
+      <name></name>
+      <Style>
+        <PolyStyle>
+          <color>$fillKml</color>
+          <fill>1</fill>
+          <outline>1</outline>
+        </PolyStyle>
+        <LineStyle>
+          <color>$outlineKml</color>
+          <width>1.5</width>
+        </LineStyle>
+        <LabelStyle><scale>0</scale></LabelStyle>
+        <IconStyle><scale>0</scale></IconStyle>
+      </Style>
+      <Polygon>
+        <altitudeMode>clampToGround</altitudeMode>
+        <outerBoundaryIs>
+          <LinearRing><coordinates>$outerPts</coordinates></LinearRing>
+        </outerBoundaryIs>
+        <innerBoundaryIs>
+          <LinearRing><coordinates>$innerPts</coordinates></LinearRing>
+        </innerBoundaryIs>
+      </Polygon>
+    </Placemark>''');
+    }
+
+    // Plant icon pin on top of the rings
+    buf.writeln('''
     <Placemark id="plant_pin_${plant.id}">
       <name>${_escapeXml(plant.name)}</name>
       <Style>
         <IconStyle>
           <scale>1.8</scale>
-          <Icon>
-            <href>$iconHref</href>
-          </Icon>
+          <Icon><href>$iconHref</href></Icon>
           <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
         </IconStyle>
-        <LabelStyle>
-          <scale>0</scale>
-        </LabelStyle>
+        <LabelStyle><scale>0</scale></LabelStyle>
       </Style>
       <Point>
         <altitudeMode>relativeToGround</altitudeMode>
-        <coordinates>${plant.longitude},${plant.latitude},0</coordinates>
+        <coordinates>$lon,$lat,0</coordinates>
       </Point>
-    </Placemark>''';
-    return wrapInKmlDocument(content, name: plant.name);
+    </Placemark>''');
+
+    return wrapInKmlDocument(buf.toString(), name: plant.name);
   }
+
+  /// 64-point circular approximation for KML ring polygons.
+  /// [clockwise]=true reverses winding for use as an inner-boundary hole.
+  static String _circleKmlCoords({
+    required double lat,
+    required double lon,
+    required double radiusDeg,
+    bool clockwise = false,
+    int steps = 64,
+  }) {
+    final pts = <String>[];
+    for (int i = 0; i <= steps; i++) {
+      final angle = (clockwise ? -1 : 1) * 2 * math.pi * i / steps;
+      final dLon = radiusDeg * math.cos(angle);
+      final dLat = radiusDeg * math.sin(angle);
+      pts.add('${lon + dLon},${lat + dLat},0');
+    }
+    return pts.join(' ');
+  }
+
+
 
   static String plantDetailBalloon({
     required PowerPlant plant,
@@ -405,128 +588,109 @@ ${buffer.toString()}    </gx:Playlist>
     required double lon,
     ClimateData? climateData,
   }) {
-    final String riskBadgeColor;
+    final String riskColor;
+    final String riskGradient;
     switch (cvs.riskLevel) {
       case RiskLevel.high:
-        riskBadgeColor = '#EF4444';
+        riskColor    = '#EF4444';
+        riskGradient = '#7f1d1d';
         break;
       case RiskLevel.medium:
-        riskBadgeColor = '#F59E0B';
+        riskColor    = '#F59E0B';
+        riskGradient = '#78350f';
         break;
       case RiskLevel.low:
-        riskBadgeColor = '#10B981';
+        riskColor    = '#10B981';
+        riskGradient = '#064e3b';
         break;
     }
     final typeIcon = _plantTypeIcon(plant.primaryFuel.csvLabel);
-    final dims = [
-      ('🌡️ Temperature Stress', cvs.temperatureStress),
-      ('💧 Water Stress', cvs.waterStress),
-      ('🌪️ Wind Stress', cvs.windStress),
-    ];
-    final dimRows = dims
-        .map((d) {
-          final name = d.$1;
-          final raw = d.$2;
-          final scaled = raw / 10.0;
-          final barColor = scaled > 7
-              ? '#EF4444'
-              : (scaled >= 4 ? '#F59E0B' : '#10B981');
-          final barPct = (raw.clamp(0, 100)).toInt();
-          return '''
-              <tr>
-                <td><font color="#CBD5E1">$name</font></td>
-                <td align="right">
-                  <font color="$barColor"><b>${scaled.toStringAsFixed(1)}</b></font>
-                </td>
-              </tr>
-              <tr>
-                <td colspan="2">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td width="$barPct%" bgcolor="$barColor" height="6"></td>
-                      <td width="${100 - barPct}%" bgcolor="#1E293B" height="6"></td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>''';
-        })
-        .join('\n');
     final capacityStr = plant.capacityMw != null
         ? '${plant.capacityMw!.toStringAsFixed(0)} MW'
         : 'N/A';
+
+    // Stress bar rows — large, clear, readable at arm's length
+    final dims = [
+      ('&#127777; Temperature', cvs.temperatureStress),
+      ('&#128166; Water', cvs.waterStress),
+      ('&#127788; Wind', cvs.windStress),
+    ];
+    final dimRows = dims.map((d) {
+      final label  = d.$1;
+      final raw    = d.$2;
+      final scaled = raw / 10.0;
+      final barColor = scaled > 7 ? '#EF4444' : (scaled >= 4 ? '#F59E0B' : '#10B981');
+      final barPct   = (raw.clamp(0, 100)).toInt();
+      return '''
+                <tr>
+                  <td style="font-size:21px;color:#CBD5E1;padding:4px 0;">$label</td>
+                  <td align="right" style="font-size:24px;font-weight:bold;color:$barColor;">$scaled</td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding-bottom:10px;">
+                    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                      <td width="$barPct%" bgcolor="$barColor" height="14" style="border-radius:4px 0 0 4px;"></td>
+                      <td bgcolor="#1E293B" height="14"></td>
+                    </tr></table>
+                  </td>
+                </tr>''';
+    }).join('\n');
+
     final hasWeather = climateData?.temperature != null;
-    final weatherSection = hasWeather
-        ? '''
-          <br/>
-          <table width="100%" cellpadding="4">
-            <tr>
-              <td colspan="2"><font color="#38BDF8"><b>&#9729; Current Conditions</b></font></td>
-            </tr>
-            <tr>
-              <td><font color="#CBD5E1">Temperature</font></td>
-              <td align="right"><font color="#FFFFFF"><b>${climateData!.temperature!.toStringAsFixed(1)}&#176;C</b></font></td>
-            </tr>
-            ${climateData.windSpeed != null ? '<tr><td><font color="#CBD5E1">Wind Speed</font></td><td align="right"><font color="#FFFFFF"><b>${climateData.windSpeed!.toStringAsFixed(1)} km/h</b></font></td></tr>' : ''}
-          </table>'''
-        : '';
-    final content =
-        '''
+    final weatherSection = hasWeather ? '''
+            <div style="margin-top:4px;border-top:1px solid #1e293b;padding-top:16px;">
+              <p style="font-size:22px;color:#38BDF8;font-weight:bold;margin:0 0 10px;">&#9729; Current Conditions</p>
+              <table width="100%" cellpadding="4">
+                <tr>
+                  <td style="font-size:21px;color:#CBD5E1;">Temperature</td>
+                  <td align="right" style="font-size:21px;color:#fff;font-weight:bold;">${climateData!.temperature!.toStringAsFixed(1)}&#176;C</td>
+                </tr>
+                ${climateData.windSpeed != null ? '<tr><td style="font-size:21px;color:#CBD5E1;">Wind Speed</td><td align="right" style="font-size:21px;color:#fff;font-weight:bold;">${climateData.windSpeed!.toStringAsFixed(1)} km/h</td></tr>' : ''}
+              </table>
+            </div>''' : '';
+
+    final content = '''
     <Style id="plant_detail_style">
-      <IconStyle>
-        <scale>0</scale>
-      </IconStyle>
+      <IconStyle><scale>0</scale></IconStyle>
       <BalloonStyle>
-        <bgColor>ff15151a</bgColor>
+        <bgColor>ff0d1117</bgColor>
         <textColor>ffffffff</textColor>
         <text><![CDATA[
-          <table width="380" cellpadding="8" cellspacing="0"><tr><td>
-          <font face="Arial" size="+1">
-          <!-- HEADER -->
-          <table width="100%" cellpadding="4">
-            <tr>
-              <td>
-                <font size="+2" color="#FFFFFF"><b>${_escapeXml(plant.name)}</b></font><br/>
-                <font color="#38BDF8">$typeIcon ${_escapeXml(plant.primaryFuel.displayName)}</font><br/>
-                <font color="#94A3B8">🌍 ${_escapeXml(plant.countryLong ?? plant.country)}</font>
-              </td>
-            </tr>
-          </table>
-          <hr color="#334155"/>
-          <!-- RISK BADGE + CVS SCORE -->
-          <table width="100%" cellpadding="6">
-            <tr>
-              <td align="center" width="40%">
-                <table cellpadding="8" bgcolor="$riskBadgeColor" width="80">
-                  <tr><td align="center">
-                    <font color="#FFFFFF" size="+1"><b>${cvs.riskLevel.label}</b></font>
-                  </td></tr>
-                </table>
-              </td>
-              <td width="60%">
-                <font color="$riskBadgeColor" size="+3"><b>${cvs.score.toStringAsFixed(1)}</b></font><br/>
-                <font color="#94A3B8">Climate Vulnerability Score</font>
-              </td>
-            </tr>
-          </table>
-          <hr color="#334155"/>
-          <!-- CAPACITY -->
-          <table width="100%" cellpadding="4">
-            <tr>
-              <td><font color="#CBD5E1">⚡ Installed Capacity</font></td>
-              <td align="right"><font color="#FFFFFF"><b>$capacityStr</b></font></td>
-            </tr>
-          </table>
-          <hr color="#334155"/>
-          <!-- KEY RISK DRIVERS -->
-          <table width="100%" cellpadding="4">
-            <tr>
-              <td colspan="2"><font color="#F59E0B"><b>⚠️ Key Risk Drivers</b></font></td>
-            </tr>
+          <div style="font-family:Arial,sans-serif;width:720px;background:#0d1117;color:#fff;border-radius:12px;overflow:hidden;">
+
+            <!-- ── Coloured header by risk ────────────────────────────── -->
+            <div style="background:linear-gradient(135deg,$riskGradient 0%,#1b262c 100%);padding:22px 28px 18px;border-bottom:3px solid $riskColor;">
+              <p style="font-size:15px;color:$riskColor;margin:0 0 6px;letter-spacing:3px;text-transform:uppercase;">$typeIcon ${_escapeXml(plant.primaryFuel.displayName)}</p>
+              <p style="font-size:34px;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+              <p style="font-size:19px;color:#94A3B8;margin:8px 0 0;">&#127758; ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp;&nbsp; &#9889; $capacityStr</p>
+            </div>
+
+            <!-- ── CVS score + risk badge ────────────────────────────── -->
+            <div style="display:flex;align-items:center;padding:22px 28px;border-bottom:1px solid #1e293b;">
+              <div style="flex:1;">
+                <p style="font-size:16px;color:#64748B;margin:0 0 4px;text-transform:uppercase;letter-spacing:2px;">Climate Vulnerability Score</p>
+                <p style="font-size:72px;font-weight:bold;color:$riskColor;margin:0;line-height:1;">${cvs.score.toStringAsFixed(1)}</p>
+                <p style="font-size:16px;color:#475569;margin:4px 0 0;">out of 100</p>
+              </div>
+              <div style="text-align:center;padding:18px 32px;background:$riskColor;border-radius:10px;margin-left:20px;">
+                <p style="font-size:28px;font-weight:bold;color:#fff;margin:0;">${cvs.riskLevel.label}</p>
+                <p style="font-size:15px;color:rgba(255,255,255,0.8);margin:4px 0 0;">RISK</p>
+              </div>
+            </div>
+
+            <!-- ── Stress drivers ────────────────────────────────────── -->
+            <div style="padding:20px 28px;border-bottom:1px solid #1e293b;">
+              <p style="font-size:22px;color:#F59E0B;font-weight:bold;margin:0 0 14px;">&#9888; Key Risk Drivers</p>
+              <table width="100%" cellpadding="0" cellspacing="0">
 $dimRows
-          </table>
-$weatherSection
-          </font>
-          </td></tr></table>
+              </table>
+            </div>
+
+            <!-- ── Weather (if available) ────────────────────────────── -->
+            <div style="padding:20px 28px;">
+              $weatherSection
+            </div>
+          </div>
         ]]></text>
       </BalloonStyle>
     </Style>
@@ -535,9 +699,7 @@ $weatherSection
       <description>Plant Detail</description>
       <styleUrl>#plant_detail_style</styleUrl>
       <gx:balloonVisibility>1</gx:balloonVisibility>
-      <Point>
-        <coordinates>$lon,$lat,0</coordinates>
-      </Point>
+      <Point><coordinates>$lon,$lat,0</coordinates></Point>
     </Placemark>''';
     return wrapInKmlDocument(content, name: 'Plant Detail — ${plant.name}');
   }

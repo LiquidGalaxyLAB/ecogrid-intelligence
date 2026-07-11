@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../config/theme/app_theme.dart';
 
 enum RiskLevel {
-  low(0, 33, 'LOW', AppTheme.riskLow),
-  medium(34, 66, 'MEDIUM', AppTheme.riskMedium),
-  high(67, 100, 'HIGH', AppTheme.riskHigh);
+  low(0, 45, 'LOW', AppTheme.riskLow),
+  medium(46, 60, 'MEDIUM', AppTheme.riskMedium),
+  high(61, 100, 'HIGH', AppTheme.riskHigh);
 
   final int minScore;
   final int maxScore;
@@ -13,8 +13,8 @@ enum RiskLevel {
   const RiskLevel(this.minScore, this.maxScore, this.label, this.color);
   static RiskLevel fromScore(double score) {
     final clamped = score.clamp(0, 100).toInt();
-    if (clamped <= 33) return RiskLevel.low;
-    if (clamped <= 66) return RiskLevel.medium;
+    if (clamped <= 45) return RiskLevel.low;
+    if (clamped <= 60) return RiskLevel.medium;
     return RiskLevel.high;
   }
 }
