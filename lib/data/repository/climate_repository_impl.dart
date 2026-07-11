@@ -1,8 +1,8 @@
 import '../../core/exception/unhandled_exception.dart';
 import '../../core/resources/data_state.dart';
 import '../../core/resources/network_state.dart';
-import '../data_sources/local/climate_cache_ds.dart';
-import '../data_sources/remote/open_meteo_remote_ds.dart';
+import '../local/data_sources/climate_cache_ds.dart';
+import '../remote/data_sources/open_meteo_remote_ds.dart';
 import '../../domain/model/climate_data.dart';
 import '../../domain/repository/climate_repository.dart';
 

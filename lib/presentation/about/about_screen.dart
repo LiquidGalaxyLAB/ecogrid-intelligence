@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/theme/theme_controller.dart';
+import '../../config/theme/app_theme.dart';
 
 Future<void> _launch(String url) async {
   final uri = Uri.parse(url);
@@ -35,7 +36,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final cs = Theme.of(context).colorScheme;
     final isDark = ThemeController.instance.isDarkMode;
     return Scaffold(
-      backgroundColor: isDark ? cs.surface : Colors.white,
+      backgroundColor: isDark ? AppTheme.background : Colors.white,
       body: Stack(
         children: [
           if (!isDark)

@@ -1,7 +1,7 @@
 import '../../core/exception/invalid_response_exception.dart';
 import '../../core/exception/unhandled_exception.dart';
 import '../../core/resources/data_state.dart';
-import '../data_sources/local/power_plant_local_ds.dart';
+import '../local/data_sources/power_plant_local_ds.dart';
 import '../../domain/model/power_plant.dart';
 import '../../domain/model/region.dart';
 import '../../domain/repository/power_plant_repository.dart';

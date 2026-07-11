@@ -139,9 +139,11 @@ class LGRemoteDataSource {
       await sshService.execute(
         'echo "exittour=true" > ${LGConstants.queryFile}',
       );
+      // Clear kmls.txt FIRST so LG Earth unloads the current KML (including
+      // any placemark pins) from memory before we overwrite the file.
+      await sshService.execute("echo '' > /var/www/html/kmls.txt");
       final empty = KmlUtils.emptyKml().replaceAll("'", "'\\''");
       await sshService.execute("echo '$empty' > ${LGConstants.masterKmlFile}");
-      await sshService.execute("echo '' > /var/www/html/kmls.txt");
       final emptyBalloonKml = KmlUtils.emptyBalloon().replaceAll("'", "'\\''");
       for (int i = 2; i <= _screenCount; i++) {
         try {

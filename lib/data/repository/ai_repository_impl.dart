@@ -7,10 +7,10 @@ import '../../core/constants/cache_constants.dart';
 import '../../core/constants/api_constants.dart';
 import 'package:logger/logger.dart';
 import '../../core/utils/cache_manager.dart';
-import '../data_sources/remote/ai_data_source.dart';
+import '../remote/data_sources/ai_data_source.dart';
 import '../../domain/repository/ai_repository.dart';
 import '../../domain/model/plant_context_payload.dart';
-import '../data_sources/local/app_database.dart';
+import '../local/app_database.dart';
 
 class AIRepositoryImpl implements AIRepository {
   final AIDataSource dataSource;

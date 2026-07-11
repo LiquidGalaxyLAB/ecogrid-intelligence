@@ -59,19 +59,36 @@ class _HomePageBody extends StatelessWidget {
                     ),
                   ),
                 ),
-              Positioned(
-                bottom: isDark ? screenWidth * 0.05 : -screenWidth * 0.05,
-                left: isDark ? 0 : -screenWidth * 0.15,
-                right: isDark ? 0 : -screenWidth * 0.15,
-                height: isDark ? screenWidth * 0.9 : screenWidth * 1.25,
-                child: Image.asset(
-                  isDark
-                      ? 'assets/images/hero_globe_dark.png'
-                      : 'assets/images/hero_globe_light.png',
-                  fit: BoxFit.cover,
-                  alignment: Alignment.bottomCenter,
-                ),
-              ),
+              isDark
+                  ? Positioned(
+                      bottom: -screenWidth * 0.3,
+                      left: 0,
+                      right: 0,
+                      height: screenWidth * 0.9,
+                      child: ShaderMask(
+                        shaderCallback: (rect) {
+                          return const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.white],
+                            stops: [0.0, 0.35],
+                          ).createShader(rect);
+                        },
+                        blendMode: BlendMode.dstIn,
+                        child: FuturisticGlobeBackground(isDark: isDark),
+                      ),
+                    )
+                  : Positioned(
+                      bottom: -screenWidth * 0.05,
+                      left: -screenWidth * 0.15,
+                      right: -screenWidth * 0.15,
+                      height: screenWidth * 1.25,
+                      child: Image.asset(
+                        'assets/images/hero_globe_light.png',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.bottomCenter,
+                      ),
+                    ),
               SafeArea(
                 child: CustomScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -114,9 +131,9 @@ class _HomePageBody extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const SizedBox(height: AppTheme.spacingLG),
+                            const SizedBox(height: AppTheme.spacingLG * 2),
                             _InfrastructureMapButton(isDark: isDark),
-                            const SizedBox(height: AppTheme.spacingXL),
+                            const SizedBox(height: AppTheme.spacingLG),
                           ],
                         ),
                       ),
@@ -371,7 +388,16 @@ class _RegionCardState extends State<_RegionCard>
     }
   }
 
-  double _getRegionImageScale(String regionId) {
+  double _getRegionImageScale(String regionId, {bool isDark = false}) {
+    if (isDark) {
+      switch (regionId) {
+        case 'africa': return 1.35;
+        case 'europe': return 1.40;
+        case 'spain':  return 0.85;
+        default: return 1.0;
+      }
+    }
+    // Light theme — keep original values
     if (regionId == 'europe') return 1.25;
     return 1.0;
   }
@@ -439,7 +465,7 @@ class _RegionCardState extends State<_RegionCard>
                 top: Radius.circular(16),
               ),
               child: Transform.scale(
-                scale: _getRegionImageScale(widget.region.id),
+                scale: _getRegionImageScale(widget.region.id, isDark: false),
                 child: Image.asset(
                   RegionAssetResolver.getRegionImage(
                     widget.region.id,
@@ -494,7 +520,7 @@ class _RegionCardState extends State<_RegionCard>
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Transform.scale(
-              scale: _getRegionImageScale(widget.region.id),
+              scale: _getRegionImageScale(widget.region.id, isDark: true),
               child: Image.asset(
                 RegionAssetResolver.getRegionImage(widget.region.id),
                 fit: BoxFit.cover,
@@ -557,62 +583,210 @@ class _RegionCardState extends State<_RegionCard>
   }
 }
 
-class _InfrastructureMapButton extends StatelessWidget {
+class _InfrastructureMapButton extends StatefulWidget {
   final bool isDark;
   const _InfrastructureMapButton({required this.isDark});
   @override
+  State<_InfrastructureMapButton> createState() =>
+      _InfrastructureMapButtonState();
+}
+
+class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3500),
+    )..repeat();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // ── Light theme: static bright-blue gradient, narrower width ──────────
+    if (!widget.isDark) {
+      return Padding(
+        padding: const EdgeInsets.only(
+          left: AppTheme.spacingXL,
+          right: AppTheme.spacingXL,
+          bottom: 12,
+        ),
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) {
+            setState(() => _pressed = false);
+            Navigator.pushNamed(context, AppRoutes.infrastructureMap);
+          },
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.97 : 1.0,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeInOut,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0055EE), Color(0xFF0099FF)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0066FF).withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  const Icon(Icons.public, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      'Show Infrastructure Map',
+                      style: AppTheme.labelLarge.copyWith(
+                        color: Colors.white,
+                        fontSize: 16,
+                        height: 1.0,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                      overflow: TextOverflow.visible,
+                      softWrap: false,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── Dark theme: animated flowing navy shimmer ──────────────────────────
     return Padding(
       padding: const EdgeInsets.only(
-        left: AppTheme.spacingXL * 1.5,
-        right: AppTheme.spacingXL * 1.5,
-        bottom: 28,
+        left: AppTheme.spacingLG,
+        right: AppTheme.spacingLG,
+        bottom: 12,
       ),
       child: GestureDetector(
-        onTap: () {
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
           Navigator.pushNamed(context, AppRoutes.infrastructureMap);
         },
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-          decoration: BoxDecoration(
-            gradient: isDark
-                ? AppTheme.primaryGradient
-                : const LinearGradient(
-                    colors: [Color(0xFF0066FF), Color(0xFF00C8FF)],
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeInOut,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final t = _controller.value;
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 24),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                  gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
+                    colors: const [
+                      Color(0xFF1A3FBF),
+                      Color(0xFF1E5CE6),
+                      Color(0xFF2979FF),
+                      Color(0xFF1E5CE6),
+                      Color(0xFF1A3FBF),
+                    ],
+                    stops: [
+                      (t - 0.5).clamp(0.0, 1.0),
+                      (t - 0.25).clamp(0.0, 1.0),
+                      t.clamp(0.0, 1.0),
+                      (t + 0.25).clamp(0.0, 1.0),
+                      (t + 0.5).clamp(0.0, 1.0),
+                    ],
                   ),
-            borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-            boxShadow: isDark
-                ? null
-                : [
+                  boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0066FF).withValues(alpha: 0.3),
-                      blurRadius: 16,
+                      color: const Color(0xFF1A3FBF).withValues(alpha: 0.35),
+                      blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
                   ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(Icons.public, color: Colors.white, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Show Infrastructure Map',
-                style: AppTheme.labelLarge.copyWith(
-                  color: Colors.white,
-                  fontSize: 17,
-                  height: 1.0,
-                  fontWeight: FontWeight.w700,
                 ),
-              ),
-            ],
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Positioned.fill(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                        child: Align(
+                          alignment: Alignment(-1.8 + t * 3.6, 0),
+                          child: Container(
+                            width: 80,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.0),
+                                  Colors.white.withValues(alpha: 0.12),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.public, color: Colors.white, size: 20),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Show Infrastructure Map',
+                          style: AppTheme.labelLarge.copyWith(
+                            color: Colors.white,
+                            fontSize: 16,
+                            height: 1.0,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
     );
   }
 }
+

@@ -50,22 +50,102 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       builder: (context, mode, _) {
         final isDark = ThemeController.instance.isDarkMode;
         return Scaffold(
-          backgroundColor: isDark ? AppTheme.background : Colors.white,
+          backgroundColor: Colors.transparent,
           body: Stack(
             children: [
-              if (!isDark)
-                Positioned.fill(
+              if (!isDark) ...[
+                // Base: clean warm white
+                const Positioned.fill(
                   child: DecoratedBox(
+                    decoration: BoxDecoration(color: Color(0xFFF8FAFF)),
+                  ),
+                ),
+                // Top-left: teal aurora bloom
+                Positioned(
+                  top: -140,
+                  left: -100,
+                  child: Container(
+                    width: 500,
+                    height: 500,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
                         colors: [
-                          const Color(0xFFE8F4FC),
-                          const Color(0xFFF4F9FD),
-                          Colors.white,
+                          const Color(0xFF00C8FF).withValues(alpha: 0.38),
+                          const Color(0xFF00C8FF).withValues(alpha: 0.0),
                         ],
-                        stops: const [0.0, 0.4, 0.7],
+                      ),
+                    ),
+                  ),
+                ),
+                // Top-right: lavender bloom
+                Positioned(
+                  top: -80,
+                  right: -120,
+                  child: Container(
+                    width: 400,
+                    height: 400,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF7B61FF).withValues(alpha: 0.28),
+                          const Color(0xFF7B61FF).withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Bottom-right: emerald-teal glow
+                Positioned(
+                  bottom: -100,
+                  right: -80,
+                  child: Container(
+                    width: 380,
+                    height: 380,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF00BFA5).withValues(alpha: 0.25),
+                          const Color(0xFF00BFA5).withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Bottom-left: soft pink warmth
+                Positioned(
+                  bottom: -60,
+                  left: -80,
+                  child: Container(
+                    width: 320,
+                    height: 320,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFFFF6B9D).withValues(alpha: 0.12),
+                          const Color(0xFFFF6B9D).withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ]
+              else
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(1.4, -1.0),
+                        radius: 1.2,
+                        colors: [
+                          const Color(0xFF00C8FF).withValues(alpha: 0.14),
+                          const Color(0xFF006B8A).withValues(alpha: 0.06),
+                          const Color(0xFF030508),
+                        ],
+                        stops: const [0.0, 0.35, 1.0],
                       ),
                     ),
                   ),
@@ -171,12 +251,24 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       height: 44,
       decoration: BoxDecoration(
         color: isDark
-            ? AppTheme.surfaceLight.withValues(alpha: 0.5)
+            ? const Color(0xFF1A1A1A)
             : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? Colors.transparent : const Color(0xFFE2E8F0),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.15)
+              : const Color(0xFFE2E8F0),
         ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  blurRadius: 20,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 0),
+                ),
+              ]
+            : [],
       ),
       child: TabBar(
         controller: _tabController,
@@ -188,10 +280,10 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
         indicatorSize: TabBarIndicatorSize.tab,
         labelColor: Colors.white,
         unselectedLabelColor: isDark
-            ? AppTheme.textMuted
+            ? const Color(0xFFA0AEBF)
             : const Color(0xFF6B80A0),
-        labelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
-        unselectedLabelStyle: AppTheme.labelLarge.copyWith(fontSize: 13),
+        labelStyle: AppTheme.labelLarge.copyWith(fontSize: 12),
+        unselectedLabelStyle: AppTheme.labelLarge.copyWith(fontSize: 12),
         tabs: const [
           Tab(
             child: FittedBox(
@@ -560,8 +652,21 @@ class _GeneralTabState extends State<_GeneralTab> {
       decoration: BoxDecoration(
         color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 1,
+              )
+            : null,
         boxShadow: isDark
-            ? []
+            ? [
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  blurRadius: 20,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 0),
+                ),
+              ]
             : [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.03),
@@ -679,7 +784,7 @@ class _GeneralTabState extends State<_GeneralTab> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF4A90D9) : Colors.transparent,
+          color: isSelected ? AppTheme.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           boxShadow: (isSelected && !isDark)
               ? [
@@ -898,8 +1003,21 @@ class _ConnectionTabState extends State<_ConnectionTab> {
               decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(16),
+                border: widget.isDark
+                    ? Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 1,
+                      )
+                    : null,
                 boxShadow: widget.isDark
-                    ? []
+                    ? [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.10),
+                          blurRadius: 20,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 0),
+                        ),
+                      ]
                     : [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),
@@ -1118,8 +1236,8 @@ class _ConnectionTabState extends State<_ConnectionTab> {
         keyboardType: keyboardType,
         style: AppTheme.bodyMedium,
         decoration: InputDecoration(
-          labelText: label,
-          labelStyle: AppTheme.bodySmall.copyWith(color: AppTheme.textMuted),
+          hintText: label,
+          hintStyle: AppTheme.bodySmall.copyWith(color: AppTheme.textMuted),
           prefixIcon: Icon(icon, color: AppTheme.textMuted, size: 20),
           suffixIcon: suffixIcon,
           filled: true,
@@ -1137,13 +1255,14 @@ class _ConnectionTabState extends State<_ConnectionTab> {
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(
-              color: AppTheme.cardBorder.withValues(alpha: 0.5),
+              color: Colors.white.withValues(alpha: 0.18),
             ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(
-              color: AppTheme.primary.withValues(alpha: 0.5),
+              color: AppTheme.primary.withValues(alpha: 0.7),
+              width: 1.5,
             ),
           ),
         ),
@@ -1282,8 +1401,21 @@ class _LiquidGalaxyTab extends StatelessWidget {
       width: isHorizontal ? double.infinity : null,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 1,
+              )
+            : null,
         boxShadow: isDark
-            ? []
+            ? [
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  blurRadius: 20,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 0),
+                ),
+              ]
             : [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.03),
@@ -1303,11 +1435,8 @@ class _LiquidGalaxyTab extends StatelessWidget {
           highlightColor: color.withValues(alpha: 0.1),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: isDestructive
-                  ? Border.all(color: color.withValues(alpha: 0.3), width: 1.5)
-                  : null,
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
             child: isHorizontal
                 ? Row(

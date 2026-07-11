@@ -112,9 +112,13 @@ class HistoricalTrendsSheet extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Historical Climate Trends',
-                      style: AppTheme.headingMedium,
+                    Expanded(
+                      child: Text(
+                        'Historical Climate Trends',
+                        style: AppTheme.headingMedium,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
                     IconButton(
                       icon: Icon(Icons.close, color: AppTheme.textSecondary),
@@ -281,10 +285,13 @@ class HistoricalTrendsSheet extends StatelessWidget {
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'AI Trend Analysis',
-                                  style: AppTheme.labelLarge.copyWith(
-                                    color: AppTheme.secondary,
+                                Flexible(
+                                  child: Text(
+                                    'AI Trend Analysis',
+                                    style: AppTheme.labelLarge.copyWith(
+                                      color: AppTheme.secondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],

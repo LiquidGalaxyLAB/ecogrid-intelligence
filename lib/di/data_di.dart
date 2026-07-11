@@ -1,14 +1,15 @@
 import 'package:get_it/get_it.dart';
-import 'package:dio/dio.dart';
+
+import '../core/network/api_client.dart';
 import '../core/constants/api_constants.dart';
-import '../data/data_sources/local/app_database.dart';
-import '../data/data_sources/local/power_plant_local_ds.dart';
-import '../data/data_sources/local/climate_cache_ds.dart';
-import '../data/data_sources/local/settings_local_ds.dart';
-import '../data/data_sources/remote/open_meteo_remote_ds.dart';
-import '../data/data_sources/remote/ai_data_source.dart';
-import '../data/data_sources/remote/gemini_remote_ds.dart';
-import '../data/data_sources/remote/lg_remote_ds.dart';
+import '../data/local/app_database.dart';
+import '../data/local/data_sources/power_plant_local_ds.dart';
+import '../data/local/data_sources/climate_cache_ds.dart';
+import '../data/local/data_sources/settings_local_ds.dart';
+import '../data/remote/data_sources/open_meteo_remote_ds.dart';
+import '../data/remote/data_sources/ai_data_source.dart';
+import '../data/remote/data_sources/gemini_remote_ds.dart';
+import '../data/remote/data_sources/lg_remote_ds.dart';
 import '../domain/repository/power_plant_repository.dart';
 import '../domain/repository/climate_repository.dart';
 import '../domain/repository/cvs_repository.dart';
@@ -20,12 +21,9 @@ import '../data/repository/ai_repository_impl.dart';
 
 final sl = GetIt.instance;
 void initData() {
-  final dio = Dio(
-    BaseOptions(
-      connectTimeout: ApiConstants.apiTimeout,
-      receiveTimeout: ApiConstants.apiTimeout,
-    ),
-  );
+  final dio = ApiClient.createDio();
+  dio.options.connectTimeout = ApiConstants.apiTimeout;
+  dio.options.receiveTimeout = ApiConstants.apiTimeout;
   sl.registerLazySingleton(() => dio);
   final db = AppDatabase();
   sl.registerLazySingleton(() => db);
@@ -33,7 +31,7 @@ void initData() {
   sl.registerLazySingleton(() => ClimateCacheDataSource(dao: db.climateDao));
   sl.registerLazySingleton(() => SettingsLocalDataSource(dao: db.settingsDao));
   sl.registerLazySingleton(() => OpenMeteoRemoteDataSource(dio: sl()));
-  sl.registerLazySingleton<AIDataSource>(() => GeminiRemoteDataSource());
+  sl.registerLazySingleton<AIDataSource>(() => GeminiRemoteDataSource(dio: sl()));
   sl.registerLazySingleton(() => LGRemoteDataSource(sshService: sl()));
   sl.registerLazySingleton<PowerPlantRepository>(
     () => PowerPlantRepositoryImpl(localDataSource: sl()),

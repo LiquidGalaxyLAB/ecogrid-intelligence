@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import '../../../core/constants/api_constants.dart';
+import '../../../core/network/api_endpoints.dart';
 import '../../../core/exception/invalid_response_exception.dart';
 import '../../../core/resources/network_state.dart';
 
@@ -44,7 +44,7 @@ class OpenMeteoRemoteDataSource {
     yield const NetworkIdle();
     yield const NetworkLoading();
     try {
-      final response = await _getWithRetry(ApiConstants.openMeteoForecast, {
+      final response = await _getWithRetry(ApiEndpoints.openMeteoForecast, {
         'latitude': lat,
         'longitude': lon,
         'current':
@@ -91,7 +91,7 @@ class OpenMeteoRemoteDataSource {
     yield const NetworkIdle();
     yield const NetworkLoading();
     try {
-      final response = await _getWithRetry(ApiConstants.openMeteoForecast, {
+      final response = await _getWithRetry(ApiEndpoints.openMeteoForecast, {
         'latitude': lat,
         'longitude': lon,
         'start_date': _formatDate(startDate),
@@ -137,7 +137,7 @@ class OpenMeteoRemoteDataSource {
     yield const NetworkLoading();
     try {
       final response = await _getWithRetry(
-        ApiConstants.openMeteoArchive,
+        ApiEndpoints.openMeteoArchive,
         {
           'latitude': lat,
           'longitude': lon,

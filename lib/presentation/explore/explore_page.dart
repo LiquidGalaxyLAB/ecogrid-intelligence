@@ -20,6 +20,8 @@ import '../components/app_search_bar.dart';
 import '../../service/tts_service.dart';
 import '../../di/di.dart' show sl;
 import '../../config/theme/theme_controller.dart';
+import 'plant_comparison_screen.dart';
+import '../../domain/repository/cvs_repository.dart';
 
 class ExploreScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -60,6 +62,71 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   bool _isNarrating = false;
+  bool _isMuted = false;
+
+  // ── Compare mode state ─────────────────────────────────────────────────
+  bool _isCompareMode = false;
+  final List<PowerPlant> _selectedPlants = [];
+
+  void _toggleCompareMode() {
+    setState(() {
+      _isCompareMode = !_isCompareMode;
+      if (!_isCompareMode) _selectedPlants.clear();
+    });
+  }
+
+  void _togglePlantSelection(PowerPlant plant) {
+    setState(() {
+      if (_selectedPlants.contains(plant)) {
+        _selectedPlants.remove(plant);
+      } else if (_selectedPlants.length < 4) {
+        _selectedPlants.add(plant);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Maximum 4 plants can be compared'),
+          ),
+        );
+      }
+    });
+  }
+
+  void _openComparisonScreen() {
+    // CvsRepository is a get_it singleton — capture it directly rather than
+    // via context.read (which would fail since there's no RepositoryProvider
+    // for CvsRepository in the explore route's widget tree).
+    final cvsRepo = sl<CvsRepository>();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, animation, route) => PlantComparisonScreen(
+          plants: List.from(_selectedPlants),
+          cvsRepository: cvsRepo,
+        ),
+        transitionsBuilder: (ctx, animation, route, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOut,
+            ),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.08),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
   @override
   void initState() {
     super.initState();
@@ -80,6 +147,68 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
       backgroundColor: isDark
           ? DesignConstants.background(context)
           : Colors.white,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Compare FAB ────────────────────────────────────────────────
+          FloatingActionButton.extended(
+            heroTag: 'compare_fab',
+            onPressed: _toggleCompareMode,
+            backgroundColor: AppTheme.secondary,
+            icon: Icon(
+              _isCompareMode ? Icons.close_rounded : Icons.compare_arrows_rounded,
+              color: Colors.white,
+            ),
+            label: Text(
+              _isCompareMode
+                  ? (_selectedPlants.isEmpty
+                      ? 'Cancel'
+                      : 'Compare (${_selectedPlants.length})')
+                  : 'Compare',
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w600),
+            ),
+          ),
+          if (_isCompareMode && _selectedPlants.length >= 2)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: FloatingActionButton.extended(
+                heroTag: 'open_compare_fab',
+                onPressed: _openComparisonScreen,
+                backgroundColor: const Color(0xFF22C55E),
+                icon: const Icon(Icons.open_in_new_rounded, color: Colors.white),
+                label: const Text(
+                  'View',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          // ── AI Insight FAB ─────────────────────────────────────────────
+          BlocBuilder<ExploreBloc, AppState<ExploreData>>(
+            builder: (context, state) {
+              if (state is AppSuccess<ExploreData>) {
+                final data = state.data!;
+                if (data.isLoadingInsight || data.aiInsight != null) {
+                  return const SizedBox.shrink();
+                }
+              }
+              return FloatingActionButton(
+                heroTag: 'ai_fab',
+                onPressed: () {
+                  context.read<ExploreBloc>().add(
+                        const ExploreGenerateRegionalInsight(),
+                      );
+                },
+                backgroundColor: AppTheme.secondary,
+                child: const Icon(Icons.auto_awesome, color: Colors.white),
+              );
+            },
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           if (!isDark)
@@ -100,7 +229,31 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ),
             ),
           SafeArea(
-            child: BlocBuilder<ExploreBloc, AppState<ExploreData>>(
+            child: BlocConsumer<ExploreBloc, AppState<ExploreData>>(
+              listenWhen: (prev, curr) {
+                if (prev is AppSuccess<ExploreData> && curr is AppSuccess<ExploreData>) {
+                  return prev.data!.isLoadingInsight && !curr.data!.isLoadingInsight && curr.data!.aiInsight != null;
+                }
+                return false;
+              },
+              listener: (context, state) {
+                if (state is AppSuccess<ExploreData>) {
+                  final insight = state.data!.aiInsight;
+                  if (insight != null) {
+                    if (mounted) {
+                      setState(() {
+                         _isNarrating = true;
+                         _isMuted = false;
+                      });
+                    }
+                    sl<TTSService>().speak(insight).then((_) {
+                      if (mounted && !_isMuted) {
+                        setState(() => _isNarrating = false);
+                      }
+                    });
+                  }
+                }
+              },
               builder: (context, state) {
                 if (state is AppLoading) {
                   return Center(
@@ -504,27 +657,48 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       onChanged: (v) async {
                         final tts = sl<TTSService>();
                         if (v) {
-                          setState(() => _isNarrating = true);
+                          setState(() {
+                            _isNarrating = true;
+                            _isMuted = false;
+                          });
                           await tts.speak(state.aiInsight!);
-                          if (mounted) setState(() => _isNarrating = false);
+                          if (mounted && !_isMuted) setState(() => _isNarrating = false);
                         } else {
+                          setState(() => _isNarrating = false);
                           await tts.stop();
-                          if (mounted) setState(() => _isNarrating = false);
                         }
                       },
                       activeThumbColor: const Color(0xFF00C8FF),
-                      activeTrackColor: const Color(
-                        0xFF0066FF,
-                      ).withValues(alpha: 0.5),
+                      activeTrackColor: const Color(0xFF0066FF).withValues(alpha: 0.5),
                     ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      _isNarrating ? Icons.volume_up : Icons.volume_off,
-                      color: _isNarrating
-                          ? const Color(0xFF00C8FF)
-                          : const Color(0xFF8A9BAE),
-                      size: 16,
-                    ),
+                    if (_isNarrating) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () async {
+                          if (!_isMuted) {
+                            setState(() => _isMuted = true);
+                            await sl<TTSService>().stop();
+                          } else {
+                            setState(() => _isMuted = false);
+                            await sl<TTSService>().speak(state.aiInsight!);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: _isMuted
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isMuted ? Icons.volume_off : Icons.volume_up,
+                            color: _isMuted ? Colors.red : Colors.grey,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
@@ -563,69 +737,6 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ],
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            top: 8,
-          ),
-          child: GestureDetector(
-            onTap: () {
-              context.read<ExploreBloc>().add(
-                const ExploreGenerateRegionalInsight(),
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(100),
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? const [Color(0xFF0066FF), Color(0xFF00C8FF)]
-                      : const [Color(0xFF0055FF), Color(0xFF00A3FF)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                boxShadow: isDark
-                    ? [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF00C8FF,
-                          ).withValues(alpha: 0.35),
-                          blurRadius: 20,
-                          spreadRadius: 2,
-                        ),
-                      ]
-                    : [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF0066FF,
-                          ).withValues(alpha: 0.25),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Analyse Region Risk',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -663,7 +774,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ? (isDark
                     ? const Color(0xFF0066FF).withValues(alpha: 0.2)
                     : const Color(0xFFE8F4FC))
-              : (isDark ? DesignConstants.cardSurface(context) : Colors.white),
+              : (isDark ? DesignConstants.cardSurface(context) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: isSelected
@@ -735,7 +846,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ? (isDark
                     ? const Color(0xFF0066FF).withValues(alpha: 0.2)
                     : const Color(0xFFE8F4FC))
-              : (isDark ? DesignConstants.cardSurface(context) : Colors.white),
+              : (isDark ? DesignConstants.cardSurface(context) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: (isSelected && isAllPill)
@@ -839,16 +950,36 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
           itemBuilder: (context, index) {
             if (index < displayCount) {
               final plant = state.filteredPlants[index];
-              return _PlantListTile(
-                plant: plant,
-                index: index + 1,
+              final isSelected = _selectedPlants.contains(plant);
+              return _CompareListItemWrapper(
+                isCompareMode: _isCompareMode,
+                isSelected: isSelected,
                 onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.plantDetail,
-                    arguments: {'plant': plant},
-                  );
+                  if (_isCompareMode) {
+                    _togglePlantSelection(plant);
+                  } else {
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.plantDetail,
+                      arguments: {'plant': plant},
+                    );
+                  }
                 },
+                child: _PlantListTile(
+                  plant: plant,
+                  index: index + 1,
+                  onTap: () {
+                    if (_isCompareMode) {
+                      _togglePlantSelection(plant);
+                    } else {
+                      Navigator.pushNamed(
+                        context,
+                        AppRoutes.plantDetail,
+                        arguments: {'plant': plant},
+                      );
+                    }
+                  },
+                ),
               );
             }
             final isLgButtonIndex = showLgButton && index == displayCount;
@@ -1113,6 +1244,70 @@ class _PlantListTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compare selection wrapper — slides in a checkbox when compare mode is active
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CompareListItemWrapper extends StatelessWidget {
+  final bool isCompareMode;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _CompareListItemWrapper({
+    required this.isCompareMode,
+    required this.isSelected,
+    required this.onTap,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          child,
+          if (isCompareMode)
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutCubic,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCubic,
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.secondary
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppTheme.secondary
+                            : AppTheme.cardBorder,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check_rounded,
+                            color: Colors.white, size: 16)
+                        : null,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

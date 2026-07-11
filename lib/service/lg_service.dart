@@ -5,8 +5,8 @@ import '../core/exception/invalid_response_exception.dart';
 import '../core/exception/unhandled_exception.dart';
 import '../core/resources/data_state.dart';
 import '../core/utils/kml_utils.dart';
-import '../data/data_sources/local/settings_local_ds.dart';
-import '../data/data_sources/remote/lg_remote_ds.dart';
+import '../data/local/data_sources/settings_local_ds.dart';
+import '../data/remote/data_sources/lg_remote_ds.dart';
 import '../core/enums/lg_display_mode.dart';
 import '../domain/model/lg_settings.dart';
 
