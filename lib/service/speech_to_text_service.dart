@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import '../config/localization/locale_controller.dart';
 
 class SpeechToTextService {
   final stt.SpeechToText _speech = stt.SpeechToText();
@@ -30,6 +31,7 @@ class SpeechToTextService {
     }
     if (_speech.isListening) return;
     await _speech.listen(
+      localeId: LocaleController.instance.locale.toLanguageTag(),
       onResult: (result) {
         onResult(result.recognizedWords);
         onListening(true);

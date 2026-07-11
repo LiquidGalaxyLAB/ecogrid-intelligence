@@ -7,7 +7,7 @@ import 'bloc/search_bloc.dart';
 import '../../config/routes/app_routes.dart';
 import '../components/app_search_bar.dart';
 import '../components/atmospheric_globe_painter.dart';
-import '../../di/service_di.dart';
+import '../../di/dependency_injection.dart';
 import '../../service/speech_to_text_service.dart';
 
 class SearchScreen extends StatefulWidget {

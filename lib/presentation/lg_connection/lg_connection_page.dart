@@ -12,6 +12,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme/map_themes.dart';
 import '../../core/enums/historical_data_mode.dart';
+import '../../config/localization/locale_controller.dart';
+import '../../l10n/app_localizations.dart';
 
 class LgSettingsScreen extends StatelessWidget {
   const LgSettingsScreen({super.key});
@@ -132,8 +134,7 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                     ),
                   ),
                 ),
-              ]
-              else
+              ] else
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
@@ -250,9 +251,7 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       height: 44,
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF1A1A1A)
-            : const Color(0xFFF1F5F9),
+        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDark
@@ -653,10 +652,7 @@ class _GeneralTabState extends State<_GeneralTab> {
         color: AppTheme.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: isDark
-            ? Border.all(
-                color: Colors.white.withValues(alpha: 0.15),
-                width: 1,
-              )
+            ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1)
             : null,
         boxShadow: isDark
             ? [
@@ -740,7 +736,7 @@ class _GeneralTabState extends State<_GeneralTab> {
                 children: [
                   Expanded(
                     child: _buildThemeSegment(
-                      'Light',
+                      AppLocalizations.of(context)!.light,
                       ThemeMode.light,
                       currentMode,
                       isDark,
@@ -748,7 +744,7 @@ class _GeneralTabState extends State<_GeneralTab> {
                   ),
                   Expanded(
                     child: _buildThemeSegment(
-                      'Dark',
+                      AppLocalizations.of(context)!.dark,
                       ThemeMode.dark,
                       currentMode,
                       isDark,
@@ -756,7 +752,7 @@ class _GeneralTabState extends State<_GeneralTab> {
                   ),
                   Expanded(
                     child: _buildThemeSegment(
-                      'System',
+                      AppLocalizations.of(context)!.system,
                       ThemeMode.system,
                       currentMode,
                       isDark,
@@ -809,59 +805,99 @@ class _GeneralTabState extends State<_GeneralTab> {
   }
 
   Widget _buildLanguageCard(bool isDark) {
-    return _buildBaseCard(
-      isDark: isDark,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFC107).withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+    final strings = AppLocalizations.of(context)!;
+    final language = LocaleController.instance.language.value;
+    return GestureDetector(
+      onTap: _showLanguagePicker,
+      child: _buildBaseCard(
+        isDark: isDark,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFC107).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.language,
+                  color: Color(0xFFFFC107),
+                  size: 20,
+                ),
               ),
-              child: const Icon(
-                Icons.language,
-                color: Color(0xFFFFC107),
-                size: 20,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.language,
+                      style: AppTheme.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.selectAppLanguage,
+                      style: AppTheme.bodySmall.copyWith(
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
                   Text(
-                    'Language',
-                    style: AppTheme.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w600,
+                    _localizedLanguageName(strings, language),
+                    style: AppTheme.bodyMedium.copyWith(
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select app language',
-                    style: AppTheme.bodySmall.copyWith(
-                      color: AppTheme.textMuted,
-                    ),
-                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right, color: AppTheme.textMuted),
                 ],
               ),
-            ),
-            Row(
-              children: [
-                Text(
-                  'English',
-                  style: AppTheme.bodyMedium.copyWith(
-                    color: AppTheme.textPrimary,
-                  ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _localizedLanguageName(
+    AppLocalizations strings,
+    AppLanguage language,
+  ) => switch (language) {
+    AppLanguage.english => strings.english,
+    AppLanguage.spanish => strings.spanish,
+    AppLanguage.german => strings.german,
+  };
+
+  Future<void> _showLanguagePicker() async {
+    final strings = AppLocalizations.of(context)!;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: AppLanguage.values
+              .map(
+                (language) => RadioListTile<AppLanguage>(
+                  value: language,
+                  groupValue: LocaleController.instance.language.value,
+                  title: Text(_localizedLanguageName(strings, language)),
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    await LocaleController.instance.setLanguage(value);
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
+                  },
                 ),
-                const SizedBox(width: 4),
-                Icon(Icons.chevron_right, color: AppTheme.textMuted),
-              ],
-            ),
-          ],
+              )
+              .toList(),
         ),
       ),
     );
@@ -1254,9 +1290,7 @@ class _ConnectionTabState extends State<_ConnectionTab> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.white.withValues(alpha: 0.18),
-            ),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -1402,10 +1436,7 @@ class _LiquidGalaxyTab extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: isDark
-            ? Border.all(
-                color: Colors.white.withValues(alpha: 0.15),
-                width: 1,
-              )
+            ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1)
             : null,
         boxShadow: isDark
             ? [

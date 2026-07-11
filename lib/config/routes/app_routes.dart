@@ -13,6 +13,7 @@ import '../../presentation/explore/bloc/explore_bloc.dart';
 import '../../domain/repository/cvs_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../di/di.dart';
+import '../theme/theme_controller.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -81,7 +82,8 @@ class AppRoutes {
   static PageRouteBuilder _buildRoute(Widget page, RouteSettings settings) {
     return PageRouteBuilder(
       settings: settings,
-      pageBuilder: (context, animation, secondaryAnimation) => page,
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          _ThemeRefreshBoundary(child: page),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
@@ -95,4 +97,25 @@ class AppRoutes {
       transitionDuration: const Duration(milliseconds: 350),
     );
   }
+}
+
+/// Rebuilds legacy widgets that still read the app palette outside an inherited
+/// theme dependency when the platform brightness changes in system mode.
+class _ThemeRefreshBoundary extends StatelessWidget {
+  final Widget child;
+  const _ThemeRefreshBoundary({required this.child});
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([
+      ThemeController.instance.themeModeNotifier,
+      ThemeController.instance.platformBrightnessRevision,
+    ]),
+    builder: (context, _) => KeyedSubtree(
+      key: ValueKey(
+        '${ThemeController.instance.currentThemeMode}-${MediaQuery.platformBrightnessOf(context)}-${ThemeController.instance.platformBrightnessRevision.value}',
+      ),
+      child: child,
+    ),
+  );
 }

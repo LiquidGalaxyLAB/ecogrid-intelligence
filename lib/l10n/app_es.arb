@@ -1,0 +1,13 @@
+{
+  "@@locale": "es",
+  "appTitle": "EcoGrid Intelligence",
+  "language": "Idioma",
+  "selectAppLanguage": "Seleccionar idioma de la aplicación",
+  "english": "Inglés",
+  "spanish": "Español",
+  "german": "Alemán",
+  "cancel": "Cancelar",
+  "light": "Claro",
+  "dark": "Oscuro",
+  "system": "Sistema"
+}
