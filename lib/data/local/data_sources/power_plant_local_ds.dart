@@ -4,6 +4,7 @@ import '../../../core/enums/plant_type.dart';
 import '../../../core/exception/invalid_response_exception.dart';
 import '../../../core/resources/ingestion_report.dart';
 import '../../../core/utils/geo_utils.dart';
+import '../../../core/utils/region_boundary_service.dart';
 import '../../../domain/model/power_plant.dart';
 import '../../../domain/model/region.dart';
 
@@ -34,6 +35,18 @@ class PowerPlantLocalDataSource {
 
   Future<List<PowerPlant>> getPlantsByRegion(Region region) async {
     final all = await getAllPlants();
+    
+    // 1. Precise point-in-polygon filtering if we have the boundary geometry
+    final geoType = region.geoJson?['type'];
+    final hasPolygon = geoType == 'Polygon' || geoType == 'MultiPolygon';
+    
+    if (region.geoJson != null && hasPolygon) {
+      return all.where((p) {
+        return GeoUtils.isPointInGeoJsonPolygon(p.latitude, p.longitude, region.geoJson);
+      }).toList();
+    }
+
+    // 2. Fallback to country matching if defined
     if (region.countries != null && region.countries!.isNotEmpty) {
       final countrySet = region.countries!.map((c) => c.toLowerCase()).toSet();
       return all.where((p) {
@@ -42,6 +55,8 @@ class PowerPlantLocalDataSource {
                 countrySet.contains(p.countryLong!.toLowerCase()));
       }).toList();
     }
+    
+    // 3. Fallback to coarse bounding box filtering
     return all.where((p) {
       return p.latitude >= region.minLat &&
           p.latitude <= region.maxLat &&
@@ -168,11 +183,33 @@ class PowerPlantLocalDataSource {
           maxLat: maxLat,
           maxLon: maxLon,
           countries: [countryName],
+          nominatimQuery: countryName,
           defaultZoom: 5.0,
         ),
       );
     }
-    return [...matchedQuickRegions, ...dynamicRegions];
+    
+    // Global Nominatim Search
+    List<Region> globalRegions = [];
+    if (query.length >= 3) {
+      globalRegions = await RegionBoundaryService.searchGlobalRegions(query);
+    }
+
+    final List<Region> allRegions = [...matchedQuickRegions, ...dynamicRegions];
+    
+    // Deduplicate global regions
+    for (final gr in globalRegions) {
+      final existsLocally = allRegions.any(
+        (r) =>
+            r.name.toLowerCase() == gr.name.toLowerCase() ||
+            (r.displayName != null && gr.displayName != null && r.displayName!.toLowerCase() == gr.displayName!.toLowerCase())
+      );
+      if (!existsLocally) {
+        allRegions.add(gr);
+      }
+    }
+
+    return allRegions;
   }
 
   Future<PowerPlant?> getPlantById(String id) async {

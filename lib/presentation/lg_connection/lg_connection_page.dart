@@ -892,8 +892,8 @@ class _GeneralTabState extends State<_GeneralTab> {
                   title: Text(_localizedLanguageName(strings, language)),
                   onChanged: (value) async {
                     if (value == null) return;
-                    await LocaleController.instance.setLanguage(value);
                     if (sheetContext.mounted) Navigator.pop(sheetContext);
+                    await LocaleController.instance.setLanguage(value);
                   },
                 ),
               )

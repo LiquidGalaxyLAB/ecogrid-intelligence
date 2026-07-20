@@ -10,6 +10,8 @@ import '../../core/resources/app_state.dart';
 import '../../core/enums/risk_level.dart';
 import '../../core/enums/plant_type.dart';
 import '../../core/utils/cvs_calculator.dart';
+import '../../di/di.dart';
+import '../../service/tts_service.dart';
 
 enum SimulationMode { simulateImpact, pathToDanger }
 
@@ -30,6 +32,7 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
 
   SimulationMode _currentMode = SimulationMode.simulateImpact;
   String _selectedScenario = 'Business as Usual';
+  String? _lastInsightScenario;
   double _tempMultiplier = 1.0;
   double _waterMultiplier = 1.0;
   double _windMultiplier = 1.0;
@@ -42,6 +45,40 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
         scenarioType: _selectedScenario,
         projectedCvs: projectedCvs,
       ),
+    );
+  }
+
+  void _showScenarioInsightBottomSheet(
+    BuildContext context,
+    PlantDetailData data,
+    String plantName,
+    double baseCvs,
+    double projectedCvs,
+    String consequence,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
+          bloc: widget.bloc,
+          builder: (context, state) {
+            final currentState = state is AppSuccess<PlantDetailData>
+                ? state.data!
+                : data;
+            return _ShareableInsightCard(
+              plantName: plantName,
+              scenarioName: _selectedScenario,
+              baseCvs: baseCvs,
+              projectedCvs: projectedCvs,
+              consequence: consequence,
+              insight: currentState.scenarioInsight,
+              isLoading: currentState.isLoadingInsight,
+            );
+          },
+        );
+      },
     );
   }
 
@@ -96,6 +133,33 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
           final isDark = ThemeController.instance.isDarkMode;
           return Scaffold(
             backgroundColor: isDark ? AppTheme.background : Colors.white,
+            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+            floatingActionButton: _currentMode == SimulationMode.simulateImpact
+                ? (state.data!.isLoadingInsight
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: FloatingActionButton(
+                          heroTag: 'ai_fab_scenario',
+                          onPressed: () {
+                            if (state.data!.scenarioInsight == null || _lastInsightScenario != _selectedScenario) {
+                              _lastInsightScenario = _selectedScenario;
+                              _generateInsight(projectedCvs);
+                            }
+                            _showScenarioInsightBottomSheet(
+                              context,
+                              state.data!,
+                              plant.name,
+                              baseCvs,
+                              projectedCvs,
+                              consequences['outputReduction']!,
+                            );
+                          },
+                          backgroundColor: AppTheme.secondary,
+                          child: const Icon(Icons.auto_awesome, color: Colors.white),
+                        ),
+                      ))
+                : null,
             appBar: AppBar(
               backgroundColor: AppTheme.surface,
               elevation: 0,
@@ -217,18 +281,6 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                                       score: projectedCvs,
                                       subtitle: _selectedScenario,
                                       isHighlight: true,
-                                    ),
-                                  ),
-                                  Container(
-                                    width: 1,
-                                    height: 40,
-                                    color: AppTheme.cardBorder,
-                                  ),
-                                  Expanded(
-                                    child: _ScoreColumn(
-                                      title: 'Worst Case',
-                                      score: worstCaseCvs,
-                                      subtitle: 'Catastrophic shutdown likely',
                                     ),
                                   ),
                                 ],
@@ -389,71 +441,6 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                         ),
                       ),
                     ),
-                    if (_currentMode == SimulationMode.simulateImpact)
-                      Container(
-                        padding: const EdgeInsets.all(AppTheme.spacingLG),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          border: Border(
-                            top: BorderSide(
-                              color: AppTheme.cardBorder,
-                              width: 1.0,
-                            ),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              offset: const Offset(0, -4),
-                              blurRadius: 16,
-                            ),
-                          ],
-                        ),
-                        child:
-                            (state.data!.scenarioInsight != null ||
-                                state.data!.isLoadingInsight)
-                            ? _ShareableInsightCard(
-                                plantName: plant.name,
-                                scenarioName: _selectedScenario,
-                                baseCvs: baseCvs,
-                                projectedCvs: projectedCvs,
-                                consequence: consequences['outputReduction']!,
-                                insight: state.data!.scenarioInsight,
-                                isLoading: state.data!.isLoadingInsight,
-                              )
-                            : SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: OutlinedButton.icon(
-                                  icon: Icon(
-                                    Icons.auto_awesome,
-                                    color: AppTheme.primary,
-                                  ),
-                                  label: Text(
-                                    'Generate AI Analysis',
-                                    style: TextStyle(
-                                      color: AppTheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                      color: AppTheme.primary.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      width: 1.5,
-                                    ),
-                                    backgroundColor: AppTheme.primary
-                                        .withValues(alpha: 0.1),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
-                                  onPressed: () =>
-                                      _generateInsight(projectedCvs),
-                                ),
-                              ),
-                      ),
                   ],
                 ),
               ],
@@ -735,7 +722,7 @@ class _PathToDangerView extends StatelessWidget {
   }
 }
 
-class _ShareableInsightCard extends StatelessWidget {
+class _ShareableInsightCard extends StatefulWidget {
   final String plantName;
   final String scenarioName;
   final double baseCvs;
@@ -743,6 +730,7 @@ class _ShareableInsightCard extends StatelessWidget {
   final String consequence;
   final String? insight;
   final bool isLoading;
+
   const _ShareableInsightCard({
     required this.plantName,
     required this.scenarioName,
@@ -752,54 +740,105 @@ class _ShareableInsightCard extends StatelessWidget {
     required this.insight,
     required this.isLoading,
   });
+
+  @override
+  State<_ShareableInsightCard> createState() => _ShareableInsightCardState();
+}
+
+class _ShareableInsightCardState extends State<_ShareableInsightCard> {
+  bool _isNarrating = false;
+
+  @override
+  void dispose() {
+    if (_isNarrating) {
+      sl<TTSService>().stop();
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingLG),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceLight,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      height: MediaQuery.of(context).size.height * 0.3,
+      padding: EdgeInsets.only(
+        top: 16,
+        left: 24,
+        right: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ECOGRID INTELLIGENCE',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                  color: AppTheme.primary,
+      decoration: BoxDecoration(
+        color: ThemeController.instance.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: ThemeController.instance.isDarkMode ? Colors.white24 : Colors.black12,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Icon(Icons.share, size: 16, color: AppTheme.textMuted),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(plantName, style: AppTheme.headingMedium),
-          Text(
-            'Scenario: $scenarioName',
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.plantName,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (widget.insight != null && !widget.isLoading)
+                  GestureDetector(
+                    onTap: () async {
+                      final tts = sl<TTSService>();
+                      if (_isNarrating) {
+                        await tts.stop();
+                        if (mounted) setState(() => _isNarrating = false);
+                      } else {
+                        if (mounted) setState(() => _isNarrating = true);
+                        await tts.speak(widget.insight!);
+                        if (mounted) setState(() => _isNarrating = false);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C8FF).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        _isNarrating ? Icons.stop_circle_outlined : Icons.volume_up,
+                        color: const Color(0xFF00C8FF),
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Scenario: ${widget.scenarioName}',
             style: AppTheme.bodySmall.copyWith(color: AppTheme.textSecondary),
           ),
           const Divider(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _MiniScore(label: 'Baseline', score: baseCvs),
+              _MiniScore(label: 'Baseline', score: widget.baseCvs),
               Icon(Icons.arrow_forward, size: 16, color: AppTheme.textMuted),
-              _MiniScore(label: 'Projected', score: projectedCvs),
+              _MiniScore(label: 'Projected', score: widget.projectedCvs),
             ],
           ),
           const SizedBox(height: 16),
@@ -813,12 +852,12 @@ class _ShareableInsightCard extends StatelessWidget {
               children: [
                 Icon(Icons.bolt, size: 16, color: Colors.orange),
                 const SizedBox(width: 8),
-                Expanded(child: Text(consequence, style: AppTheme.bodySmall)),
+                Expanded(child: Text(widget.consequence, style: AppTheme.bodySmall)),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          if (isLoading)
+          if (widget.isLoading)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -827,13 +866,17 @@ class _ShareableInsightCard extends StatelessWidget {
             )
           else
             Text(
-              insight ?? '',
-              style: AppTheme.bodySmall.copyWith(
+              widget.insight ?? '',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
                 height: 1.5,
-                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -851,6 +894,8 @@ class _MiniScore extends StatelessWidget {
         Text(
           score.toStringAsFixed(1),
           style: AppTheme.headingMedium.copyWith(
+            fontSize: 36,
+            fontWeight: FontWeight.w900,
             color: RiskLevel.fromScore(score).color,
           ),
         ),

@@ -315,19 +315,24 @@ class _QuickExploreSection extends StatelessWidget {
         const SizedBox(height: AppTheme.spacingMD),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
-              childAspectRatio: 0.78,
-            ),
-            itemCount: Region.quickRegions.length,
-            itemBuilder: (context, index) {
-              final region = Region.quickRegions[index];
-              return _RegionCard(region: region, isDark: isDark);
+          child: Builder(
+            builder: (context) {
+              final crossAxisCount = MediaQuery.of(context).size.width < 340 ? 2 : 3;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                  childAspectRatio: 0.78,
+                ),
+                itemCount: Region.quickRegions.length,
+                itemBuilder: (context, index) {
+                  final region = Region.quickRegions[index];
+                  return _RegionCard(region: region, isDark: isDark);
+                },
+              );
             },
           ),
         ),
@@ -761,14 +766,18 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
                       children: [
                         const Icon(Icons.public, color: Colors.white, size: 20),
                         const SizedBox(width: 10),
-                        Text(
-                          'Show Infrastructure Map',
-                          style: AppTheme.labelLarge.copyWith(
-                            color: Colors.white,
-                            fontSize: 16,
-                            height: 1.0,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
+                        Flexible(
+                          child: Text(
+                            'Show Infrastructure Map',
+                            style: AppTheme.labelLarge.copyWith(
+                              color: Colors.white,
+                              fontSize: 16,
+                              height: 1.0,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
                           ),
                         ),
                         const SizedBox(width: 10),

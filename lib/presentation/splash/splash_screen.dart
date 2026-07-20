@@ -20,7 +20,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 5000),
     );
     _fadeIn = CurvedAnimation(
       parent: _controller,
@@ -90,10 +90,11 @@ class _SplashScreenState extends State<SplashScreen>
                         child: ScaleTransition(
                           scale: _scale,
                           child: Container(
-                            width: 240,
-                            height: 240,
+                            width: 300,
+                            height: 300,
                             decoration: BoxDecoration(
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(32),
+                              color: Colors.white,
                               boxShadow: isDark
                                   ? [
                                       BoxShadow(
@@ -114,10 +115,11 @@ class _SplashScreenState extends State<SplashScreen>
                                       ),
                                     ],
                             ),
-                            child: ClipOval(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
                               child: Image.asset(
-                                'assets/images/splashscreen_logo.png',
-                                fit: BoxFit.cover,
+                                'assets/images/logos.png',
+                                fit: BoxFit.contain,
                               ),
                             ),
                           ),

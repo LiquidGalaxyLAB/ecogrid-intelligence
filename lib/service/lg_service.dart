@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/utils/globals.dart';
+import 'dart:typed_data';
 import '../core/enums/connection_status.dart';
 import '../core/exception/invalid_response_exception.dart';
 import '../core/exception/unhandled_exception.dart';
@@ -12,6 +13,14 @@ import '../core/constants/lg_constants.dart';
 import 'ssh_service.dart';
 
 class LGService {
+  String _currentKmlContext = '';
+
+  void setKmlContext(String context) {
+    _currentKmlContext = context;
+  }
+
+  String get kmlContext => _currentKmlContext;
+
   final SSHService _sshService;
   final SettingsLocalDataSource settingsDataSource;
   ConnectionStatus _status = ConnectionStatus.disconnected;
@@ -192,6 +201,22 @@ class LGService {
     }
   }
 
+  Future<DataState<void>> uploadBalloonImage(String filename, Uint8List bytes) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _sshService.execute('mkdir -p /var/www/html/kml/images');
+      await _sshService.uploadBytesViaSftp(
+        bytes,
+        '/var/www/html/kml/images/$filename',
+      );
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
   Future<DataState<void>> startOrbit(
     double lat,
     double lon,
@@ -202,7 +227,7 @@ class LGService {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      final orbitKml = KmlUtils.orbitTour(
+      final orbitKml = _buildOrbitTour(
         lat: lat,
         lon: lon,
         range: range,
@@ -226,6 +251,16 @@ class LGService {
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<void> startComparisonTour(String tourName) async {
+    try {
+      // Wait for LG to finish processing the KMLs before playing
+      await Future.delayed(const Duration(milliseconds: 3000));
+      await _playTour(tourName);
+    } catch (e) {
+      debugPrint('[LG] Error starting tour: $e');
     }
   }
 
@@ -391,7 +426,7 @@ class LGService {
 
   Future<void> _sendKmlToMaster(String kml) async {
     final escaped = _escapeForEcho(kml);
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
     await _sshService.execute(
       "echo '$escaped' > ${LGConstants.masterKmlFile} ; "
       "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
@@ -422,6 +457,39 @@ class LGService {
     "echo '${_escapeForEcho(kml)}' > /var/www/html/orbit.kml ; "
     "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
   );
+
+  String _buildOrbitTour({
+    required double lat,
+    required double lon,
+    double range = 15000,
+    double tilt = 60,
+    int steps = 36,
+    double stepDuration = 0.8,
+  }) {
+    final buffer = StringBuffer();
+    for (int i = 0; i < steps; i++) {
+      final heading = (360.0 * i / steps);
+      buffer.writeln(
+        KmlUtils.flyTo(
+          lat: lat,
+          lon: lon,
+          altitude: 0,
+          heading: heading,
+          tilt: tilt,
+          range: range,
+          duration: stepDuration,
+        ),
+      );
+    }
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+  <gx:Tour>
+    <name>Orbit</name>
+    <gx:Playlist>
+${buffer.toString()}    </gx:Playlist>
+  </gx:Tour>
+</kml>''';
+  }
 
   Future<void> _clearAllKml() async {
     final commands = <String>[

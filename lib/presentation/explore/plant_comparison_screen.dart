@@ -10,6 +10,12 @@ import '../../domain/model/plant_context_payload.dart';
 import '../../domain/model/power_plant.dart';
 import '../../domain/repository/cvs_repository.dart';
 import '../../domain/usecases/ai/services/generate_plant_insight_usecase.dart';
+import '../../service/lg_service.dart';
+import '../../core/utils/comparison_tour_builder.dart';
+import '../../core/utils/comparison_kml_builder.dart';
+import '../../core/utils/comparison_balloon_builder.dart';
+import '../../core/utils/kml_utils.dart';
+import '../../domain/model/lg_settings.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry-point widget
@@ -30,7 +36,69 @@ class PlantComparisonScreen extends StatefulWidget {
 }
 
 class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
+  bool _globalIsFront = true;
+
+  void _toggleGlobalFlip() {
+    setState(() {
+      _globalIsFront = !_globalIsFront;
+    });
+  }
   bool _isCarouselMode = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _startComparisonTour();
+  }
+
+  Future<void> _startComparisonTour() async {
+    final lgService = sl<LGService>();
+    final kml = ComparisonTourBuilder.build(plants: widget.plants);
+    
+    // Calculate unified scores for accurate risk colors
+    final scores = widget.plants.map((p) => widget.cvsRepository.getUnifiedScore(p)).toList();
+    
+    final networkKml = ComparisonKmlBuilder.build(
+      plants: widget.plants,
+      cvsResults: scores,
+      tourKml: kml,
+    );
+    await lgService.sendKmlToMaster(networkKml);
+
+    // Send the comparison balloon to the rightmost screen
+    final bbox = ComparisonTourBuilder.boundingBox(widget.plants);
+    final balloonKml = ComparisonBalloonBuilder.build(
+      plants: widget.plants,
+      cvsResults: scores,
+      lat: bbox.centerLat,
+      lon: bbox.centerLon,
+    );
+    
+    final settingsResult = await lgService.loadSettings();
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    if (settingsResult is DataSuccess) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+    }
+    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+
+    // Then start the tour
+    await lgService.startComparisonTour(ComparisonTourBuilder.tourName);
+  }
+
+  @override
+  void dispose() {
+    final lgService = sl<LGService>();
+    lgService.stopOrbit();
+    lgService.clearKml();
+    lgService.loadSettings().then((result) {
+      int rightmostScreen = LGSettings.empty.rightmostScreen;
+      if (result is DataSuccess) {
+        rightmostScreen = result.data!.rightmostScreen;
+      }
+      lgService.clearBalloonOnSlave(rightmostScreen);
+    });
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +108,7 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
         title: Text('Plant Comparison'),
         actions: [
           IconButton(
-            onPressed: () =>
-                setState(() => _isCarouselMode = !_isCarouselMode),
+            onPressed: () => setState(() => _isCarouselMode = !_isCarouselMode),
             icon: Icon(
               _isCarouselMode
                   ? Icons.grid_view_rounded
@@ -60,6 +127,8 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
                 key: const ValueKey('carousel'),
                 plants: widget.plants,
                 cvsRepository: widget.cvsRepository,
+                isFront: _globalIsFront,
+                onFlip: _toggleGlobalFlip,
               )
             : _ComparisonGridView(
                 key: const ValueKey('grid'),
@@ -78,17 +147,22 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
 class _CarouselView extends StatefulWidget {
   final List<PowerPlant> plants;
   final CvsRepository cvsRepository;
+  final bool isFront;
+  final VoidCallback onFlip;
   const _CarouselView({
     super.key,
     required this.plants,
     required this.cvsRepository,
+    required this.isFront,
+    required this.onFlip,
   });
 
   @override
   State<_CarouselView> createState() => _CarouselViewState();
 }
 
-class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderStateMixin {
+class _CarouselViewState extends State<_CarouselView>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   int _currentPage = 0;
   double _rotationOffset = 0.0;
@@ -110,24 +184,24 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
 
   void _rotate(int direction) {
     if (_controller.isAnimating) return;
-    
+
     int count = widget.plants.length;
     int next = (_currentPage + direction) % count;
     if (next < 0) next += count;
-    
+
     final double start = _rotationOffset;
     final double end = start + (direction * (2 * math.pi / count));
-    
+
     Animation<double> anim = Tween<double>(begin: start, end: end).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic)
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic),
     );
-    
+
     anim.addListener(() {
       setState(() {
         _rotationOffset = anim.value;
       });
     });
-    
+
     _controller.forward(from: 0.0).then((_) {
       setState(() {
         _currentPage = next;
@@ -145,20 +219,20 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
 
     for (int i = 0; i < count; i++) {
       double currentAngle = (i * angleStep) - _rotationOffset + (math.pi / 2);
-      
+
       double sinValue = math.sin(currentAngle);
       double cosValue = math.cos(currentAngle);
-      
+
       double depth = (sinValue + 1) / 2;
-      
+
       double minScale = count == 4 ? 0.55 : 0.75;
       double minOpacity = count == 4 ? 0.25 : 0.5;
-      
+
       double scale = minScale + ((1.0 - minScale) * depth);
       double opacity = minOpacity + ((1.0 - minOpacity) * depth);
-      
+
       double xOffset = cosValue * (MediaQuery.of(context).size.width * 0.4);
-      double yOffset = (1 - depth) * -60; 
+      double yOffset = (1 - depth) * -60;
 
       cardData.add({
         'index': i,
@@ -176,6 +250,7 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
     for (var data in cardData) {
       cardStack.add(
         Positioned(
+          key: ValueKey(data['widget'].name),
           top: 40,
           bottom: 120, // Leave room for arrows and dots
           left: 16,
@@ -193,8 +268,11 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 400),
                       child: _PlantCard(
+                        key: ValueKey(data['widget'].name),
                         plant: data['widget'],
                         cvsRepository: widget.cvsRepository,
+                        isFront: widget.isFront,
+                        onFlip: widget.onFlip,
                       ),
                     ),
                   ),
@@ -227,14 +305,14 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
             ),
           ),
         ),
-        
+
         Expanded(
           child: GestureDetector(
             onHorizontalDragEnd: (details) {
               if (details.primaryVelocity! > 200) {
-                _rotate(-1); // swipe right -> show previous card (which is logically at the left, so wheel turns clockwise)
+                _rotate(1); // swipe right -> show previous card
               } else if (details.primaryVelocity! < -200) {
-                _rotate(1); // swipe left -> show next card
+                _rotate(-1); // swipe left -> show next card
               }
             },
             child: Container(
@@ -243,7 +321,7 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
                 alignment: Alignment.center,
                 children: [
                   ...cardStack,
-                  
+
                   // Arrow buttons fallback
                   Positioned(
                     bottom: 20,
@@ -253,17 +331,19 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          onPressed: () => _rotate(-1),
+                          onPressed: () => _rotate(1),
                           icon: const Icon(Icons.arrow_back_ios_rounded),
                           color: AppTheme.textMuted,
                           iconSize: 28,
                         ),
                         Text(
                           'Swipe to compare',
-                          style: AppTheme.caption.copyWith(color: AppTheme.textMuted),
+                          style: AppTheme.caption.copyWith(
+                            color: AppTheme.textMuted,
+                          ),
                         ),
                         IconButton(
-                          onPressed: () => _rotate(1),
+                          onPressed: () => _rotate(-1),
                           icon: const Icon(Icons.arrow_forward_ios_rounded),
                           color: AppTheme.textMuted,
                           iconSize: 28,
@@ -288,13 +368,19 @@ class _CarouselViewState extends State<_CarouselView> with SingleTickerProviderS
 class _PlantCard extends StatefulWidget {
   final PowerPlant plant;
   final CvsRepository cvsRepository;
-  const _PlantCard({required this.plant, required this.cvsRepository});
+  final bool isFront;
+  final VoidCallback onFlip;
+  const _PlantCard({super.key, required this.plant, required this.cvsRepository, required this.isFront, required this.onFlip});
 
   @override
   State<_PlantCard> createState() => _PlantCardState();
 }
 
-class _PlantCardState extends State<_PlantCard> {
+class _PlantCardState extends State<_PlantCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _flipController;
+  late Animation<double> _flipAnimation;
+
   String? _aiInsight;
   bool _isLoadingInsight = false;
   bool _insightError = false;
@@ -302,15 +388,72 @@ class _PlantCardState extends State<_PlantCard> {
   @override
   void initState() {
     super.initState();
+    _flipController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      value: widget.isFront ? 0.0 : 1.0,
+    );
+    _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _flipController, curve: Curves.easeInOutCubic),
+    );
+
+    if (!widget.isFront) {
+      if (_aiInsight == null && !_isLoadingInsight) {
+        _loadInsight();
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+  }
+
+
+  @override
+  void didUpdateWidget(covariant _PlantCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.plant.name != widget.plant.name) {
+      _aiInsight = null;
+      _isLoadingInsight = false;
+      _insightError = false;
+    }
+    if (oldWidget.isFront != widget.isFront) {
+      if (widget.isFront) {
+        _flipController.reverse();
+      } else {
+        _flipController.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    super.dispose();
+  }
+
+  void _toggleFlip() {
+    if (widget.isFront) {
+      _flipController.forward();
+      if (_aiInsight == null && !_isLoadingInsight) {
+        _loadInsight();
+      }
+    } else {
+      _flipController.reverse();
+    }
+    widget.onFlip();
   }
 
   Future<void> _loadInsight() async {
-    final CVSResult cvs =
-        widget.cvsRepository.getUnifiedScore(widget.plant); // CVS not ready yet — skip AI for now
+    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+    if (!mounted) return;
+
     setState(() {
       _isLoadingInsight = true;
       _insightError = false;
     });
+
     try {
       final payload = PlantContextPayload.fromEntities(
         plant: widget.plant,
@@ -345,19 +488,41 @@ class _PlantCardState extends State<_PlantCard> {
 
   @override
   Widget build(BuildContext context) {
-    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
-    final risk = cvs.riskLevel ?? RiskLevel.low;
-    final score = cvs.score ?? 0.0;
-    final riskColor = _riskColor(risk);
-    final hasCvs = cvs != null;
+    return AnimatedBuilder(
+      animation: _flipAnimation,
+      builder: (context, child) {
+        final angle = _flipAnimation.value * 3.1415926535897932;
+        final transform = Matrix4.identity()
+          ..setEntry(3, 2, 0.001)
+          ..rotateY(angle);
 
-    final riskLabel = switch (risk) {
-      RiskLevel.high => 'HIGH RISK',
-      RiskLevel.medium => 'MEDIUM RISK',
-      RiskLevel.low => 'LOW RISK',
-    };
+        return GestureDetector(
+          onTap: _toggleFlip,
+          child: Transform(
+            transform: transform,
+            alignment: Alignment.center,
+            child: angle < 3.1415926535897932 / 2
+                ? _buildFront(context)
+                : Transform(
+                    transform: Matrix4.identity()..rotateY(3.1415926535897932),
+                    alignment: Alignment.center,
+                    child: _buildBack(context),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCardBase(BuildContext context, Widget child) {
+    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+    final hasCvs = cvs != null;
+    final risk = cvs.riskLevel ?? RiskLevel.low;
+    final riskColor = _riskColor(risk);
 
     return Container(
+      width: MediaQuery.of(context).size.width * 0.85,
+      height: 450,
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
@@ -365,241 +530,331 @@ class _PlantCardState extends State<_PlantCard> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            riskColor.withValues(alpha: hasCvs ? 0.15 : 0.05),
+            riskColor.withValues(alpha: hasCvs ? 0.25 : 0.08),
             AppTheme.surface,
             const Color(0xFF0F172A),
           ],
-          stops: const [0.0, 0.35, 1.0],
+          stops: const [0.0, 0.6, 1.0],
         ),
         border: Border.all(
-          color: riskColor.withValues(alpha: hasCvs ? 0.45 : 0.2),
+          color: riskColor.withValues(alpha: 0.25),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: riskColor.withValues(alpha: 0.2),
-            blurRadius: 28,
-            spreadRadius: -4,
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 20,
             offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: riskColor.withValues(alpha: 0.25),
+            blurRadius: 32,
+            spreadRadius: -2,
+            offset: const Offset(0, 12),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Plant name ────────────────────────────────────────────
-              Text(
-                widget.plant.name,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  height: 1.15,
-                  letterSpacing: -0.5,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(28), child: child),
+    );
+  }
 
-              const SizedBox(height: 16),
+  Widget _buildFront(BuildContext context) {
+    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+    final hasCvs = cvs != null;
+    final risk = cvs.riskLevel ?? RiskLevel.low;
+    final riskColor = _riskColor(risk);
+    final score = cvs.score ?? 0;
+    final riskLabel = risk.label.toUpperCase();
 
-              // ── Top Section: 2 Columns ───────────────────────────────
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left Column: CVS Score
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (!hasCvs)
-                          _PendingScoreBanner()
-                        else ...[
-                          Text(
-                            score.toStringAsFixed(0),
+    return _buildCardBase(
+      context,
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Top Section: 2 Columns ───────────────────────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left Column: CVS Score
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.plant.name.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.15,
+                          letterSpacing: 0.5,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      if (!hasCvs)
+                        _PendingScoreBanner()
+                      else ...[
+                        Text(
+                          score.toStringAsFixed(0),
+                          style: TextStyle(
+                            fontSize: 76,
+                            fontWeight: FontWeight.w900,
+                            color: riskColor,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: riskColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: riskColor.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Text(
+                            riskLabel,
                             style: TextStyle(
-                              fontSize: 64,
-                              fontWeight: FontWeight.w900,
                               color: riskColor,
-                              height: 1.0,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: riskColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: riskColor.withValues(alpha: 0.4)),
-                            ),
-                            child: Text(
-                              riskLabel,
-                              style: TextStyle(
-                                color: riskColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                        ]
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  // Right Column: 2x2 Metadata Grid
-                  Expanded(
-                    flex: 6,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: _MetaItem(icon: Icons.location_on_rounded, label: 'Location', value: widget.plant.countryLong ?? widget.plant.country)),
-                            Expanded(child: _MetaItem(icon: Icons.bolt_rounded, label: 'Capacity', value: widget.plant.capacityMw != null ? '${widget.plant.capacityMw!.toStringAsFixed(0)} MW' : 'Unknown')),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(child: _MetaItem(icon: Icons.factory_rounded, label: 'Fuel', value: widget.plant.primaryFuel.displayName)),
-                            const Expanded(child: SizedBox()),
-                          ],
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(width: 12),
+                // Right Column: 2x2 Metadata Grid
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 28),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetaItem(
+                              icon: Icons.location_on_rounded,
+                              label: 'Location',
+                              value:
+                                  widget.plant.countryLong ??
+                                  widget.plant.country,
+                            ),
+                          ),
+                          Expanded(
+                            child: _MetaItem(
+                              icon: Icons.bolt_rounded,
+                              label: 'Capacity',
+                              value: widget.plant.capacityMw != null
+                                  ? '${widget.plant.capacityMw!.toStringAsFixed(0)} MW'
+                                  : 'Unknown',
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetaItem(
+                              icon: Icons.factory_rounded,
+                              label: 'Fuel',
+                              value: widget.plant.primaryFuel.displayName,
+                            ),
+                          ),
+                          const Expanded(child: SizedBox()),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+            _CardDivider(),
+            const SizedBox(height: 12),
+
+            // ── Stress breakdown ───────────────────────────────────────
+            _SectionHeader(
+              icon: Icons.thermostat_auto_rounded,
+              label: 'CLIMATE STRESS',
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              ),
+              child: Column(
+                children: [
+                  _StressRow(
+                    icon: '🌡',
+                    label: 'TEMP',
+                    value: cvs.temperatureStress ?? 0,
+                    color: const Color(0xFFEF4444),
+                    hasCvs: hasCvs,
+                  ),
+                  const SizedBox(height: 12),
+                  _StressRow(
+                    icon: '💧',
+                    label: 'WATER',
+                    value: cvs.waterStress ?? 0,
+                    color: const Color(0xFF3B82F6),
+                    hasCvs: hasCvs,
+                  ),
+                  const SizedBox(height: 12),
+                  _StressRow(
+                    icon: '🌬',
+                    label: 'WIND',
+                    value: cvs.windStress ?? 0,
+                    color: const Color(0xFF10B981),
+                    hasCvs: hasCvs,
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 20),
-              _CardDivider(),
-              const SizedBox(height: 16),
+            const Spacer(),
+            _CardDivider(),
+            const SizedBox(height: 10),
 
-              // ── Stress breakdown ───────────────────────────────────────
-              _SectionHeader(
-                icon: Icons.thermostat_auto_rounded,
-                label: 'CLIMATE STRESS',
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06)),
-                ),
-                child: Column(
-                  children: [
-                    _StressRow(
-                      icon: '🌡',
-                      label: 'TEMP',
-                      value: cvs.temperatureStress ?? 0,
-                      color: const Color(0xFFEF4444),
-                      hasCvs: hasCvs,
-                    ),
-                    const SizedBox(height: 12),
-                    _StressRow(
-                      icon: '💧',
-                      label: 'WATER',
-                      value: cvs.waterStress ?? 0,
-                      color: const Color(0xFF3B82F6),
-                      hasCvs: hasCvs,
-                    ),
-                    const SizedBox(height: 12),
-                    _StressRow(
-                      icon: '🌬',
-                      label: 'WIND',
-                      value: cvs.windStress ?? 0,
-                      color: const Color(0xFF10B981),
-                      hasCvs: hasCvs,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-              _CardDivider(),
-              const SizedBox(height: 16),
-
-              // ── Coordinates ───────────────────────────────────────────
-              _SectionHeader(
-                icon: Icons.my_location_rounded,
-                label: 'LOCATION',
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${widget.plant.latitude.toStringAsFixed(4)}° N, '
-                '${widget.plant.longitude.toStringAsFixed(4)}° E',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  fontFeatures: [FontFeature.tabularFigures()],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-              _CardDivider(),
-              const SizedBox(height: 16),
-
-              // ── AI Insight ────────────────────────────────────────────
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.secondary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.auto_awesome_rounded,
-                        color: AppTheme.secondary, size: 13),
+            // ── Coordinates ───────────────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionHeader(
+                        icon: Icons.my_location_rounded,
+                        label: 'LOCATION',
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${widget.plant.latitude.toStringAsFixed(4)}° N, '
+                        '${widget.plant.longitude.toStringAsFixed(4)}° E',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
+                ),
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 24,
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.75),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBack(BuildContext context) {
+    final CVSResult cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+    final hasCvs = cvs != null;
+
+    return _buildCardBase(
+      context,
+      SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: AppTheme.secondary,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
                     'AI INSIGHT',
                     style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
                     ),
                   ),
-                  const Spacer(),
-                  if (_insightError)
-                    GestureDetector(
-                      onTap: _loadInsight,
+                ),
+                if (_insightError)
+                  GestureDetector(
+                    onTap: _loadInsight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.refresh_rounded,
-                              size: 13, color: AppTheme.secondary),
+                          Icon(
+                            Icons.refresh_rounded,
+                            size: 14,
+                            color: AppTheme.secondary,
+                          ),
                           const SizedBox(width: 4),
-                          Text('Retry',
-                              style: TextStyle(
-                                  color: AppTheme.secondary,
-                                  fontSize: 11)),
+                          Text(
+                            'Retry',
+                            style: TextStyle(
+                              color: AppTheme.secondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _AiInsightBody(
-                isLoading: _isLoadingInsight,
-                hasError: _insightError,
-                insight: _aiInsight,
-                hasCvs: hasCvs,
-                onGenerate: _loadInsight,
-              ),
-            ],
-          ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _AiInsightBody(
+              isLoading: _isLoadingInsight,
+              hasError: _insightError,
+              insight: _aiInsight,
+              hasCvs: hasCvs,
+              onGenerate: _loadInsight,
+            ),
+          ],
         ),
       ),
     );
@@ -634,10 +889,7 @@ class _PendingScoreBanner extends StatelessWidget {
           Flexible(
             child: Text(
               'CVS score computing…',
-              style: TextStyle(
-                color: AppTheme.textMuted,
-                fontSize: 13,
-              ),
+              style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
             ),
           ),
         ],
@@ -694,45 +946,35 @@ class _AiInsightBody extends StatelessWidget {
         child: TextButton.icon(
           onPressed: onGenerate,
           icon: Icon(Icons.auto_awesome, size: 14, color: AppTheme.secondary),
-          label: Text('Generate Insight', style: TextStyle(color: AppTheme.secondary, fontSize: 12)),
+          label: Text(
+            'Generate Insight',
+            style: TextStyle(color: AppTheme.secondary, fontSize: 12),
+          ),
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             backgroundColor: AppTheme.secondary.withValues(alpha: 0.1),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
       );
     }
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.secondary.withValues(alpha: 0.08),
-            AppTheme.secondary.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: AppTheme.secondary.withValues(alpha: 0.2)),
-      ),
-      child: Text(
-        insight!,
-        style: const TextStyle(
-          color: Color(0xFFCBD5E1),
-          fontSize: 12,
-          height: 1.6,
-        ),
+    return Text(
+      insight!,
+      style: const TextStyle(
+        color: Color(0xFFCBD5E1),
+        fontSize: 13,
+        height: 1.6,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
 
   Widget _muted(String text) => Text(
-        text,
-        style: const TextStyle(color: Color(0xFF475569), fontSize: 12),
-      );
+    text,
+    style: const TextStyle(color: Color(0xFF475569), fontSize: 12),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -756,7 +998,7 @@ class _ComparisonGridView extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: 0.7,
+        childAspectRatio: 0.55,
         children: plants.map((plant) {
           final cvs = cvsRepository.getUnifiedScore(plant);
           final risk = cvs.riskLevel ?? RiskLevel.low;
@@ -768,109 +1010,129 @@ class _ComparisonGridView extends StatelessWidget {
               color: AppTheme.surface,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                  color: riskColor.withValues(alpha: 0.35), width: 1.5),
+                color: riskColor.withValues(alpha: 0.35),
+                width: 1.5,
+              ),
             ),
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: riskColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        plant.primaryFuel.displayName,
-                        style: TextStyle(
+            padding: const EdgeInsets.all(12),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: riskColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          plant.primaryFuel.displayName,
+                          style: TextStyle(
                             color: riskColor,
                             fontSize: 9,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      plant.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      plant.countryLong ?? plant.country,
-                      style: TextStyle(
-                          color: AppTheme.textMuted, fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-                Center(
-                  child: Text(
-                          score.toStringAsFixed(0),
-                          style: TextStyle(
-                            fontSize: 44,
-                            fontWeight: FontWeight.w900,
-                            color: riskColor,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _StressRow(
-                      icon: '🌡',
-                      label: 'TEMP',
-                      value: cvs.temperatureStress ?? 0,
-                      color: const Color(0xFFEF4444),
-                      hasCvs: cvs != null,
-                    ),
-                    const SizedBox(height: 4),
-                    _StressRow(
-                      icon: '💧',
-                      label: 'WATER',
-                      value: cvs.waterStress ?? 0,
-                      color: const Color(0xFF3B82F6),
-                      hasCvs: cvs != null,
-                    ),
-                    const SizedBox(height: 4),
-                    _StressRow(
-                      icon: '🌬',
-                      label: 'WIND',
-                      value: cvs.windStress ?? 0,
-                      color: const Color(0xFF10B981),
-                      hasCvs: cvs != null,
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: riskColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 34,
+                        child: Text(
+                          plant.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        height: 16,
+                        child: Text(
+                          plant.countryLong ?? plant.country,
+                          style: TextStyle(
+                            color: AppTheme.textMuted,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    risk.label.toUpperCase(),
-                    style: TextStyle(
-                      color: riskColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      score.toStringAsFixed(0),
+                      style: TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w900,
+                        color: riskColor,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StressRow(
+                        icon: '🌡',
+                        label: 'TEMP',
+                        value: cvs.temperatureStress ?? 0,
+                        color: const Color(0xFFEF4444),
+                        hasCvs: cvs != null,
+                      ),
+                      const SizedBox(height: 4),
+                      _StressRow(
+                        icon: '💧',
+                        label: 'WATER',
+                        value: cvs.waterStress ?? 0,
+                        color: const Color(0xFF3B82F6),
+                        hasCvs: cvs != null,
+                      ),
+                      const SizedBox(height: 4),
+                      _StressRow(
+                        icon: '🌬',
+                        label: 'WIND',
+                        value: cvs.windStress ?? 0,
+                        color: const Color(0xFF10B981),
+                        hasCvs: cvs != null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: riskColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      risk.label.toUpperCase(),
+                      style: TextStyle(
+                        color: riskColor,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }).toList(),
@@ -911,10 +1173,10 @@ class _SectionHeader extends StatelessWidget {
 class _CardDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Divider(
-        height: 1,
-        thickness: 0.5,
-        color: Colors.white.withValues(alpha: 0.08),
-      );
+    height: 1,
+    thickness: 0.5,
+    color: Colors.white.withValues(alpha: 0.08),
+  );
 }
 
 class _StressRow extends StatelessWidget {
@@ -939,7 +1201,7 @@ class _StressRow extends StatelessWidget {
         Text(icon, style: const TextStyle(fontSize: 14)),
         const SizedBox(width: 8),
         SizedBox(
-          width: 50,
+          width: 40,
           child: Text(
             label,
             style: const TextStyle(
@@ -956,38 +1218,68 @@ class _StressRow extends StatelessWidget {
             child: hasCvs
                 ? LinearProgressIndicator(
                     value: (value / 100).clamp(0.0, 1.0),
-                    minHeight: 12,
+                    minHeight: 14,
                     backgroundColor: Colors.white.withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(color),
                   )
                 : LinearProgressIndicator(
                     value: null,
-                    minHeight: 12,
+                    minHeight: 14,
                     backgroundColor: Colors.white.withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(
-                        color.withValues(alpha: 0.3)),
+                      color.withValues(alpha: 0.3),
+                    ),
                   ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 6),
         SizedBox(
-          width: 50,
+          width: 48,
           child: hasCvs
-              ? Text(
-                  '${value.toStringAsFixed(0)}/100',
+              ? RichText(
                   textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: value.toStringAsFixed(0),
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '/100',
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.7),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 )
-              : Text(
-                  '—/100',
+              : RichText(
                   textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: color.withValues(alpha: 0.4),
-                    fontSize: 12,
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '—',
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.4),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      TextSpan(
+                        text: '/100',
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.4),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
         ),
@@ -1020,9 +1312,10 @@ class _ShimmerLineState extends State<_ShimmerLine>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.1, end: 0.35).animate(
-      CurvedAnimation(parent: _ctrl!, curve: Curves.easeInOut),
-    );
+    _anim = Tween<double>(
+      begin: 0.1,
+      end: 0.35,
+    ).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeInOut));
   }
 
   @override
@@ -1059,33 +1352,60 @@ class _ShimmerLineState extends State<_ShimmerLine>
 // ─────────────────────────────────────────────────────────────────────────────
 
 Color _riskColor(RiskLevel risk) => switch (risk) {
-      RiskLevel.high => const Color(0xFFEF4444),
-      RiskLevel.medium => const Color(0xFFF97316),
-      RiskLevel.low => const Color(0xFF22C55E),
-    };
+  RiskLevel.high => const Color(0xFFEF4444),
+  RiskLevel.medium => const Color(0xFFF97316),
+  RiskLevel.low => const Color(0xFF22C55E),
+};
 
 class _MetaItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _MetaItem({required this.icon, required this.label, required this.value});
+  const _MetaItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 12, color: Colors.white70),
-            const SizedBox(width: 4),
-            Text(label.toUpperCase(), style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-          ],
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: Colors.white70),
+              const SizedBox(width: 2),
+              Text(
+                label.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+          ),
+        ),
       ],
     );
   }
 }
-

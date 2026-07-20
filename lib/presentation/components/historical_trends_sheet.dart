@@ -268,10 +268,10 @@ class HistoricalTrendsSheet extends StatelessWidget {
                       return Container(
                         padding: const EdgeInsets.all(AppTheme.spacingMD),
                         decoration: BoxDecoration(
-                          color: AppTheme.secondary.withValues(alpha: 0.05),
+                          color: Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: AppTheme.secondary.withValues(alpha: 0.2),
+                            color: Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
                         child: Column(

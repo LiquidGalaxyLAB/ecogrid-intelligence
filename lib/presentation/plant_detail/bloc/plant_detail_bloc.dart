@@ -57,6 +57,7 @@ class PlantDetailBloc
     on<PlantDetailTrendInsightRequested>(_onTrendInsightRequested);
     on<PlantDetailChatStarted>(_onChatStarted);
     on<PlantDetailChatMessageSent>(_onChatMessageSent);
+    on<PlantDetailDismissInsight>(_onDismissInsight);
     on<PlantDetailClearLGError>((event, emit) {
       if (state is AppSuccess<PlantDetailData>) {
         final data = (state as AppSuccess<PlantDetailData>).data!;
@@ -153,22 +154,22 @@ class PlantDetailBloc
     Emitter<AppState<PlantDetailData>> emit,
   ) async {
     if (lgService.connectionStatus != ConnectionStatus.connected) {
-      debugPrint('[LG] Skipping plant sequence — not connected');
+      debugPrint('[LG] Skipping plant sequence - not connected');
       return;
     }
+    // Invalidate any pending region KML injections from ExploreBloc
+    lgService.setKmlContext(DateTime.now().toString());
     try {
       debugPrint('[LG] Starting plant sequence for ${plant.name}');
 
-      // 1. Clear screen + fly to plant in parallel (independent operations).
-      await Future.wait([
-        lgService.clearKml(),
-        lgService.flyTo(
-          plant.latitude,
-          plant.longitude,
-          0, 0, 0,
-          _calculateOptimalRange(plant),
-        ),
-      ]);
+      // 1. Clear screen THEN fly to plant sequentially (to avoid query.txt race condition).
+      await lgService.clearKml();
+      await lgService.flyTo(
+        plant.latitude,
+        plant.longitude,
+        0, 0, 60,
+        _calculateOptimalRange(plant),
+      );
       debugPrint('[LG] clearKml + flyTo done');
 
       // 2. Send concentric ring KML.
@@ -253,6 +254,27 @@ class PlantDetailBloc
             d.copyWith(aiInsight: insightResult.data!, isLoadingInsight: false),
           ),
         );
+        if (d.cvsResult != null) {
+          final settingsResult = await lgService.loadSettings();
+          int rightmostScreen = LGSettings.empty.rightmostScreen;
+          int screenCount = LGSettings.empty.screenCount;
+          if (settingsResult is DataSuccess<LGSettings>) {
+            rightmostScreen = settingsResult.data!.rightmostScreen;
+            screenCount = settingsResult.data!.screenCount;
+          }
+          final offsetPerSideScreen = 10.0;
+          final sideScreens = (screenCount - 1) / 2;
+          final rawLon = d.plant.longitude + (offsetPerSideScreen * sideScreens);
+          final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+          
+          final balloonKml = KmlUtils.plantAiInsightBalloon(
+            plant: d.plant,
+            aiInsight: insightResult.data!,
+            lat: d.plant.latitude,
+            lon: adjustedLon,
+          );
+          await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+        }
       }
     } else {
       if (state is AppSuccess<PlantDetailData>) {
@@ -283,9 +305,33 @@ class PlantDetailBloc
         currentData.copyWith(
           projectedCvs: event.projectedCvs,
           isLoadingInsight: true,
+          clearScenarioInsight: true,
         ),
       ),
     );
+    final settingsResult = await lgService.loadSettings();
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    int screenCount = LGSettings.empty.screenCount;
+    if (settingsResult is DataSuccess<LGSettings>) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+      screenCount = settingsResult.data!.screenCount;
+    }
+    final offsetPerSideScreen = 10.0;
+    final sideScreens = (screenCount - 1) / 2;
+    final rawLon = currentData.plant.longitude + (offsetPerSideScreen * sideScreens);
+    final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+    final loadingBalloonKml = KmlUtils.plantScenarioBalloon(
+      plant: currentData.plant,
+      cvs: currentData.cvsResult!,
+      projectedCvs: event.projectedCvs,
+      scenarioInsight: "Generating Scenario Simulation Analysis... Please wait.",
+      scenarioType: event.scenarioType,
+      lat: currentData.plant.latitude,
+      lon: adjustedLon,
+    );
+    await lgService.showBalloonOnSlave(rightmostScreen, loadingBalloonKml);
+
     final insightResult = await generateScenarioAnalysisUsecase(
       params: {
         'context': context,
@@ -304,6 +350,30 @@ class PlantDetailBloc
             ),
           ),
         );
+        if (d.cvsResult != null && event.projectedCvs != null) {
+          final settingsResult = await lgService.loadSettings();
+          int rightmostScreen = LGSettings.empty.rightmostScreen;
+          int screenCount = LGSettings.empty.screenCount;
+          if (settingsResult is DataSuccess<LGSettings>) {
+            rightmostScreen = settingsResult.data!.rightmostScreen;
+            screenCount = settingsResult.data!.screenCount;
+          }
+          final offsetPerSideScreen = 10.0;
+          final sideScreens = (screenCount - 1) / 2;
+          final rawLon = d.plant.longitude + (offsetPerSideScreen * sideScreens);
+          final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+          final balloonKml = KmlUtils.plantScenarioBalloon(
+            plant: d.plant,
+            cvs: d.cvsResult!,
+            projectedCvs: event.projectedCvs,
+            scenarioInsight: insightResult.data!,
+            scenarioType: event.scenarioType,
+            lat: d.plant.latitude,
+            lon: adjustedLon,
+          );
+          await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+        }
       }
     } else {
       if (state is AppSuccess<PlantDetailData>) {
@@ -365,7 +435,29 @@ class PlantDetailBloc
   ) async {
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
-    if (currentData.trendData.isNotEmpty || currentData.isLoadingTrend) {
+    if (currentData.trendData.isNotEmpty) {
+      final settingsResult = await lgService.loadSettings();
+      int rightmostScreen = LGSettings.empty.rightmostScreen;
+      int screenCount = LGSettings.empty.screenCount;
+      if (settingsResult is DataSuccess<LGSettings>) {
+        rightmostScreen = settingsResult.data!.rightmostScreen;
+        screenCount = settingsResult.data!.screenCount;
+      }
+      final offsetPerSideScreen = 10.0;
+      final sideScreens = (screenCount - 1) / 2;
+      final rawLon = currentData.plant.longitude + (offsetPerSideScreen * sideScreens);
+      final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+      final balloonKml = KmlUtils.plantTrendBalloon(
+        plant: currentData.plant,
+        trendData: currentData.trendData,
+        lat: currentData.plant.latitude,
+        lon: adjustedLon,
+      );
+      await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+      return;
+    }
+    if (currentData.isLoadingTrend) {
       return;
     }
     emit(AppSuccess(currentData.copyWith(isLoadingTrend: true)));
@@ -392,6 +484,26 @@ class PlantDetailBloc
               d.copyWith(trendData: aggregatedData, isLoadingTrend: false),
             ),
           );
+          
+          final settingsResult = await lgService.loadSettings();
+          int rightmostScreen = LGSettings.empty.rightmostScreen;
+          int screenCount = LGSettings.empty.screenCount;
+          if (settingsResult is DataSuccess<LGSettings>) {
+            rightmostScreen = settingsResult.data!.rightmostScreen;
+            screenCount = settingsResult.data!.screenCount;
+          }
+          final offsetPerSideScreen = 10.0;
+          final sideScreens = (screenCount - 1) / 2;
+          final rawLon = d.plant.longitude + (offsetPerSideScreen * sideScreens);
+          final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+          final balloonKml = KmlUtils.plantTrendBalloon(
+            plant: d.plant,
+            trendData: aggregatedData,
+            lat: d.plant.latitude,
+            lon: adjustedLon,
+          );
+          await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
         }
       } else {
         debugPrint('[Trend] Failed: ${trendResult.exception}');
@@ -441,6 +553,41 @@ class PlantDetailBloc
         emit(AppSuccess(d.copyWith(isLoadingTrendInsight: false)));
       }
     }
+  }
+
+  
+  Future<void> _onDismissInsight(
+    PlantDetailDismissInsight event,
+    Emitter<AppState<PlantDetailData>> emit,
+  ) async {
+    if (state is! AppSuccess<PlantDetailData>) return;
+    final currentData = (state as AppSuccess<PlantDetailData>).data!;
+    
+    emit(AppSuccess(currentData.copyWith(
+      clearAiInsight: true,
+      isLoadingInsight: false,
+      clearInsightError: true,
+    )));
+
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    int screenCount = LGSettings.empty.screenCount;
+    final settingsResult = await lgService.loadSettings();
+    if (settingsResult is DataSuccess<LGSettings>) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+      screenCount = settingsResult.data!.screenCount;
+    }
+    final offsetPerSideScreen = 10.0;
+    final sideScreens = (screenCount - 1) / 2;
+    final rawLon = currentData.plant.longitude + (offsetPerSideScreen * sideScreens);
+    final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+    
+    final balloonKml = KmlUtils.plantDetailBalloon(
+      plant: currentData.plant,
+      cvs: currentData.cvsResult!,
+      lat: currentData.plant.latitude,
+      lon: adjustedLon,
+    );
+    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
   }
 
   Future<void> _onChatStarted(

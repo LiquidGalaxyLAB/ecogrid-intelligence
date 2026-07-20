@@ -74,3 +74,7 @@ class PlantDetailStartOrbitRequested extends PlantDetailEvent {
 class PlantDetailStopOrbitRequested extends PlantDetailEvent {
   const PlantDetailStopOrbitRequested();
 }
+
+class PlantDetailDismissInsight extends PlantDetailEvent {
+  const PlantDetailDismissInsight();
+}

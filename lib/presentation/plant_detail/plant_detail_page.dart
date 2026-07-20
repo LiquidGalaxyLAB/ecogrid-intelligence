@@ -167,6 +167,7 @@ class _PlantDetailBody extends StatelessWidget {
   Widget _buildLoaded(BuildContext context, PlantDetailData state) {
     final plant = state.plant;
     final cvs = state.cvsResult;
+    final isNarrow = MediaQuery.of(context).size.width < 360;
     return Column(
       children: [
         _buildTopHeader(),
@@ -178,31 +179,53 @@ class _PlantDetailBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildOverviewCard(plant)),
-                    SizedBox(width: AppTheme.spacingMD),
-                    Expanded(
-                      child: state.isLoadingCvs
+                if (isNarrow)
+                  Column(
+                    children: [
+                      _buildOverviewCard(plant),
+                      SizedBox(height: AppTheme.spacingMD),
+                      state.isLoadingCvs
                           ? _buildCvsLoadingCard()
                           : (cvs != null
                                 ? _buildCVSCard(context, cvs)
                                 : _buildCvsUnavailableCard()),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildOverviewCard(plant)),
+                      SizedBox(width: AppTheme.spacingMD),
+                      Expanded(
+                        child: state.isLoadingCvs
+                            ? _buildCvsLoadingCard()
+                            : (cvs != null
+                                  ? _buildCVSCard(context, cvs)
+                                  : _buildCvsUnavailableCard()),
+                      ),
+                    ],
+                  ),
                 SizedBox(height: AppTheme.spacingMD),
                 _AIInsightPanel(state: state),
                 SizedBox(height: AppTheme.spacingMD),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildHistoricalCard(context, state)),
-                    SizedBox(width: AppTheme.spacingMD),
-                    Expanded(child: _buildScenarioCard(context, state)),
-                  ],
-                ),
+                if (isNarrow)
+                  Column(
+                    children: [
+                      _buildHistoricalCard(context, state),
+                      SizedBox(height: AppTheme.spacingMD),
+                      _buildScenarioCard(context, state),
+                    ],
+                  )
+                else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildHistoricalCard(context, state)),
+                      SizedBox(width: AppTheme.spacingMD),
+                      Expanded(child: _buildScenarioCard(context, state)),
+                    ],
+                  ),
                 SizedBox(height: AppTheme.spacingXL),
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -341,10 +364,11 @@ class _PlantDetailBody extends StatelessWidget {
   }
 
   Widget _buildOverviewCard(PowerPlant plant) {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 160),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -373,7 +397,7 @@ class _PlantDetailBody extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 16),
           Text(
             plant.name,
             style: AppTheme.headingSmall,
@@ -385,7 +409,7 @@ class _PlantDetailBody extends StatelessWidget {
             plant.primaryFuel.displayName,
             style: AppTheme.bodySmall.copyWith(color: AppTheme.primary),
           ),
-          const Spacer(),
+          const SizedBox(height: 16),
           Row(
             children: [
               Icon(Icons.location_on, size: 14, color: AppTheme.textMuted),
@@ -416,6 +440,7 @@ class _PlantDetailBody extends StatelessWidget {
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -514,10 +539,11 @@ class _PlantDetailBody extends StatelessWidget {
           ),
         );
       },
-      child: Container(
-        height: 200,
-        padding: const EdgeInsets.all(AppTheme.spacingMD),
-        decoration: AppTheme.cardDecoration,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 160),
+        child: Container(
+          padding: const EdgeInsets.all(AppTheme.spacingMD),
+          decoration: AppTheme.cardDecoration,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -546,7 +572,7 @@ class _PlantDetailBody extends StatelessWidget {
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Stack(
@@ -589,7 +615,7 @@ class _PlantDetailBody extends StatelessWidget {
                 ),
               ],
             ),
-            const Spacer(),
+            const SizedBox(height: 16),
             _buildMiniStressBar(
               'Temp',
               cvs.temperatureStress,
@@ -608,6 +634,7 @@ class _PlantDetailBody extends StatelessWidget {
               const Color(0xFF45B7D1),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -637,26 +664,30 @@ class _PlantDetailBody extends StatelessWidget {
   }
 
   Widget _buildCvsLoadingCard() {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
-      child: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 160),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
+        child: Center(child: CircularProgressIndicator(color: AppTheme.primary)),
+      ),
     );
   }
 
   Widget _buildCvsUnavailableCard() {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.cloud_off, color: AppTheme.textMuted, size: 24),
-          const SizedBox(height: 8),
-          Text('Data Unavailable', style: AppTheme.caption),
-        ],
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 160),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off, color: AppTheme.textMuted, size: 24),
+            const SizedBox(height: 8),
+            Text('Data Unavailable', style: AppTheme.caption),
+          ],
+        ),
       ),
     );
   }
@@ -699,8 +730,7 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingMD, horizontal: 4.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -714,22 +744,51 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
                 ),
               ),
               if (widget.state.aiInsight != null)
-                GestureDetector(
-                  onTap: _toggleSpeech,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.secondary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: _toggleSpeech,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.secondary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        ),
+                        child: Icon(
+                          _isSpeaking
+                              ? Icons.stop_circle_outlined
+                              : Icons.volume_up,
+                          color: AppTheme.secondary,
+                          size: 16,
+                        ),
+                      ),
                     ),
-                    child: Icon(
-                      _isSpeaking
-                          ? Icons.stop_circle_outlined
-                          : Icons.volume_up,
-                      color: AppTheme.secondary,
-                      size: 16,
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        if (_isSpeaking) {
+                          sl<TTSService>().stop();
+                          setState(() {
+                            _isSpeaking = false;
+                          });
+                        }
+                        context.read<PlantDetailBloc>().add(const PlantDetailDismissInsight());
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
             ],
           ),
@@ -756,9 +815,12 @@ class _AIInsightPanelState extends State<_AIInsightPanel> {
                 Expanded(
                   child: Text(
                     widget.state.aiInsight!,
-                    style: AppTheme.bodySmall.copyWith(
-                      color: AppTheme.textSecondary,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
                       height: 1.5,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
@@ -918,13 +980,18 @@ Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
             },
           ),
         ),
-      );
+      ).then((_) {
+        if (context.mounted) {
+          context.read<PlantDetailBloc>().add(const PlantDetailDismissInsight());
+        }
+      });
     },
-    child: Container(
-      height: 180,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 180),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -948,7 +1015,7 @@ Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 24),
           SizedBox(
             height: 40,
             width: double.infinity,
@@ -956,7 +1023,7 @@ Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
               painter: _MiniSparklinePainter(color: AppTheme.primary),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 24),
           Container(
             width: 60,
             height: 4,
@@ -985,6 +1052,7 @@ Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
           ),
         ],
       ),
+      ),
     ),
   );
 }
@@ -996,14 +1064,19 @@ Widget _buildScenarioCard(BuildContext context, PlantDetailData state) {
         context,
         AppRoutes.simulation,
         arguments: {'bloc': context.read<PlantDetailBloc>()},
-      );
+      ).then((_) {
+        if (context.mounted) {
+          context.read<PlantDetailBloc>().add(const PlantDetailDismissInsight());
+        }
+      });
     },
-    child: Container(
-      height: 180,
-      padding: const EdgeInsets.all(AppTheme.spacingMD),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 180),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        decoration: AppTheme.cardDecoration,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1030,7 +1103,7 @@ Widget _buildScenarioCard(BuildContext context, PlantDetailData state) {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 24),
           Row(
             children: [
               Container(
@@ -1087,7 +1160,7 @@ Widget _buildScenarioCard(BuildContext context, PlantDetailData state) {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 24),
           Container(
             width: double.infinity,
             height: 4,
@@ -1097,6 +1170,7 @@ Widget _buildScenarioCard(BuildContext context, PlantDetailData state) {
             ),
           ),
         ],
+      ),
       ),
     ),
   );

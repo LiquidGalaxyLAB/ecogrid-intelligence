@@ -177,7 +177,7 @@ ${context.toPromptContext()}
 **Scenario:** $scenarioType
 **Projected CVS:** ${projectedCvs.toStringAsFixed(1)}/100
 **Change:** ${(projectedCvs - context.cvsScore) >= 0 ? '+' : ''}${(projectedCvs - context.cvsScore).toStringAsFixed(1)} points
-In 2-3 sentences, explain the projected impact of this scenario on the plant's operations and what specific risks would increase.
+Focus ONLY on the impacts of the selected '$scenarioType' scenario. In 2-3 sentences, explain the projected impact of this specific scenario on the plant's operations and what specific risks would increase.
 ''';
     final stream = dataSource.generateInsight(
       prompt: prompt,

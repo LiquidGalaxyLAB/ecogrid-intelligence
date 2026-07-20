@@ -9,6 +9,8 @@ import '../components/app_search_bar.dart';
 import '../components/atmospheric_globe_painter.dart';
 import '../../di/dependency_injection.dart';
 import '../../service/speech_to_text_service.dart';
+import '../common/widgets/power_plant_list_tile.dart';
+import '../common/widgets/region_list_tile.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool autoStartVoice;
@@ -19,6 +21,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   List<String> _recentSearches = [];
   bool _isListening = false;
   SpeechToTextService get _stt => sl<SpeechToTextService>();
@@ -90,27 +93,9 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     if (_isListening) _stt.stopListening();
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
-  }
-
-  IconData _plantTypeIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'nuclear':
-        return Icons.science;
-      case 'hydroelectric':
-        return Icons.water;
-      case 'solar':
-        return Icons.wb_sunny;
-      case 'wind':
-        return Icons.air;
-      case 'coal/thermal':
-        return Icons.factory;
-      case 'natural gas':
-        return Icons.local_fire_department;
-      default:
-        return Icons.bolt;
-    }
   }
 
   @override
@@ -177,8 +162,12 @@ class _SearchScreenState extends State<SearchScreen> {
                         hintText: 'Search regions or power plants...',
                         readOnly: false,
                         controller: _controller,
+                        focusNode: _focusNode,
                         isListening: _isListening,
-                        onPrefixIconTap: () => Navigator.pop(context),
+                        onPrefixIconTap: () {
+                          _focusNode.unfocus();
+                          Navigator.pop(context);
+                        },
                         prefixIcon: Icons.arrow_back_ios_new,
                         onMicTap: () {
                           if (_isListening) {
@@ -467,30 +456,27 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResultsList(SearchState state) {
-    final totalItems = state.regionResults.length + state.results.length;
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: totalItems,
-      itemBuilder: (context, index) {
-        if (index < state.regionResults.length) {
-          final region = state.regionResults[index];
-          return ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: Icon(Icons.public, color: AppTheme.primary, size: 20),
+    final widgets = <Widget>[];
+
+    if (state.regionResults.isNotEmpty) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            'REGIONS',
+            style: AppTheme.labelSmall.copyWith(
+              color: AppTheme.textSecondary,
+              letterSpacing: 2.2,
             ),
-            title: Text(
-              region.displayName ?? region.name,
-              style: AppTheme.bodyMedium,
-            ),
-            subtitle: Text('Region', style: AppTheme.caption),
-            trailing: Icon(Icons.explore, color: AppTheme.primary, size: 20),
+          ),
+        ),
+      );
+      for (final region in state.regionResults) {
+        widgets.add(
+          RegionListTile(
+            region: region,
             onTap: () {
+              _focusNode.unfocus();
               _addRecentSearch(region.displayName ?? region.name);
               Navigator.pushReplacementNamed(
                 context,
@@ -498,31 +484,30 @@ class _SearchScreenState extends State<SearchScreen> {
                 arguments: {'region': region},
               );
             },
-          );
-        } else {
-          final plantIndex = index - state.regionResults.length;
-          final plant = state.results[plantIndex];
-          return ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: Icon(
-                _plantTypeIcon(plant.primaryFuel.displayName),
-                color: AppTheme.primary,
-                size: 20,
-              ),
+          ),
+        );
+      }
+    }
+
+    if (state.results.isNotEmpty) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            'POWER PLANTS',
+            style: AppTheme.labelSmall.copyWith(
+              color: AppTheme.textSecondary,
+              letterSpacing: 2.2,
             ),
-            title: Text(plant.name, style: AppTheme.bodyMedium),
-            subtitle: Text(
-              '${plant.primaryFuel.displayName} • ${plant.countryLong ?? plant.country}',
-              style: AppTheme.caption,
-            ),
-            trailing: Icon(Icons.chevron_right, color: AppTheme.textMuted),
+          ),
+        ),
+      );
+      for (final plant in state.results) {
+        widgets.add(
+          PowerPlantListTile(
+            plant: plant,
             onTap: () {
+              _focusNode.unfocus();
               _addRecentSearch(plant.name);
               Navigator.pushReplacementNamed(
                 context,
@@ -530,9 +515,14 @@ class _SearchScreenState extends State<SearchScreen> {
                 arguments: {'plant': plant},
               );
             },
-          );
-        }
-      },
+          ),
+        );
+      }
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: widgets,
     );
   }
 }
