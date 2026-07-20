@@ -387,7 +387,7 @@ class LGService {
     _screenCount = count < 1 ? 1 : count;
   }
 
-  String _escapeForEcho(String value) => value.replaceAll("'", "'\\\\''");
+  String _escapeForEcho(String value) => value.replaceAll("'", "'\\''");
 
   Future<void> _initialize() async {
     final password = _sshService.password;
