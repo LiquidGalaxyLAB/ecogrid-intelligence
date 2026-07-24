@@ -478,7 +478,7 @@ class _SearchScreenState extends State<SearchScreen> {
             onTap: () {
               _focusNode.unfocus();
               _addRecentSearch(region.displayName ?? region.name);
-              Navigator.pushReplacementNamed(
+              Navigator.pushNamed(
                 context,
                 AppRoutes.explore,
                 arguments: {'region': region},
@@ -509,7 +509,7 @@ class _SearchScreenState extends State<SearchScreen> {
             onTap: () {
               _focusNode.unfocus();
               _addRecentSearch(plant.name);
-              Navigator.pushReplacementNamed(
+              Navigator.pushNamed(
                 context,
                 AppRoutes.plantDetail,
                 arguments: {'plant': plant},

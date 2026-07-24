@@ -85,56 +85,76 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
     await lgService.startComparisonTour(ComparisonTourBuilder.tourName);
   }
 
+  bool _isCleanedUp = false;
+
   @override
   void dispose() {
-    final lgService = sl<LGService>();
-    lgService.stopOrbit();
-    lgService.clearKml();
-    lgService.loadSettings().then((result) {
-      int rightmostScreen = LGSettings.empty.rightmostScreen;
-      if (result is DataSuccess) {
-        rightmostScreen = result.data!.rightmostScreen;
-      }
-      lgService.clearBalloonOnSlave(rightmostScreen);
-    });
+    if (!_isCleanedUp) {
+      // Best-effort fallback, not the primary cleanup path — see PopScope above.
+      final lgService = sl<LGService>();
+      lgService.stopOrbit();
+      lgService.clearKml();
+      // Note: clearKml() already clears all slave screens (which includes rightmostScreen).
+      // This separate clearBalloonOnSlave call might be redundant, but is left as-is for safety.
+      lgService.loadSettings().then((result) {
+        if (result is DataSuccess<LGSettings>) {
+          lgService.clearBalloonOnSlave(result.data!.rightmostScreen);
+        }
+      });
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: Text('Plant Comparison'),
-        actions: [
-          IconButton(
-            onPressed: () => setState(() => _isCarouselMode = !_isCarouselMode),
-            icon: Icon(
-              _isCarouselMode
-                  ? Icons.grid_view_rounded
-                  : Icons.view_carousel_rounded,
-            ),
-            tooltip: _isCarouselMode ? 'Grid View' : 'Carousel View',
-          ),
-        ],
-      ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        transitionBuilder: (child, animation) =>
-            FadeTransition(opacity: animation, child: child),
-        child: _isCarouselMode
-            ? _CarouselView(
-                key: const ValueKey('carousel'),
-                plants: widget.plants,
-                cvsRepository: widget.cvsRepository,
-                isFront: _globalIsFront,
-                onFlip: _toggleGlobalFlip,
-              )
-            : _ComparisonGridView(
-                key: const ValueKey('grid'),
-                plants: widget.plants,
-                cvsRepository: widget.cvsRepository,
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop) return;
+        _isCleanedUp = true;
+        final lgService = sl<LGService>();
+        await lgService.stopOrbit();
+        await lgService.clearKml();
+        final settingsResult = await lgService.loadSettings();
+        if (settingsResult is DataSuccess<LGSettings>) {
+          final rightmostScreen = settingsResult.data!.rightmostScreen;
+          await lgService.clearBalloonOnSlave(rightmostScreen);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.background,
+        appBar: AppBar(
+          title: Text('Plant Comparison'),
+          actions: [
+            IconButton(
+              onPressed: () => setState(() => _isCarouselMode = !_isCarouselMode),
+              icon: Icon(
+                _isCarouselMode
+                    ? Icons.grid_view_rounded
+                    : Icons.view_carousel_rounded,
               ),
+              tooltip: _isCarouselMode ? 'Grid View' : 'Carousel View',
+            ),
+          ],
+        ),
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: (child, animation) =>
+              FadeTransition(opacity: animation, child: child),
+          child: _isCarouselMode
+              ? _CarouselView(
+                  key: const ValueKey('carousel'),
+                  plants: widget.plants,
+                  cvsRepository: widget.cvsRepository,
+                  isFront: _globalIsFront,
+                  onFlip: _toggleGlobalFlip,
+                )
+              : _ComparisonGridView(
+                  key: const ValueKey('grid'),
+                  plants: widget.plants,
+                  cvsRepository: widget.cvsRepository,
+                ),
+        ),
       ),
     );
   }

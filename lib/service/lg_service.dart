@@ -95,6 +95,12 @@ class LGService {
       } catch (e) {
         debugPrint('[EcoGrid] Failed to set refresh intervals: $e');
       }
+      try {
+        await clearKml();
+        await flyToDefault();
+      } catch (e) {
+        debugPrint('[EcoGrid] Failed to reset LG state on connect: $e');
+      }
       return const DataSuccess(true);
     } catch (e) {
       _status = ConnectionStatus.error;
@@ -132,6 +138,25 @@ class LGService {
     }
     try {
       await _flyTo(lat, lon, altitude, heading, tilt, range);
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> flyToDefault() async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _withRetry(() => _flyTo(
+        40.4636688,
+        -3.7492199,
+        0,
+        0,
+        60,
+        1500000,
+      ));
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -256,7 +281,6 @@ class LGService {
 
   Future<void> startComparisonTour(String tourName) async {
     try {
-      // Wait for LG to finish processing the KMLs before playing
       await Future.delayed(const Duration(milliseconds: 3000));
       await _playTour(tourName);
     } catch (e) {
@@ -387,9 +411,21 @@ class LGService {
     _screenCount = count < 1 ? 1 : count;
   }
 
-  String _escapeForEcho(String value) => value.replaceAll("'", "'\\''");
+
 
   Future<void> _initialize() async {
+    // NOTE: 'echo $password | sudo -S <cmd>' pipes the password to sudo via
+    // stdin, which is more secure than passing it as a CLI arg — sudo -S reads
+    // from stdin, so the password never appears in the command string itself
+    // (the shell expands $password before exec, but it stays in this process's
+    // memory, not in a child process's argv visible via 'ps aux').
+    // A cleaner alternative would be a dedicated executeWithStdin() method on
+    // SSHService using SSHSession.stdin (dartssh2 supports this via
+    // _client!.execute() rather than _client!.run()), but that requires a
+    // non-trivial change to ssh_service.dart. Leave as-is until the rig's
+    // sudo configuration is confirmed — if the LG account has NOPASSWD sudo
+    // (common on standard LG installs), the sudo -S piping can be removed
+    // entirely and replaced with plain 'sudo <cmd>'.
     final password = _sshService.password;
     await _sshService.execute(
       'echo $password | sudo -S mkdir -p ${LGConstants.kmlPath}',
@@ -424,27 +460,55 @@ class LGService {
     await _sshService.execute('echo "$query" > ${LGConstants.queryFile}');
   }
 
+  /// Retries [action] up to [maxAttempts] times with simple linear backoff.
+  /// Capped at a fixed number of attempts — never retries forever.
+  Future<T> _withRetry<T>(
+    Future<T> Function() action, {
+    int maxAttempts = 3,
+    Duration delay = const Duration(milliseconds: 400),
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (e) {
+        lastError = e;
+        debugPrint('[LG] Attempt $attempt/$maxAttempts failed: $e');
+        if (attempt < maxAttempts) {
+          await Future.delayed(delay * attempt); // linear backoff
+        }
+      }
+    }
+    throw lastError!;
+  }
+
   Future<void> _sendKmlToMaster(String kml) async {
-    final escaped = _escapeForEcho(kml);
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    await _sshService.execute(
-      "echo '$escaped' > ${LGConstants.masterKmlFile} ; "
-      "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
+    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await _withRetry(
+      () => _sshService.writeFileViaSftp(LGConstants.masterKmlFile, kml),
+    );
+    await _withRetry(
+      () => _sshService.execute(
+        "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
+      ),
     );
   }
 
   Future<void> _clearMaster() async {
-    await _sshService.execute(
-      "echo '${_escapeForEcho(KmlUtils.emptyKml())}' > ${LGConstants.masterKmlFile} ; "
+    await _withRetry(() => _sshService.writeFileViaSftp(
+      LGConstants.masterKmlFile,
+      KmlUtils.emptyKml(),
+    ));
+    await _withRetry(() => _sshService.execute(
       "echo '' > /var/www/html/kmls.txt",
-    );
+    ));
   }
 
-  Future<void> _sendKmlToSlave(
-    int slaveNumber,
-    String kml,
-  ) => _sshService.execute(
-    "echo '${_escapeForEcho(kml)}' > ${LGConstants.kmlPath}slave_$slaveNumber.kml",
+  Future<void> _sendKmlToSlave(int slaveNumber, String kml) => _withRetry(
+    () => _sshService.writeFileViaSftp(
+      '${LGConstants.kmlPath}slave_$slaveNumber.kml',
+      kml,
+    ),
   );
 
   Future<void> _playTour(String name) =>
@@ -453,10 +517,16 @@ class LGService {
   Future<void> _exitTour() =>
       _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
 
-  Future<void> _sendOrbitKml(String kml) => _sshService.execute(
-    "echo '${_escapeForEcho(kml)}' > /var/www/html/orbit.kml ; "
-    "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
-  );
+  Future<void> _sendOrbitKml(String kml) async {
+    await _withRetry(
+      () => _sshService.writeFileViaSftp('/var/www/html/orbit.kml', kml),
+    );
+    await _withRetry(
+      () => _sshService.execute(
+        "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
+      ),
+    );
+  }
 
   String _buildOrbitTour({
     required double lat,
@@ -492,23 +562,27 @@ ${buffer.toString()}    </gx:Playlist>
   }
 
   Future<void> _clearAllKml() async {
-    final commands = <String>[
-      'echo "exittour=true" > ${LGConstants.queryFile}',
-      "echo '' > /var/www/html/kmls.txt",
-      "echo '${_escapeForEcho(KmlUtils.emptyKml())}' > ${LGConstants.masterKmlFile}",
-    ];
-    final emptyBalloon = _escapeForEcho(KmlUtils.emptyBalloon());
+    // Short fixed strings — no user content, safe as echo commands.
+    await _withRetry(() => _sshService.execute(
+      'echo "exittour=true" > ${LGConstants.queryFile} ; echo \'\' > /var/www/html/kmls.txt',
+    ));
+    // KML payloads written via SFTP — no shell escaping, no command-length limits.
+    await _withRetry(() => _sshService.writeFileViaSftp(
+      LGConstants.masterKmlFile,
+      KmlUtils.emptyKml(),
+    ));
     for (var screen = 2; screen <= _screenCount; screen++) {
-      commands.add(
-        "echo '$emptyBalloon' > ${LGConstants.kmlPath}slave_$screen.kml",
-      );
+      await _withRetry(() => _sshService.writeFileViaSftp(
+        '${LGConstants.kmlPath}slave_$screen.kml',
+        KmlUtils.emptyBalloon(),
+      ));
     }
     if (_isLogoVisible) {
-      commands.add(
-        "echo '${_escapeForEcho(KmlUtils.screenOverlayKml())}' > ${LGConstants.kmlPath}slave_${_leftScreenIndex()}.kml",
-      );
+      await _withRetry(() => _sshService.writeFileViaSftp(
+        '${LGConstants.kmlPath}slave_${_leftScreenIndex()}.kml',
+        KmlUtils.screenOverlayKml(),
+      ));
     }
-    await _sshService.execute(commands.join(' ; '));
   }
 
   Future<void> _setRefreshIntervals() => _updateRefreshIntervals(add: true);
@@ -534,6 +608,14 @@ ${buffer.toString()}    </gx:Playlist>
   Future<void> _shutdown() => _runOnAllNodes('poweroff');
 
   Future<void> _runOnAllNodes(String command) async {
+    // NOTE: 'sshpass -p $password ssh -t lgN ...' is the standard pattern for
+    // hopping to slave nodes when the rig is configured with password-based
+    // inter-node SSH auth. sshpass fundamentally requires the password as a
+    // CLI argument, which means it is visible in 'ps aux' on lg1 while the
+    // command runs. The correct long-term fix is SSH key-based auth between
+    // rig nodes (add lg1's public key to authorized_keys on lg2..lgN), after
+    // which the sshpass wrapper and -p flag can be removed entirely. This is
+    // an infrastructure change on the Lleida rig, not a Flutter code change.
     final password = _sshService.password;
     for (var screen = _screenCount; screen >= 2; screen--) {
       try {

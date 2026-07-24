@@ -32,11 +32,13 @@ class PlantDetailScreen extends StatelessWidget {
     }
     return PopScope(
       canPop: true,
-      onPopInvokedWithResult: (didPop, _) {
+      onPopInvokedWithResult: (didPop, _) async {
         if (!didPop) return;
-        sl<LGService>().clearKml();
+        await sl<LGService>().clearKml();
         try {
-          context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+          if (context.mounted) {
+            context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+          }
         } catch (_) {}
       },
       child: BlocProvider(

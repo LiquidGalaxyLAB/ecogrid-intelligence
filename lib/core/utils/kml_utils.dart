@@ -78,7 +78,7 @@ class KmlUtils {
   // the terrain as a translucent glowing wall — impressive on Liquid Galaxy.
   // Includes a LookAt camera at tilt=55° for cinematic oblique view.
   static String regionPlacemark(Region region) {
-    final name = region.displayName ?? region.name;
+    final name = _escapeXml(region.displayName ?? region.name);
     final minLat = region.minLat;
     final minLon = region.minLon;
     final maxLat = region.maxLat;
@@ -399,8 +399,6 @@ class KmlUtils {
 
   /// Regional dashboard balloon — fluid sizing via calc(px + vw) on the
   /// outer font-size, everything else in em so it scales as one unit.
-  /// NOTE: this string uses normal '''...''' interpolation — do NOT wrap
-  /// it as a raw string (r'''...'''), and do NOT hand-retype the   /// expressions. Copy this method body exactly as-is.
   static String slaveScreenBalloon({
     required double lat,
     required double lon,
@@ -414,19 +412,18 @@ class KmlUtils {
     String? aiInsight,
   }) {
     final top3Html = top3Plants.isEmpty
-        ? '<span style="color:#94A3B8;font-size:36px;font-style:italic;">No critical plants identified.</span>'
+        ? '<p style="color:#94A3B8;margin:0;">No critical plants identified.</p>'
         : top3Plants
-              .map((p) => '<div style="color:#ef4444;margin-bottom:12px;font-size:40px;font-weight:bold;">&#9888; ${_escapeXml(p)}</div>')
+              .map((p) => '<p style="color:#F87171;margin:0.6em 0;font-weight:bold;">&#9888; ${_escapeXml(p)}</p>')
               .join('');
-              
+
     final formattedAiInsight = aiInsight?.replaceAll('\n', '<br/>') ?? '';
     final aiSection = aiInsight != null && aiInsight.isNotEmpty
         ? '''
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:40px;border-top:2px solid #334155;">
-            <tr><td style="padding-top:32px;">
-              <span style="color:#a855f7;font-size:48px;font-weight:bold;">&#10024; AI Risk Analysis</span>
-              <br><br>
-              <span style="color:#e2e8f0;font-size:36px;line-height:1.5;">$formattedAiInsight</span>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:1.4em;border-top:2px solid #334155;">
+            <tr><td style="padding-top:1.2em;">
+              <p style="color:#A855F7;font-size:1.5em;font-weight:bold;margin:0 0 0.6em;border-bottom:2px solid #A855F7;padding-bottom:0.3em;display:inline-block;">&#10024; AI Risk Analysis</p>
+              <p style="color:#E2E8F0;font-size:1.25em;line-height:1.6;margin:0.6em 0 0;">$formattedAiInsight</p>
             </td></tr>
           </table>'''
         : '';
@@ -440,21 +437,22 @@ class KmlUtils {
 
     String barRow(String label, String color, int pct, int remain) => '''
                 <tr>
-                  <td width="20%" style="font-size:40px;color:$color;font-weight:bold;padding-bottom:16px;">&#9679; $label</td>
-                  <td width="65%" style="padding-bottom:16px;">
+                  <td style="font-size:1.3em;color:$color;font-weight:bold;padding:0 0.7em 0.5em 0;white-space:nowrap;">&#9679; $label</td>
+                  <td width="100%">
                     <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                      <td width="$pct%" bgcolor="$color" height="32" style="border-radius:16px 0 0 16px;"></td>
-                      <td width="$remain%" bgcolor="#1e293b" height="32" style="border-radius:0 16px 16px 0;"></td>
+                      <td width="$pct%" bgcolor="$color" style="line-height:1.3em;font-size:0;">&nbsp;</td>
+                      <td width="$remain%" bgcolor="#1E293B" style="line-height:1.3em;font-size:0;">&nbsp;</td>
                     </tr></table>
                   </td>
-                  <td width="15%" align="right" style="font-size:40px;font-weight:bold;color:$color;padding-bottom:16px;">$pct%</td>
-                </tr>''';
+                  <td align="right" style="font-size:1.3em;font-weight:bold;color:$color;padding:0 0 0.5em 0.7em;white-space:nowrap;">$pct%</td>
+                </tr>
+                <tr><td colspan="3" style="line-height:0.6em;">&nbsp;</td></tr>''';
 
     final content = '''
     <Style id="dashboard_style">
       <IconStyle><scale>0</scale></IconStyle>
       <BalloonStyle>
-        <bgColor>ff17110d</bgColor> <!-- ABGR for #0d1117 -->
+        <bgColor>ff0d1117</bgColor>
         <textColor>ffffffff</textColor>
         <text><![CDATA[
           <script>
@@ -473,105 +471,79 @@ class KmlUtils {
               }, 100);
             };
           </script>
-          
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
-              
-              <!-- Header -->
-              <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#127757; Regional Dashboard</span>
-                  <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">Regional Climate Risk Dashboard</span>
-                </td>
-              </tr>
-              
-              <!-- Region Name -->
+
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:560px;background:#0d1117;color:#fff;font-size:calc(17px + 2vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0f2a3d" style="border-bottom:4px solid #38BDF8;">
+              <tr><td style="padding:1.6em 1.8em 1.3em;">
+                <p style="font-size:1em;color:#38BDF8;margin:0 0 0.5em;letter-spacing:0.2em;font-weight:bold;">ECOGRID INTELLIGENCE</p>
+                <p style="font-size:3.2em;font-weight:bold;color:#fff;margin:0;">&#127757; ${_escapeXml(regionName)}</p>
+                <p style="font-size:1.35em;color:#94A3B8;margin:0.5em 0 0;">Climate Risk Dashboard</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
               <tr>
-                <td style="padding:40px;">
-                  <span style="color:#ffffff;font-size:72px;font-weight:bold;">📍 ${_escapeXml(regionName)}</span>
-                  <br><br>
-                  <span style="color:#94a3b8;font-size:48px;">⚙ $totalPlants Plants Monitored in Region</span>
+                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #64748B;">
+                  <p style="font-size:3.8em;font-weight:bold;color:#fff;margin:0;line-height:1;">$totalPlants</p>
+                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Monitored Plants</p>
+                </td>
+                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #EF4444;">
+                  <p style="font-size:3.8em;font-weight:bold;color:#EF4444;margin:0;line-height:1;">$highRiskCount</p>
+                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">High Risk</p>
+                </td>
+                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #F59E0B;">
+                  <p style="font-size:3.8em;font-weight:bold;color:#F59E0B;margin:0;line-height:1;">$mediumRiskCount</p>
+                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Medium Risk</p>
+                </td>
+                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #10B981;">
+                  <p style="font-size:3.8em;font-weight:bold;color:#10B981;margin:0;line-height:1;">$lowRiskCount</p>
+                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Low Risk</p>
                 </td>
               </tr>
-              
-              <!-- Stats Row -->
-              <tr bgcolor="#111827">
-                <td style="padding:40px;border-top:2px solid #334155;border-bottom:2px solid #334155;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <!-- High Risk -->
-                      <td width="33%" align="center" style="border-right:2px solid #334155;">
-                        <span style="font-size:80px;font-weight:bold;color:#ef4444;">$highRiskCount</span>
-                        <br>
-                        <span style="font-size:36px;color:#94a3b8;">High Risk</span>
-                      </td>
-                      <!-- Medium Risk -->
-                      <td width="34%" align="center" style="border-right:2px solid #334155;">
-                        <span style="font-size:80px;font-weight:bold;color:#f59e0b;">$mediumRiskCount</span>
-                        <br>
-                        <span style="font-size:36px;color:#94a3b8;">Medium Risk</span>
-                      </td>
-                      <!-- Low Risk -->
-                      <td width="33%" align="center">
-                        <span style="font-size:80px;font-weight:bold;color:#10b981;">$lowRiskCount</span>
-                        <br>
-                        <span style="font-size:36px;color:#94a3b8;">Low Risk</span>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
-              <!-- Risk Distribution & Threats -->
-              <tr bgcolor="#1e293b">
-                <td style="padding:40px;border-bottom:2px solid #334155;">
-                  
-                  <!-- Distribution -->
-                  <span style="font-size:48px;color:#e2e8f0;font-weight:bold;">&#128202; Risk Distribution</span>
-                  <br><br>
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:40px;">
-                    ${barRow('High', '#ef4444', highPct, highRemain)}
-                    ${barRow('Med', '#f59e0b', medPct, medRemain)}
-                    ${barRow('Low', '#10b981', lowPct, lowRemain)}
-                  </table>
-                  
-                  <table width="100%" cellpadding="0" cellspacing="0" style="border-top:2px solid #334155;padding-top:40px;">
-                    <tr>
-                      <td width="50%" valign="top" style="padding-right:20px;border-right:2px solid #334155;">
-                        <span style="font-size:40px;color:#94a3b8;font-weight:bold;">&#9888; Primary Threat</span>
-                        <br><br>
-                        <span style="font-size:56px;color:#ef4444;font-weight:bold;">${_escapeXml(dominantRisk)}</span>
-                      </td>
-                      <td width="50%" valign="top" style="padding-left:40px;">
-                        <span style="font-size:40px;color:#94a3b8;font-weight:bold;">&#128205; Critical Infrastructure</span>
-                        <br><br>
-                        $top3Html
-                      </td>
-                    </tr>
-                  </table>
-                  
-                  $aiSection
-                  
-                </td>
-              </tr>
-              
-              <!-- Footer -->
-              
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.7em 1.8em 1em;">
+                <p style="font-size:1.5em;color:#94A3B8;font-weight:bold;margin:0 0 1em;border-bottom:2px solid #334155;padding-bottom:0.4em;display:inline-block;">&#128202; Risk Distribution</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:0.6em;">
+                  ${barRow('High', '#EF4444', highPct, highRemain)}
+                  ${barRow('Med', '#F59E0B', medPct, medRemain)}
+                  ${barRow('Low', '#10B981', lowPct, lowRemain)}
+                </table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.7em 1.8em;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td width="50%" valign="top">
+                      <p style="font-size:1.35em;color:#94A3B8;margin:0 0 0.6em;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4em;display:inline-block;">&#9888; Primary Threat</p>
+                      <p style="font-size:2.3em;color:#EF4444;font-weight:bold;margin:0.6em 0 0;">${_escapeXml(dominantRisk)}</p>
+                    </td>
+                    <td width="50%" valign="top" style="padding-left:1.4em;border-left:1px solid #334155;">
+                      <p style="font-size:1.35em;color:#94A3B8;margin:0 0 0.6em;font-weight:bold;border-bottom:2px solid #334155;padding-bottom:0.4em;display:inline-block;">&#128205; Critical Infrastructure</p>
+                      <div style="margin-top:0.6em;font-size:1.2em;">$top3Html</div>
+                    </td>
+                  </tr>
+                </table>
+                $aiSection
+              </td></tr>
             </table>
           </div>
         ]]></text>
       </BalloonStyle>
     </Style>
     <Placemark id="dashboard_placemark">
-      <name>EcoGrid Dashboard</name>
-      <description>Regional Dashboard</description>
+      <name>EcoGrid</name>
+      <description>Dashboard</description>
       <styleUrl>#dashboard_style</styleUrl>
       <gx:balloonVisibility>1</gx:balloonVisibility>
       <Point><coordinates>$lon,$lat,0</coordinates></Point>
     </Placemark>''';
-    
-    return wrapInKmlDocument(content, name: 'EcoGrid Dashboard - ${_escapeXml(regionName)}');
+
+    return wrapInKmlDocument(content, name: 'EcoGrid Dashboard');
   }
 
 
@@ -796,81 +768,55 @@ class KmlUtils {
           <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
         </IconStyle>
         <LabelStyle><scale>0</scale></LabelStyle>
-                <BalloonStyle>
-          <bgColor>ff17110d</bgColor>
+        <!-- TODO: duplicate of plantDetailBalloon() — consider consolidating -->
+        <BalloonStyle>
+          <bgColor>ff0d1117</bgColor>
           <textColor>ffffffff</textColor>
           <text><![CDATA[
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
-              <!-- Header -->
-              <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#127757; Regional Dashboard</span>
-                  <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">Comparison Network Data</span>
-                </td>
-              </tr>
-              
-              <!-- Plant Section -->
-              <tr>
-                <td style="padding:40px;">
-                  <span style="color:#ffffff;font-size:68px;font-weight:bold;">${_escapeXml(plant.name)}</span>
-                  <br><br>
-                  <span style="color:#94a3b8;font-size:48px;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; $typeIcon ${_escapeXml(plant.primaryFuel.displayName)} &nbsp; • &nbsp; ⚙ $capacityStr</span>
-                </td>
-              </tr>
-              
-              <!-- CVS Section -->
-              <tr bgcolor="#1e293b">
-                <td style="padding:40px;border-top:2px solid #334155;border-bottom:2px solid #334155;">
-                  <span style="color:#e2e8f0;font-size:48px;font-weight:bold;">Climate Vulnerability Score (CVS)</span>
-                  <br>
-                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;margin-bottom:24px;">
-                    <tr>
-                      <td width="${cvs.score.round()}%" bgcolor="$riskColor" height="32" style="border-radius:16px 0 0 16px;"></td>
-                      <td width="${100 - cvs.score.round()}%" bgcolor="#334155" height="32" style="border-radius:0 16px 16px 0;"></td>
-                    </tr>
-                  </table>
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td align="left">
-                        <span style="color:$riskColor;font-size:72px;font-weight:bold;">${cvs.score.toStringAsFixed(1)} / 100</span>
-                      </td>
-                      <td align="right">
-                        <span style="color:#f8fafc;font-size:48px;font-weight:bold;">${cvs.riskLevel.label} RISK</span>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
-              <!-- Plant Information -->
-              <tr>
-                <td style="padding:40px;">
-                  <span style="color:#e2e8f0;font-size:48px;font-weight:bold;display:block;margin-bottom:32px;">&#9888; Key Risk Drivers</span>
-                  <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;">
-                    <tr bgcolor="#111827">
-                      <td width="50%"><span style="color:#94a3b8;font-size:42px;">&#127777; Temp Stress</span></td>
-                      <td width="50%" align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.temperatureStress.toStringAsFixed(1)}</span></td>
-                    </tr>
-                    <tr>
-                      <td><span style="color:#94a3b8;font-size:42px;">&#128166; Water Stress</span></td>
-                      <td align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.waterStress.toStringAsFixed(1)}</span></td>
-                    </tr>
-                    <tr bgcolor="#111827">
-                      <td><span style="color:#94a3b8;font-size:42px;">&#127788; Wind Stress</span></td>
-                      <td align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.windStress.toStringAsFixed(1)}</span></td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Comparison Network Data</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; $typeIcon ${_escapeXml(plant.primaryFuel.displayName)} &nbsp; • &nbsp; ⚙ $capacityStr</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#1e293b" style="border-bottom:1px solid #0d1117;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">Climate Vulnerability Score (CVS)</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0.7em;"><tr>
+                  <td width="${cvs.score.round()}%" bgcolor="$riskColor" style="line-height:1.8em;font-size:0;border-radius:6px 0 0 6px;">&nbsp;</td>
+                  <td width="${100 - cvs.score.round()}%" bgcolor="#334155" style="line-height:1.8em;font-size:0;border-radius:0 6px 6px 0;">&nbsp;</td>
+                </tr></table>
+                <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                  <td><p style="color:$riskColor;font-size:2.5em;font-weight:bold;margin:0;">${cvs.score.toStringAsFixed(1)} / 100</p></td>
+                  <td align="right"><p style="color:#f8fafc;font-size:1.5em;font-weight:bold;margin:0;">${cvs.riskLevel.label} RISK</p></td>
+                </tr></table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">&#9888; Key Risk Drivers</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #334155;">
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127777; Temp Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.temperatureStress.toStringAsFixed(1)}</p></td></tr>
+                  <tr><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#128166; Water Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.waterStress.toStringAsFixed(1)}</p></td></tr>
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127788; Wind Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.windStress.toStringAsFixed(1)}</p></td></tr>
+                </table>
+              </td></tr>
             </table>
           </div>
           ]]></text>
         </BalloonStyle>
       </Style>''';
-      
       descriptionTag = '<description>Click for info</description>';
     } else {
       styleContent = '''
@@ -939,7 +885,6 @@ class KmlUtils {
     required double lat,
     required double lon,
     ClimateData? climateData,
-    int? screenWidth,
   }) {
     final score = cvs.score.round();
     
@@ -959,16 +904,6 @@ class KmlUtils {
     final fuelType = plant.primaryFuel.toString().split('.').last.toUpperCase();
     final capacity = plant.capacityMw != null ? '${plant.capacityMw!.toStringAsFixed(0)} MW' : 'N/A';
     
-    // Simple progress bar using an HTML table row with two cells
-    final progressBarHtml = '''
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;margin-bottom:24px;">
-      <tr>
-        <td width="$score%" bgcolor="$riskColor" height="32" style="border-radius:16px 0 0 16px;"></td>
-        <td width="${100 - score}%" bgcolor="#334155" height="32" style="border-radius:0 16px 16px 0;"></td>
-      </tr>
-    </table>
-    ''';
-
     final content = '''
     <Style id="plant_detail_style">
       <IconStyle><scale>0</scale></IconStyle>
@@ -994,77 +929,51 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
-              <!-- Header -->
-              <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#127981; Plant Analysis</span>
-                  <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">Power Plant Information</span>
-                </td>
-              </tr>
-              
-              <!-- Plant Section -->
-              <tr>
-                <td style="padding:40px;">
-                  <span style="color:#ffffff;font-size:68px;font-weight:bold;">${_escapeXml(plant.name)}</span>
-                  <br><br>
-                  <span style="color:#94a3b8;font-size:48px;">📍 ${_escapeXml(plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</span>
-                </td>
-              </tr>
-              
-              <!-- CVS Section -->
-              <tr bgcolor="#1e293b">
-                <td style="padding:40px;border-top:2px solid #334155;border-bottom:2px solid #334155;">
-                  <span style="color:#e2e8f0;font-size:48px;font-weight:bold;">Climate Vulnerability Score (CVS)</span>
-                  <br>
-                  $progressBarHtml
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td align="left">
-                        <span style="color:$riskColor;font-size:72px;font-weight:bold;">$score / 100</span>
-                      </td>
-                      <td align="right">
-                        <span style="color:#f8fafc;font-size:48px;font-weight:bold;">$riskBadge</span>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
-              <!-- Plant Information -->
-              <tr>
-                <td style="padding:40px;">
-                  <span style="color:#e2e8f0;font-size:48px;font-weight:bold;display:block;margin-bottom:32px;">Stress Analytics</span>
-                  <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;">
-                    <tr bgcolor="#111827">
-                      <td width="50%"><span style="color:#94a3b8;font-size:42px;">🌡 Temp Stress</span></td>
-                      <td width="50%" align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.temperatureStress.round()}%</span></td>
-                    </tr>
-                    <tr>
-                      <td><span style="color:#94a3b8;font-size:42px;">💧 Water Stress</span></td>
-                      <td align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.waterStress.round()}%</span></td>
-                    </tr>
-                    <tr bgcolor="#111827">
-                      <td><span style="color:#94a3b8;font-size:42px;">💨 Wind Stress</span></td>
-                      <td align="right"><span style="color:#ffffff;font-size:42px;font-weight:bold;">${cvs.windStress.round()}%</span></td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
-              <!-- Coordinates Section -->
-              <tr>
-                <td style="padding:32px 40px;border-top:2px solid #334155;text-align:center;">
-                  <span style="color:#94a3b8;font-size:40px;font-weight:bold;">
-                    📍 Lat: ${lat.toStringAsFixed(4)} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📍 Lon: ${lon.toStringAsFixed(4)}
-                  </span>
-                </td>
-              </tr>
-              
-              <!-- Footer -->
-              
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Power Plant Information</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#1e293b" style="border-bottom:1px solid #0d1117;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">Climate Vulnerability Score (CVS)</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0.7em;"><tr>
+                  <td width="$score%" bgcolor="$riskColor" style="line-height:1.8em;font-size:0;border-radius:6px 0 0 6px;">&nbsp;</td>
+                  <td width="${100 - score}%" bgcolor="#334155" style="line-height:1.8em;font-size:0;border-radius:0 6px 6px 0;">&nbsp;</td>
+                </tr></table>
+                <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                  <td><p style="color:$riskColor;font-size:2.5em;font-weight:bold;margin:0;">$score / 100</p></td>
+                  <td align="right"><p style="color:#f8fafc;font-size:1.5em;font-weight:bold;margin:0;">$riskBadge</p></td>
+                </tr></table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">Stress Analytics</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #334155;">
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">🌡 Temp Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.temperatureStress.round()}%</p></td></tr>
+                  <tr><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">💧 Water Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.waterStress.round()}%</p></td></tr>
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">💨 Wind Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.windStress.round()}%</p></td></tr>
+                </table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1em 1.6em;text-align:center;border-top:1px solid #334155;">
+                <p style="color:#94a3b8;font-size:1.1em;font-weight:bold;margin:0;">📍 Lat: ${lat.toStringAsFixed(4)} &nbsp;&nbsp;&nbsp; 📍 Lon: ${lon.toStringAsFixed(4)}</p>
+              </td></tr>
             </table>
           </div>
         ]]></text>
@@ -1174,36 +1083,27 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
-              
-              <!-- Header -->
-              <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#10024; AI Risk Analysis</span>
-                  <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">AI Risk Analysis</span>
-                </td>
-              </tr>
-              
-              <!-- Plant Info -->
-              <tr bgcolor="#111827">
-                <td style="padding:40px;border-bottom:2px solid #334155;">
-                  <span style="color:#ffffff;font-size:68px;font-weight:bold;">${_escapeXml(plant.name)}</span>
-                  <br><br>
-                  <span style="color:#94a3b8;font-size:48px;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</span>
-                </td>
-              </tr>
-              
-              <!-- AI Insight Text -->
-              <tr bgcolor="#0d1117">
-                <td style="padding:56px 40px;">
-                  <span style="color:#a855f7;font-size:56px;font-weight:bold;">&#10024; AI Expert Assessment</span>
-                  <br><br><br>
-                  <span style="color:#e2e8f0;font-size:48px;line-height:1.6;">$formattedAiInsight</span>
-                </td>
-              </tr>
-              
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#10024; AI Risk Analysis</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">AI Risk Analysis</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#111827" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.8em 1.6em;">
+                <p style="color:#a855f7;font-size:1.8em;font-weight:bold;margin:0 0 0.6em;">&#10024; AI Expert Assessment</p>
+                <p style="color:#e2e8f0;font-size:1.3em;line-height:1.7;margin:0;">$formattedAiInsight</p>
+              </td></tr>
             </table>
           </div>
         ]]></text>
@@ -1335,23 +1235,19 @@ class KmlUtils {
               }, 100);
             };
           </script>
-          <div style="font-family:Arial,sans-serif;width:1200px;background:#0d1117;color:#fff;border-radius:24px;overflow:hidden;padding:48px;box-shadow:0 10px 30px rgba(0,0,0,0.8);">
-            <div style="padding-bottom:24px;border-bottom:2px solid #1e293b;margin-bottom:32px;display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <p style="font-size:52px;font-weight:bold;color:#10B981;margin:0;">&#128200; Historical Trends</p>
-                <p style="font-size:36px;color:#94A3B8;margin:12px 0 0;">${_escapeXml(plant.name)}</p>
-              </div>
-              <div style="background:#1e293b;padding:16px 24px;border-radius:12px;display:flex;gap:24px;">
-                 <p style="margin:0;font-size:26px;color:#ffffff;font-weight:bold;"><font color="#FF5252">&#9679;</font> Temp (% dev)</p>
-                 <p style="margin:0;font-size:26px;color:#ffffff;font-weight:bold;"><font color="#448AFF">&#9679;</font> Precip (% dev)</p>
-                 <p style="margin:0;font-size:26px;color:#ffffff;font-weight:bold;"><font color="#69F0AE">&#9679;</font> Wind (% dev)</p>
-              </div>
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;padding:1.8em;box-sizing:border-box;">
+            <div style="padding-bottom:1em;border-bottom:2px solid #1e293b;margin-bottom:1.4em;">
+              <p style="font-size:1.8em;font-weight:bold;color:#10B981;margin:0;">&#128200; Historical Trends</p>
+              <p style="font-size:1.1em;color:#94A3B8;margin:0.4em 0 0;">${_escapeXml(plant.name)}</p>
             </div>
-            
-            <div style="margin-top:20px;text-align:center;">
+            <div style="margin-bottom:1em;display:flex;gap:1em;flex-wrap:wrap;">
+               <p style="margin:0;font-size:1em;color:#fff;font-weight:bold;"><font color="#FF5252">&#9679;</font> Temp (% dev)</p>
+               <p style="margin:0;font-size:1em;color:#fff;font-weight:bold;"><font color="#448AFF">&#9679;</font> Precip (% dev)</p>
+               <p style="margin:0;font-size:1em;color:#fff;font-weight:bold;"><font color="#69F0AE">&#9679;</font> Wind (% dev)</p>
+            </div>
+            <div style="margin-top:0.8em;text-align:center;overflow-x:auto;">
               $svgContent
             </div>
-            
           </div>
         ]]></text>
       </BalloonStyle>
@@ -1407,53 +1303,43 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
-              
-              <!-- Header -->
-              <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#127757; ${_escapeXml(scenarioType)}</span>
-                  <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">Climate Scenario Simulation</span>
-                </td>
-              </tr>
-              
-              <!-- Plant Info & Score Compare -->
-              <tr bgcolor="#111827">
-                <td style="padding:40px;border-bottom:2px solid #334155;">
-                  <span style="color:#ffffff;font-size:68px;font-weight:bold;">${_escapeXml(plant.name)}</span>
-                  <br><br>
-                  <span style="color:#94a3b8;font-size:48px;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</span>
-                  
-                  <table width="100%" cellpadding="24" cellspacing="0" style="margin-top:40px;border:2px solid #334155;border-radius:16px;">
-                    <tr bgcolor="#1e293b">
-                      <td align="center" width="33%" style="border-right:2px solid #334155;">
-                        <span style="color:#94a3b8;font-size:36px;">Current CVS</span><br><br>
-                        <span style="color:#f8fafc;font-size:72px;font-weight:bold;">${cvs.score.toStringAsFixed(1)}</span>
-                      </td>
-                      <td align="center" width="33%" style="border-right:2px solid #334155;">
-                        <span style="color:#94a3b8;font-size:36px;">Projected CVS</span><br><br>
-                        <span style="color:#f8fafc;font-size:72px;font-weight:bold;">${projectedCvs.toStringAsFixed(1)}</span>
-                      </td>
-                      <td align="center" width="34%">
-                        <span style="color:#94a3b8;font-size:36px;">Impact</span><br><br>
-                        <span style="color:$diffColor;font-size:72px;font-weight:bold;">$diffSymbol${diff.abs().toStringAsFixed(1)}</span>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              
-              <!-- AI Insight Text -->
-              <tr bgcolor="#0d1117">
-                <td style="padding:56px 40px;">
-                  <span style="color:#ef4444;font-size:56px;font-weight:bold;">&#128302; Scenario Impact Analysis</span>
-                  <br><br><br>
-                  <span style="color:#e2e8f0;font-size:48px;line-height:1.6;">$formattedAiInsight</span>
-                </td>
-              </tr>
-              
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127757; ${_escapeXml(scenarioType)}</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Climate Scenario Simulation</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#111827" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; 🏭 $fuelType &nbsp; • &nbsp; ⚙ $capacity</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:1.2em;border:1px solid #334155;">
+                  <tr bgcolor="#1e293b">
+                    <td width="33%" align="center" style="padding:0.8em 0.4em;border-right:1px solid #334155;">
+                      <p style="color:#94a3b8;font-size:1em;margin:0;">Current CVS</p>
+                      <p style="color:#f8fafc;font-size:2.2em;font-weight:bold;margin:0.2em 0 0;">${cvs.score.toStringAsFixed(1)}</p>
+                    </td>
+                    <td width="33%" align="center" style="padding:0.8em 0.4em;border-right:1px solid #334155;">
+                      <p style="color:#94a3b8;font-size:1em;margin:0;">Projected CVS</p>
+                      <p style="color:#f8fafc;font-size:2.2em;font-weight:bold;margin:0.2em 0 0;">${projectedCvs.toStringAsFixed(1)}</p>
+                    </td>
+                    <td width="34%" align="center" style="padding:0.8em 0.4em;">
+                      <p style="color:#94a3b8;font-size:1em;margin:0;">Impact</p>
+                      <p style="color:$diffColor;font-size:2.2em;font-weight:bold;margin:0.2em 0 0;">$diffSymbol${diff.abs().toStringAsFixed(1)}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.8em 1.6em;">
+                <p style="color:#ef4444;font-size:1.8em;font-weight:bold;margin:0 0 0.6em;">&#128302; Scenario Impact Analysis</p>
+                <p style="color:#e2e8f0;font-size:1.3em;line-height:1.7;margin:0;">$formattedAiInsight</p>
+              </td></tr>
             </table>
           </div>
         ]]></text>

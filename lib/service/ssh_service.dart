@@ -81,17 +81,11 @@ class SSHService {
           .timeout(const Duration(seconds: 30));
       return String.fromCharCodes(result);
     } on TimeoutException {
-      // Timeout on a single command does NOT mean the connection is broken.
-      // Log it and throw, but keep the SSH client alive.
       throw ConnectionException(
         message:
             'Command timed out: ${command.length > 80 ? '${command.substring(0, 80)}...' : command}',
       );
     } catch (e) {
-      // Only treat as a connection-level failure if the client socket is gone.
-      // Regular command errors (non-zero exit codes, stderr, etc.) should NOT
-      // close the SSH session — that was killing the LG connection after every
-      // KML write that produced any stderr output.
       final msg = e.toString();
       final isConnectionLost = msg.contains('Connection closed') ||
           msg.contains('Connection reset') ||
@@ -135,8 +129,6 @@ class SSHService {
         message: 'SFTP write failed for $remotePath: $e',
       );
     } finally {
-      // Always close the SFTP subsystem channel — not doing this leaks
-      // SSH channels and eventually causes the LG to drop the connection.
       try { sftp?.close(); } catch (_) {}
     }
   }

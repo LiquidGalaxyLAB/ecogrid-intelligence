@@ -14,6 +14,8 @@ import '../../config/theme/map_themes.dart';
 import '../../core/enums/historical_data_mode.dart';
 import '../../config/localization/locale_controller.dart';
 import '../../l10n/app_localizations.dart';
+import '../../service/lg_service.dart';
+import '../../core/resources/data_state.dart';
 
 class LgSettingsScreen extends StatelessWidget {
   const LgSettingsScreen({super.key});
@@ -33,10 +35,32 @@ class _LgSettingsBody extends StatefulWidget {
 class _LgSettingsBodyState extends State<_LgSettingsBody>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isAutoConnecting = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['autoConnect'] == true) {
+        _tabController.index = 1;
+        setState(() => _isAutoConnecting = true);
+        final lgService = sl<LGService>();
+        final settingsResult = await lgService.loadSettings();
+        if (settingsResult is DataSuccess<LGSettings> &&
+            settingsResult.data!.host.isNotEmpty) {
+          if (mounted) {
+            context
+                .read<LGConnectionBloc>()
+                .add(LGConnectRequested(settingsResult.data!));
+          }
+        } else {
+          if (mounted) setState(() => _isAutoConnecting = false);
+        }
+      }
+    });
   }
 
   @override
@@ -51,9 +75,29 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
       valueListenable: ThemeController.instance.themeModeNotifier,
       builder: (context, mode, _) {
         final isDark = ThemeController.instance.isDarkMode;
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-          body: Stack(
+        return BlocListener<LGConnectionBloc, LGConnectionState>(
+          listener: (context, state) {
+            if (_isAutoConnecting && state.status == ConnectionStatus.connected) {
+              _isAutoConnecting = false;
+              Navigator.pop(context);
+              return;
+            }
+            if (state.error != null) {
+              if (_isAutoConnecting) {
+                _isAutoConnecting = false;
+                return; // Fail silently, leave on manual screen
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.error!),
+                  backgroundColor: AppTheme.riskCritical,
+                ),
+              );
+            }
+          },
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Stack(
             children: [
               if (!isDark) ...[
                 // Base: clean warm white
@@ -193,9 +237,9 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
               ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    });
   }
 
   Widget _buildHeader(BuildContext context, bool isDark) {
@@ -1019,24 +1063,13 @@ class _ConnectionTabState extends State<_ConnectionTab> {
     final ipText = widget.state.settings.host.isNotEmpty
         ? widget.state.settings.host
         : 'Not configured';
-    return BlocListener<LGConnectionBloc, LGConnectionState>(
-      listener: (context, state) {
-        if (state.error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.error!),
-              backgroundColor: AppTheme.riskCritical,
-            ),
-          );
-        }
-      },
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              decoration: BoxDecoration(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            decoration: BoxDecoration(
                 color: AppTheme.cardBackground,
                 borderRadius: BorderRadius.circular(16),
                 border: widget.isDark
@@ -1252,8 +1285,7 @@ class _ConnectionTabState extends State<_ConnectionTab> {
             const SizedBox(height: 48),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildField(

@@ -42,6 +42,10 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+        Navigator.of(context).pushNamed(
+          AppRoutes.lgSettings,
+          arguments: {'autoConnect': true},
+        );
       }
     });
   }
