@@ -16,11 +16,16 @@ import '../../domain/model/power_plant.dart';
 import '../../domain/model/cvs_result.dart';
 import '../../domain/repository/cvs_repository.dart';
 import '../components/plant_map_bottom_sheet.dart';
+import '../components/eco_showcase.dart';
 import '../explore/bloc/explore_bloc.dart';
 import '../explore/bloc/explore_event.dart';
 import '../explore/bloc/explore_data.dart';
 import '../../core/resources/app_state.dart';
 import '../../service/lg_service.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../service/tour_service.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../core/constants/tour_keys.dart';
 
 class InfrastructureMapScreen extends StatefulWidget {
   const InfrastructureMapScreen({super.key});
@@ -54,6 +59,28 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     _loadPreferences();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ExploreBloc>().add(const ExploreGlobalLoaded());
+      // Trigger the final tour step after the map is built.
+      final tourService = sl<TourService>();
+      void trigger() {
+        if (!mounted || !tourService.isTourActive.value) return;
+        if (tourService.currentPhase.value == TourPhase.infraMapExplain) {
+          tourService.showIfPhase(context, TourPhase.infraMapExplain, [TourKeys.mapExplain]);
+        }
+      }
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+            }
+          });
+        }
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+      }
     });
   }
 
@@ -61,6 +88,11 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
   void dispose() {
     _flyDebounce?.cancel();
     _markerDebounce?.cancel();
+    try {
+      final lgService = sl<LGService>();
+      lgService.clearKml();
+      lgService.flyToDefault();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -394,7 +426,7 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
       risks: risks,
       title: 'Infrastructure Map Plants',
     );
-    await lgService.sendKmlToMaster(kml);
+    await lgService.sendKmlToAllScreens(kml);
   }
 
   Future<void> _refreshMarkers(LatLng center, double zoom) async {
@@ -445,21 +477,35 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
           color: isDark ? Colors.white : AppTheme.textPrimary,
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              _lgSyncEnabled ? Icons.sync : Icons.sync_disabled,
-              color: _lgSyncEnabled
-                  ? AppTheme.primary
-                  : (isDark ? Colors.white54 : Colors.black38),
-            ),
-            tooltip: _lgSyncEnabled
-                ? 'LG Sync: ON — tap to disable'
-                : 'LG Sync: OFF — tap to enable',
-            onPressed: () {
-              setState(() {
-                _lgSyncEnabled = !_lgSyncEnabled;
-              });
+          EcoShowcase(
+            showcaseKey: TourKeys.mapExplain,
+            title: 'Liquid Galaxy Sync',
+            description: 'Panning and zooming the map moves the Liquid Galaxy camera to follow, if connected. This concludes the tour!',
+            targetBorderRadius: BorderRadius.circular(20),
+            disposeOnTap: false,
+            nextButtonText: 'Finish Tour',
+            onTargetClick: () {},
+            onNextClick: () {
+              ShowCaseWidget.of(context).dismiss();
+              sl<TourService>().completeTour();
             },
+
+            child: IconButton(
+              icon: Icon(
+                _lgSyncEnabled ? Icons.sync : Icons.sync_disabled,
+                color: _lgSyncEnabled
+                    ? AppTheme.primary
+                    : (isDark ? Colors.white54 : Colors.black38),
+              ),
+              tooltip: _lgSyncEnabled
+                  ? 'LG Sync: ON — tap to disable'
+                  : 'LG Sync: OFF — tap to enable',
+              onPressed: () {
+                setState(() {
+                  _lgSyncEnabled = !_lgSyncEnabled;
+                });
+              },
+            ),
           ),
         ],
       ),

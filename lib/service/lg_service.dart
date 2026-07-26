@@ -199,6 +199,27 @@ class LGService {
     }
   }
 
+  /// Sends placemarks KML to master AND all slave screens so that
+  /// pins are visible across the entire Liquid Galaxy panoramic view.
+  Future<DataState<void>> sendKmlToAllScreens(String kmlContent) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      // Send to master so it renders on screen 1
+      await _sendKmlToMaster(kmlContent);
+      // Also send the same KML to every slave so their Google Earth
+      // instances render the placemarks on their portion of the view.
+      for (var screen = 2; screen <= _screenCount; screen++) {
+        await _sendKmlToSlave(screen, kmlContent);
+      }
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+
   Future<DataState<void>> showBalloonOnSlave(
     int slaveNumber,
     String balloonKml,

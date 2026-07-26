@@ -205,10 +205,13 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
               countries: event.region.countries,
               preFetchedGeoJson: event.region.geoJson,
             );
-            if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
-              await lgService.sendKmlToMaster(regionKml);
-            }
             await preComputeAllScoresUsecase(plants);
+            if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
+              final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
+              final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
+              final combinedKml = regionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
+              await lgService.sendKmlToMaster(combinedKml);
+            }
             _startBackgroundWarmer();
             await _updateRightScreenOverlay(event.region, plants);
           });
@@ -305,7 +308,10 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         maxLon: region.maxLon,
         countries: region.countries,
       );
-      await lgService.sendKmlToMaster(masterRegionKml);
+      final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
+      final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
+      final combinedKml = masterRegionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
+      await lgService.sendKmlToMaster(combinedKml);
     }
   }
 
@@ -581,6 +587,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       totalFilteredCount: totalFilteredCount,
     );
   }
+
 
   void _startBackgroundWarmer() async {
     // Disabled background warmer as per user request to stop continuous API polling.

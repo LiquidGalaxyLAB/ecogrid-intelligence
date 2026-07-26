@@ -246,6 +246,9 @@ class PlantDetailBloc
           const Duration(seconds: 12),
           onTimeout: () => const DataFailure(_TimeoutException()),
         );
+    if (state is AppSuccess<PlantDetailData> && !(state as AppSuccess<PlantDetailData>).data!.isLoadingInsight) {
+      return; 
+    }
     if (insightResult is DataSuccess<String>) {
       if (state is AppSuccess<PlantDetailData>) {
         final d = (state as AppSuccess<PlantDetailData>).data!;
@@ -339,6 +342,9 @@ class PlantDetailBloc
         'scenarioType': event.scenarioType,
       },
     ).last;
+    if (state is AppSuccess<PlantDetailData> && !(state as AppSuccess<PlantDetailData>).data!.isLoadingInsight) {
+      return; 
+    }
     if (insightResult is DataSuccess<String>) {
       if (state is AppSuccess<PlantDetailData>) {
         final d = (state as AppSuccess<PlantDetailData>).data!;
@@ -565,6 +571,7 @@ class PlantDetailBloc
     
     emit(AppSuccess(currentData.copyWith(
       clearAiInsight: true,
+      clearScenarioInsight: true,
       isLoadingInsight: false,
       clearInsightError: true,
     )));

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'config/theme/app_theme.dart';
 import 'config/routes/app_routes.dart';
 import 'config/theme/theme_controller.dart';
@@ -9,9 +10,21 @@ import 'l10n/app_localizations.dart';
 import 'di/di.dart';
 import 'core/network/api_client.dart';
 import 'core/utils/globals.dart';
+import 'service/tour_service.dart';
+import 'presentation/components/tour_skip_pill.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final GoogleMapsFlutterPlatform mapsImplementation =
+      GoogleMapsFlutterPlatform.instance;
+  if (mapsImplementation is GoogleMapsFlutterAndroid) {
+    mapsImplementation.useAndroidViewSurface = true;
+    mapsImplementation.initializeWithRenderer(AndroidMapRenderer.latest);
+  }
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

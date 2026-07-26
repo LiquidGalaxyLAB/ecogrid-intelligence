@@ -5,7 +5,10 @@ import '../../config/theme/theme_controller.dart';
 import '../../core/enums/connection_status.dart';
 import '../../domain/model/lg_settings.dart';
 import '../../di/di.dart';
+import '../../service/tour_service.dart';
+import '../components/eco_showcase.dart';
 import 'bloc/lg_connection_bloc.dart';
+
 import '../components/atmospheric_globe_painter.dart';
 import '../../config/routes/app_routes.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -16,6 +19,10 @@ import '../../config/localization/locale_controller.dart';
 import '../../l10n/app_localizations.dart';
 import '../../service/lg_service.dart';
 import '../../core/resources/data_state.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../service/tour_service.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../core/constants/tour_keys.dart';
 
 class LgSettingsScreen extends StatelessWidget {
   const LgSettingsScreen({super.key});
@@ -40,7 +47,14 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    final tourService = sl<TourService>();
+    final isTouring = tourService.isTourActive.value &&
+        tourService.currentPhase.value != TourPhase.completed;
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: isTouring ? 1 : 0,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -60,7 +74,28 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
           if (mounted) setState(() => _isAutoConnecting = false);
         }
       }
+
+      // Trigger lgConnectionTab tour coachmark
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          _triggerTour();
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => _triggerTour());
+            }
+          });
+        }
+      } else {
+        _triggerTour();
+      }
     });
+  }
+
+  void _triggerTour() {
+    if (!mounted) return;
+    sl<TourService>().showIfPhase(context, TourPhase.lgConnectionTab, [TourKeys.connectionTab]);
   }
 
   @override
@@ -291,28 +326,40 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
   }
 
   Widget _buildCustomTabBar(bool isDark) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      height: 44,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.15)
-              : const Color(0xFFE2E8F0),
+    return EcoShowcase(
+      showcaseKey: TourKeys.connectionTab,
+      title: 'LG Settings',
+      description: 'Tap the Connection tab to link your app to a Liquid Galaxy rig.',
+      targetBorderRadius: BorderRadius.circular(12),
+      disposeOnTap: false,
+      onTargetClick: () {},
+      onNextClick: () {
+        ShowCaseWidget.of(context).dismiss();
+        _tabController.animateTo(1);
+        sl<TourService>().advancePhase();
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        height: 44,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.15)
+                : const Color(0xFFE2E8F0),
+          ),
+          boxShadow: isDark
+              ? [
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    blurRadius: 20,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 0),
+                  ),
+                ]
+              : [],
         ),
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  blurRadius: 20,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 0),
-                ),
-              ]
-            : [],
-      ),
       child: TabBar(
         controller: _tabController,
         dividerColor: Colors.transparent,
@@ -369,8 +416,9 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _GeneralTab extends StatefulWidget {
@@ -1016,6 +1064,9 @@ class _ConnectionTabState extends State<_ConnectionTab> {
   final _passwordController = TextEditingController();
   final _screenCountController = TextEditingController(text: '3');
   bool _obscurePassword = true;
+  final TourService _tourService = sl<TourService>();
+  bool _waitingForConnect = false;
+
   @override
   void initState() {
     super.initState();
@@ -1026,6 +1077,46 @@ class _ConnectionTabState extends State<_ConnectionTab> {
       _passwordController.text = widget.state.settings.password;
       _screenCountController.text = widget.state.settings.screenCount
           .toString();
+    }
+    // Listen for phase changes (e.g. from lgConnectionTab -> lgConnection)
+    _tourService.currentPhase.addListener(_onTourPhaseChanged);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _onTourPhaseChanged();
+    });
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _screenCountController.dispose();
+    _tourService.currentPhase.removeListener(_onTourPhaseChanged);
+    super.dispose();
+  }
+
+  void _onTourPhaseChanged() {
+    if (!mounted || !_tourService.isTourActive.value) return;
+    if (_tourService.currentPhase.value == TourPhase.lgConnection) {
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          _tourService.showIfPhase(context, TourPhase.lgConnection, [TourKeys.connect]);
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _tourService.showIfPhase(context, TourPhase.lgConnection, [TourKeys.connect]);
+              });
+            }
+          });
+        }
+      } else {
+        _tourService.showIfPhase(context, TourPhase.lgConnection, [TourKeys.connect]);
+      }
     }
   }
 
@@ -1041,17 +1132,23 @@ class _ConnectionTabState extends State<_ConnectionTab> {
       _screenCountController.text = widget.state.settings.screenCount
           .toString();
     }
+    // During tour: if we were waiting for a connect result and the status
+    // changed away from 'connecting', advance the tour and pop.
+    if (_waitingForConnect &&
+        _tourService.isTourActive.value &&
+        oldWidget.state.status == ConnectionStatus.connecting &&
+        widget.state.status != ConnectionStatus.connecting) {
+      _waitingForConnect = false;
+      _tourService.advancePhase();
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.pop(context);
+        });
+      }
+    }
   }
 
-  @override
-  void dispose() {
-    _hostController.dispose();
-    _portController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    _screenCountController.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -1197,82 +1294,103 @@ class _ConnectionTabState extends State<_ConnectionTab> {
               ],
             ),
             const SizedBox(height: 32),
-            if (!isConnected)
-              GestureDetector(
-                onTap: () {
-                  final settings = LGSettings(
-                    host: _hostController.text.trim(),
-                    port: int.tryParse(_portController.text) ?? 22,
-                    username: _usernameController.text.trim(),
-                    password: _passwordController.text.trim(),
-                    screenCount: int.tryParse(_screenCountController.text) ?? 3,
-                  );
-                  context.read<LGConnectionBloc>()
-                    ..add(LGSettingsSaveRequested(settings))
-                    ..add(LGConnectRequested(settings));
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: widget.isDark
-                        ? []
-                        : [
-                            BoxShadow(
-                              color: AppTheme.primary.withValues(alpha: 0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                  ),
-                  alignment: Alignment.center,
-                  child: widget.state.status == ConnectionStatus.connecting
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTheme.background,
-                          ),
-                        )
-                      : Text(
-                          'Connect',
-                          style: AppTheme.labelLarge.copyWith(
-                            color: Colors.white,
-                            fontSize: 16,
+            EcoShowcase(
+              showcaseKey: TourKeys.connect,
+              title: isConnected ? 'Liquid Galaxy Status' : 'Connect',
+              description: isConnected
+                  ? 'You are already connected to Liquid Galaxy! Tap here to continue exploring.'
+                  : 'Tap here to connect to your Liquid Galaxy rig',
+              targetBorderRadius: BorderRadius.circular(12),
+              disposeOnTap: false,
+              nextButtonText: 'Next ➔',
+              onTargetClick: () {},
+              onNextClick: () {
+                ShowCaseWidget.of(context).dismiss();
+                _tourService.advancePhase();
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) Navigator.pop(context);
+                });
+              },
+              child: !isConnected
+                  ? GestureDetector(
+                      onTap: () {
+                        final settings = LGSettings(
+                          host: _hostController.text.trim(),
+                          port: int.tryParse(_portController.text) ?? 22,
+                          username: _usernameController.text.trim(),
+                          password: _passwordController.text.trim(),
+                          screenCount: int.tryParse(_screenCountController.text) ?? 3,
+                        );
+                        // During tour: mark that we're waiting for the connect result.
+                        if (_tourService.isTourActive.value &&
+                            _tourService.currentPhase.value == TourPhase.lgConnection) {
+                          _waitingForConnect = true;
+                        }
+                        context.read<LGConnectionBloc>()
+                          ..add(LGSettingsSaveRequested(settings))
+                          ..add(LGConnectRequested(settings));
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: widget.isDark
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: AppTheme.primary.withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        alignment: Alignment.center,
+                        child: widget.state.status == ConnectionStatus.connecting
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppTheme.background,
+                                ),
+                              )
+                            : Text(
+                                'Connect',
+                                style: AppTheme.labelLarge.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ),
+                    )
+                  : GestureDetector(
+                      onTap: () => context.read<LGConnectionBloc>().add(
+                        const LGDisconnectRequested(),
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.surfaceLight,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.riskCritical.withValues(alpha: 0.5),
                           ),
                         ),
-                ),
-              )
-            else
-              GestureDetector(
-                onTap: () => context.read<LGConnectionBloc>().add(
-                  const LGDisconnectRequested(),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceLight,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.riskCritical.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.power_settings_new,
-                        color: AppTheme.riskCritical,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Disconnect',
+                        alignment: Alignment.center,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.power_settings_new,
+                              color: AppTheme.riskCritical,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Disconnect',
                         style: AppTheme.labelLarge.copyWith(
                           color: AppTheme.riskCritical,
                           fontSize: 16,
@@ -1282,6 +1400,8 @@ class _ConnectionTabState extends State<_ConnectionTab> {
                   ),
                 ),
               ),
+            ),
+            // Note: The "Skip for now" button is now integrated into the coachmark's next button.
             const SizedBox(height: 48),
           ],
         ),

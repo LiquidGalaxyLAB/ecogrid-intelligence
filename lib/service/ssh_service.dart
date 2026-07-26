@@ -19,6 +19,28 @@ class SSHService {
   String get username => _username;
   bool get isConnected => _client != null && !_client!.isClosed;
 
+  /// Serialization lock: ensures only one SSH channel operation runs at a time.
+  /// dartssh2's SSHClient.run() opens a new exec channel per call; the LG rig's
+  /// OpenSSH server has a MaxSessions limit (typically 10). Without serialization,
+  /// concurrent retries + parallel KML writes easily exceed this limit, causing
+  /// SSHChannelOpenError(1: open failed) on every subsequent operation.
+  Completer<void>? _lock;
+
+  Future<T> _serialized<T>(Future<T> Function() action) async {
+    // Wait for any in-flight operation to finish before starting ours.
+    while (_lock != null) {
+      await _lock!.future;
+    }
+    _lock = Completer<void>();
+    try {
+      return await action();
+    } finally {
+      final l = _lock;
+      _lock = null;
+      l?.complete();
+    }
+  }
+
   Future<void> connect({
     required String host,
     required int port,
@@ -69,7 +91,7 @@ class SSHService {
     }
   }
 
-  Future<String> execute(String command) async {
+  Future<String> execute(String command) => _serialized(() async {
     if (_client == null) {
       throw const ConnectionException(
         message: 'Not connected to Liquid Galaxy',
@@ -100,23 +122,22 @@ class SSHService {
       }
       throw ConnectionException(message: 'Command execution failed: $e');
     }
-  }
+  });
 
   /// Writes [content] to [remotePath] via SFTP.
   /// Reliable for any file size — no shell argument-length limits.
-  /// The SFTP session is always closed in the finally block to avoid
-  /// leaking SSH channels (which would eventually kill the connection).
-  Future<void> writeFileViaSftp(String remotePath, String content) async {
+  Future<void> writeFileViaSftp(String remotePath, String content) =>
+      _serialized(() async {
     if (_client == null) {
       throw const ConnectionException(
         message: 'Not connected to Liquid Galaxy',
       );
     }
-    SftpClient? sftp;
     try {
       final bytes = Uint8List.fromList(utf8.encode(content));
-      sftp = await _client!.sftp();
-      final remoteFile = await sftp.open(
+      _sftpClient ??= await _client!.sftp();
+
+      final remoteFile = await _sftpClient!.open(
         remotePath,
         mode: SftpFileOpenMode.create |
             SftpFileOpenMode.write |
@@ -125,13 +146,13 @@ class SSHService {
       await remoteFile.write(Stream.value(bytes).cast<Uint8List>());
       await remoteFile.close();
     } catch (e) {
+      // If the SFTP session is stale, reset it so the next call reconnects.
+      _sftpClient = null;
       throw ConnectionException(
         message: 'SFTP write failed for $remotePath: $e',
       );
-    } finally {
-      try { sftp?.close(); } catch (_) {}
     }
-  }
+  });
 
 
   void disconnect() {
@@ -147,11 +168,11 @@ class SSHService {
     }
   }
 
-  Future<void> uploadAsset(String assetPath, String remotePath) async {
+  Future<void> uploadAsset(String assetPath, String remotePath) =>
+      _serialized(() async {
     if (!isConnected) {
       throw Exception('SSH is not connected');
     }
-
     try {
       final ByteData data = await rootBundle.load(assetPath);
       final buffer = data.buffer;
@@ -166,15 +187,17 @@ class SSHService {
       await file.close();
       debugPrint('[EcoGrid] Successfully uploaded $assetPath to $remotePath');
     } catch (e) {
+      _sftpClient = null;
       debugPrint('[EcoGrid] Failed to upload asset: $e');
       throw ConnectionException(
         message: 'SFTP upload failed for $assetPath: $e',
       );
     }
-  }
+  });
 
   /// Upload raw bytes to a remote path via SFTP.
-  Future<void> uploadBytesViaSftp(Uint8List bytes, String remotePath) async {
+  Future<void> uploadBytesViaSftp(Uint8List bytes, String remotePath) =>
+      _serialized(() async {
     if (!isConnected) {
       throw Exception('SSH is not connected');
     }
@@ -187,12 +210,13 @@ class SSHService {
       await file.write(Stream.value(bytes));
       await file.close();
     } catch (e) {
+      _sftpClient = null;
       debugPrint('[EcoGrid] Failed to upload bytes via SFTP: $e');
       throw ConnectionException(
         message: 'SFTP upload failed for $remotePath: $e',
       );
     }
-  }
+  });
 
 
   void dispose() {

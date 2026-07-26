@@ -261,7 +261,7 @@ Guidelines:
 - If you don't have enough information to answer precisely, say so rather than guessing.
 ''';
     _chatSessions[sessionId] = [
-      {'role': 'system', 'content': systemPrompt},
+      {'role': 'user', 'content': systemPrompt},
       {
         'role': 'assistant',
         'content':

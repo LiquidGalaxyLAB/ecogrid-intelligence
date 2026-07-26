@@ -21,8 +21,15 @@ import '../components/app_search_bar.dart';
 import '../../service/tts_service.dart';
 import '../../di/di.dart' show sl;
 import '../../config/theme/theme_controller.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import '../../service/lg_service.dart';
 import 'plant_comparison_screen.dart';
 import '../../domain/repository/cvs_repository.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../service/tour_service.dart';
+import '../components/eco_showcase.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../core/constants/tour_keys.dart';
 
 class ExploreScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -86,6 +93,16 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         );
       }
     });
+    // During tour: show the Compare button coachmark when 2+ plants selected.
+    if (_tourService.isTourActive.value &&
+        _tourService.currentPhase.value == TourPhase.exploreCompareSelect &&
+        _selectedPlants.length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _tourService.showIfPhase(context, TourPhase.exploreCompareSelect, [TourKeys.compareBtn]);
+        }
+      });
+    }
   }
 
   void _openComparisonScreen() {
@@ -124,17 +141,82 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   }
   // ──────────────────────────────────────────────────────────────────────────
 
+  final TourService _tourService = sl<TourService>();
+
   @override
   void initState() {
     super.initState();
     Logger().i('[UI] Opened ExploreScreen');
+    _tourService.currentPhase.addListener(_onTourPhaseChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _tourService.currentPhase.removeListener(_onTourPhaseChanged);
+    try {
+      final lgService = sl<LGService>();
+      lgService.clearKml();
+      lgService.flyToDefault();
+    } catch (_) {}
     super.dispose();
+  }
+
+  void _onTourPhaseChanged() {
+    if (!mounted || !_tourService.isTourActive.value) return;
+    final phase = _tourService.currentPhase.value;
+    
+    void trigger() {
+      if (!mounted) return;
+      switch (phase) {
+        case TourPhase.exploreAiFab:
+          _tourService.showIfPhase(context, TourPhase.exploreAiFab, [TourKeys.exploreAiFab]);
+          break;
+        case TourPhase.explorePlant:
+          // Ensure scroll is at top before showing plant coachmark.
+          _scrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          ).then((_) {
+            if (mounted) {
+              _tourService.showIfPhase(context, TourPhase.explorePlant, [TourKeys.plant]);
+            }
+          });
+          break;
+        case TourPhase.exploreCompareFab:
+          _tourService.showIfPhase(context, TourPhase.exploreCompareFab, [TourKeys.compareFab]);
+          break;
+        case TourPhase.exploreCompareSelect:
+          // Only show coachmark on Compare button when 2+ plants selected.
+          if (_selectedPlants.length >= 2) {
+            _tourService.showIfPhase(context, TourPhase.exploreCompareSelect, [TourKeys.compareBtn]);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          trigger();
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+            }
+          });
+        }
+      } else {
+        trigger();
+      }
+    });
   }
 
   @override
@@ -150,14 +232,31 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         children: [
           // ── Compare FAB ────────────────────────────────────────────────
           if (!_isCompareMode)
-            FloatingActionButton(
-              heroTag: 'compare_fab',
-              onPressed: _toggleCompareMode,
-              backgroundColor: AppTheme.secondary,
-              child: const Icon(
-                Symbols.folder_match,
-                fill: 1.0,
-                color: Colors.white,
+            EcoShowcase(
+              showcaseKey: TourKeys.compareFab,
+              title: 'Compare Mode',
+              description: 'Tap here to enter compare mode and select up to 4 power plants to contrast',
+              targetBorderRadius: BorderRadius.circular(28),
+              disposeOnTap: false,
+              onTargetClick: () {}, // Required by showcaseview package even if disposeOnTap is false
+              onNextClick: () {
+                ShowCaseWidget.of(context).dismiss();
+                // Delay popping the route and updating tour phase to allow showcase dismiss animation
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) Navigator.pop(context); // Go back to Home
+                  _tourService.currentPhase.value = TourPhase.homeInfraMap;
+                });
+              },
+
+              child: FloatingActionButton(
+                heroTag: 'compare_fab',
+                onPressed: _toggleCompareMode,
+                backgroundColor: AppTheme.secondary,
+                child: const Icon(
+                  Symbols.folder_match,
+                  fill: 1.0,
+                  color: Colors.white,
+                ),
               ),
             ),
 
@@ -172,17 +271,32 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                 }
                 return Padding(
                   padding: const EdgeInsets.only(top: 16.0),
-                  child: FloatingActionButton(
-                    heroTag: 'ai_fab',
-                    onPressed: () {
-                      final bloc = context.read<ExploreBloc>();
-                      if (data.aiInsight == null && !data.isLoadingInsight) {
-                        bloc.add(const ExploreGenerateRegionalInsight());
+                  child: EcoShowcase(
+                    showcaseKey: TourKeys.exploreAiFab,
+                    title: 'Regional Insight',
+                    description: 'Tap here to view AI regional energy analysis and insights',
+                    targetBorderRadius: BorderRadius.circular(28),
+                    disposeOnTap: false,
+                    onTargetClick: () {}, // Required by showcaseview package even if disposeOnTap is false
+                    onNextClick: () {
+                      ShowCaseWidget.of(context).dismiss();
+                      if (mounted && _tourService.isTourActive.value) {
+                        _tourService.advancePhase();
                       }
-                      _showRegionalInsightBottomSheet(context);
                     },
-                    backgroundColor: AppTheme.secondary,
-                    child: const Icon(Icons.auto_awesome, color: Colors.white),
+      
+                    child: FloatingActionButton(
+                      heroTag: 'ai_fab',
+                      onPressed: () {
+                        final bloc = context.read<ExploreBloc>();
+                        if (data.aiInsight == null && !data.isLoadingInsight) {
+                          bloc.add(const ExploreGenerateRegionalInsight());
+                        }
+                        _showRegionalInsightBottomSheet(context);
+                      },
+                      backgroundColor: AppTheme.secondary,
+                      child: const Icon(Icons.auto_awesome, color: Colors.white),
+                    ),
                   ),
                 );
               }
@@ -211,7 +325,13 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ),
             ),
           SafeArea(
-            child: BlocBuilder<ExploreBloc, AppState<ExploreData>>(
+            child: BlocConsumer<ExploreBloc, AppState<ExploreData>>(
+              listener: (context, state) {
+                if (state is AppSuccess<ExploreData>) {
+                  // After data loads and UI rebuilds, trigger the tour coachmarks again
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
+                }
+              },
               builder: (context, state) {
                 if (state is AppLoading) {
                   return Center(
@@ -333,28 +453,44 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       AnimatedScale(
                         duration: const Duration(milliseconds: 300),
                         scale: _selectedPlants.length >= 2 ? 1.0 : 0.95,
-                        child: ElevatedButton(
-                          onPressed: _selectedPlants.length >= 2
-                              ? _openComparisonScreen
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.secondary,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.withValues(
-                              alpha: 0.3,
+                        child: EcoShowcase(
+                          showcaseKey: TourKeys.compareBtn,
+                          title: 'Launch Comparison',
+                          description: 'Select at least 2 plants, then tap here to compare their metrics',
+                          targetBorderRadius: BorderRadius.circular(32),
+                          disposeOnTap: false,
+                          onTargetClick: () {},
+                          onNextClick: () {
+                            ShowCaseWidget.of(context).dismiss();
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (mounted) Navigator.pop(context); // Go back to Home
+                              _tourService.currentPhase.value = TourPhase.homeInfraMap;
+                            });
+                          },
+            
+                          child: ElevatedButton(
+                            onPressed: _selectedPlants.length >= 2
+                                ? _openComparisonScreen
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.secondary,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.withValues(
+                                alpha: 0.3,
+                              ),
+                              disabledForegroundColor: Colors.grey,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100),
+                              ),
                             ),
-                            disabledForegroundColor: Colors.grey,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
+                            child: const Text(
+                              'Compare',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          child: const Text(
-                            'Compare',
-                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -725,10 +861,10 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     );
   }
 
-  void _showRegionalInsightBottomSheet(BuildContext context) {
+  Future<void> _showRegionalInsightBottomSheet(BuildContext context) {
     final isDark = ThemeController.instance.isDarkMode;
     final bloc = context.read<ExploreBloc>();
-    showModalBottomSheet(
+    return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -951,7 +1087,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             if (index < displayCount) {
               final plant = state.filteredPlants[index];
               final isSelected = _selectedPlants.contains(plant);
-              return _CompareListItemWrapper(
+              Widget tile = _CompareListItemWrapper(
                 isCompareMode: _isCompareMode,
                 isSelected: isSelected,
                 onTap: () {
@@ -981,6 +1117,31 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   },
                 ),
               );
+              if (index == 0) {
+                tile = EcoShowcase(
+                  showcaseKey: TourKeys.plant,
+                  title: 'Power Plant Details',
+                  description: 'Tap any plant to see deep insights, live stats, and satellite imagery',
+                  targetBorderRadius: BorderRadius.circular(16),
+                  disposeOnTap: false,
+                  onTargetClick: () {},
+                  onNextClick: () {
+                    ShowCaseWidget.of(context).dismiss();
+                    _tourService.advancePhase();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.plantDetail,
+                          arguments: {'plant': plant},
+                        );
+                      }
+                    });
+                  },
+                  child: tile,
+                );
+              }
+              return tile;
             }
             final isLoadMoreIndex = showLoadMore && index == (totalItems - 1);
             if (isLoadMoreIndex) {
@@ -1441,9 +1602,9 @@ class _BottomSheetInsightContentState
                   ),
                 )
               else if (data.aiInsight != null)
-                Text(
+                HtmlWidget(
                   data.aiInsight!,
-                  style: AppTheme.bodyMedium.copyWith(
+                  textStyle: AppTheme.bodyMedium.copyWith(
                     color: widget.isDark
                         ? const Color(0xFFE2E8F0)
                         : const Color(0xFF334155),

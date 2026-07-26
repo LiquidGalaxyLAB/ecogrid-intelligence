@@ -102,7 +102,10 @@ class HistoricalTrendsSheet extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Container(
           clipBehavior: Clip.antiAlias,
-          decoration: AppTheme.sheetDecoration,
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppTheme.spacingLG),
             child: Column(
@@ -247,92 +250,7 @@ class HistoricalTrendsSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(height: AppTheme.spacingLG),
-                BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
-                  builder: (context, state) {
-                    if (state is! AppSuccess<PlantDetailData>) {
-                      return const SizedBox.shrink();
-                    }
-                    if (state.data!.isLoadingTrendInsight) {
-                      return Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: LinearProgressIndicator(
-                            color: AppTheme.secondary,
-                            backgroundColor: AppTheme.surfaceLight,
-                          ),
-                        ),
-                      );
-                    }
-                    if (state.data!.trendInsight != null) {
-                      return Container(
-                        padding: const EdgeInsets.all(AppTheme.spacingMD),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.auto_awesome,
-                                  color: AppTheme.secondary,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    'AI Trend Analysis',
-                                    style: AppTheme.labelLarge.copyWith(
-                                      color: AppTheme.secondary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              state.data!.trendInsight!,
-                              style: AppTheme.bodySmall.copyWith(
-                                color: AppTheme.textSecondary,
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          context.read<PlantDetailBloc>().add(
-                            const PlantDetailTrendInsightRequested(),
-                          );
-                        },
-                        icon: const Icon(Icons.auto_awesome, size: 16),
-                        label: const Text('Explain This Trend'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.secondary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusMedium,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                SizedBox(height: AppTheme.spacingXXL),
+                SizedBox(height: AppTheme.spacingMD),
               ],
             ),
           ),

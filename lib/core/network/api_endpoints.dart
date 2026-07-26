@@ -19,11 +19,15 @@ abstract final class ApiEndpoints {
   /// Historical weather archive (returns daily aggregates).
   static const String openMeteoArchive = ApiConstants.openMeteoArchive;
 
-  // ─── Gemini (via OpenAI-compatible endpoint) ─────────────────────────────────
+  // ─── Gemini (native REST API) ──────────────────────────────────────────────
 
-  /// Base URL for the Gemini REST API (OpenAI-compatible).
+  /// Base URL for the Gemini REST API.
   static const String geminiBase = ApiConstants.geminiBaseUrl;
 
-  /// Chat completions endpoint (appended to [geminiBase]).
-  static const String geminiChatCompletions = '$geminiBase/chat/completions';
+  /// Builds the native generateContent endpoint for a given model.
+  static String geminiGenerateContent(String model) =>
+      '$geminiBase/models/$model:generateContent';
+
+  /// Chat completions endpoint (kept for backward compatibility).
+  static const String geminiChatCompletions = '$geminiBase/openai/chat/completions';
 }

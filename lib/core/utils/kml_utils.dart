@@ -558,6 +558,23 @@ class KmlUtils {
     );
   }
 
+  static String buildPlantNetworkKml(
+    List<PowerPlant> plants,
+    CVSResult Function(PowerPlant) scoreGetter,
+  ) {
+    final buf = StringBuffer();
+    for (final plant in plants) {
+      final cvs = scoreGetter(plant);
+      buf.writeln(_plantPinContent(
+        plant: plant,
+        riskLevel: cvs.riskLevel,
+        cvs: cvs,
+        includeLookAt: false,
+      ));
+    }
+    return buf.toString();
+  }
+
   static String _plantPinContent({
     required PowerPlant plant,
     required RiskLevel riskLevel,
@@ -631,16 +648,129 @@ class KmlUtils {
       lat: lat, lon: lon, radiusDeg: pillarRadius,
       steps: pillarSteps, altitude: beaconHeight,
     );
-    // Extruded pillar base
-    buf.writeln('''
-    <Placemark>
-      <name></name>
-      <Style>
+    // Create the balloon HTML if cvs is provided
+    String styleContent = '';
+    String descriptionTag = '';
+    
+    if (cvs != null) {
+      final String riskColor;
+      final String riskGradient;
+      switch (cvs.riskLevel) {
+        case RiskLevel.high:
+          riskColor    = '#EF4444';
+          riskGradient = '#7f1d1d';
+          break;
+        case RiskLevel.medium:
+          riskColor    = '#F59E0B';
+          riskGradient = '#78350f';
+          break;
+        case RiskLevel.low:
+          riskColor    = '#10B981';
+          riskGradient = '#064e3b';
+          break;
+      }
+      final typeIcon = _plantTypeIcon(plant.primaryFuel.csvLabel);
+      final capacityStr = plant.capacityMw != null ? '${plant.capacityMw!.toStringAsFixed(0)} MW' : 'N/A';
+      
+      final dims = [
+        ('&#127777; Temperature', cvs.temperatureStress),
+        ('&#128166; Water', cvs.waterStress),
+        ('&#127788; Wind', cvs.windStress),
+      ];
+      final dimRows = dims.map((d) {
+        final label  = d.$1;
+        final raw    = d.$2;
+        final scaled = raw / 10.0;
+        final barColor = scaled > 7 ? '#EF4444' : (scaled >= 4 ? '#F59E0B' : '#10B981');
+        final barPct   = (raw.clamp(0, 100)).toInt();
+        return '''
+                  <tr>
+                    <td style="font-size:21px;color:#CBD5E1;padding:4px 0;">$label</td>
+                    <td align="right" style="font-size:24px;font-weight:bold;color:$barColor;">${scaled.toStringAsFixed(1)}</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="padding-bottom:10px;">
+                      <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                        <td width="$barPct%" bgcolor="$barColor" height="14" style="border-radius:4px 0 0 4px;"></td>
+                        <td bgcolor="#1E293B" height="14"></td>
+                      </tr></table>
+                    </td>
+                  </tr>''';
+      }).join('\n');
+      
+      styleContent = '''
+      <Style id="plant_style_${plant.id}">
         <PolyStyle><color>bb$colorBBGGRR</color><fill>1</fill><outline>1</outline></PolyStyle>
         <LineStyle><color>ff$colorBBGGRR</color><width>2</width></LineStyle>
-        <LabelStyle><scale>0</scale></LabelStyle>
         <IconStyle><scale>0</scale></IconStyle>
-      </Style>
+        <LabelStyle><scale>0</scale></LabelStyle>
+        <!-- TODO: duplicate of plantDetailBalloon() — consider consolidating -->
+        <BalloonStyle>
+          <bgColor>ff0d1117</bgColor>
+          <textColor>ffffffff</textColor>
+          <text><![CDATA[
+          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Comparison Network Data</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; $typeIcon ${_escapeXml(plant.primaryFuel.displayName)} &nbsp; • &nbsp; ⚙ $capacityStr</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#1e293b" style="border-bottom:1px solid #0d1117;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">Climate Vulnerability Score (CVS)</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0.7em;"><tr>
+                  <td width="${cvs.score.round()}%" bgcolor="$riskColor" style="line-height:1.8em;font-size:0;border-radius:6px 0 0 6px;">&nbsp;</td>
+                  <td width="${100 - cvs.score.round()}%" bgcolor="#334155" style="line-height:1.8em;font-size:0;border-radius:0 6px 6px 0;">&nbsp;</td>
+                </tr></table>
+                <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                  <td><p style="color:$riskColor;font-size:2.5em;font-weight:bold;margin:0;">${cvs.score.toStringAsFixed(1)} / 100</p></td>
+                  <td align="right"><p style="color:#f8fafc;font-size:1.5em;font-weight:bold;margin:0;">${cvs.riskLevel.label} RISK</p></td>
+                </tr></table>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">&#9888; Key Risk Drivers</p>
+                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #334155;">
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127777; Temp Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.temperatureStress.toStringAsFixed(1)}</p></td></tr>
+                  <tr><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#128166; Water Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.waterStress.toStringAsFixed(1)}</p></td></tr>
+                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127788; Wind Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.windStress.toStringAsFixed(1)}</p></td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </div>
+          ]]></text>
+        </BalloonStyle>
+      </Style>''';
+      descriptionTag = '<description>Click for info</description>';
+    } else {
+      styleContent = '''
+      <Style id="plant_style_${plant.id}">
+        <PolyStyle><color>bb$colorBBGGRR</color><fill>1</fill><outline>1</outline></PolyStyle>
+        <LineStyle><color>ff$colorBBGGRR</color><width>2</width></LineStyle>
+        <IconStyle><scale>0</scale></IconStyle>
+        <LabelStyle><scale>0</scale></LabelStyle>
+      </Style>''';
+    }
+
+    // Extruded pillar base
+    buf.writeln('''
+    $styleContent
+    <Placemark id="plant_pin_${plant.id}">
+      <name>${_escapeXml(plant.name)}</name>
+      $descriptionTag
+      <styleUrl>#plant_style_${plant.id}</styleUrl>
       <Polygon>
         <extrude>1</extrude>
         <altitudeMode>relativeToGround</altitudeMode>
@@ -709,138 +839,7 @@ class KmlUtils {
       </LineString>
     </Placemark>''');
     }// ── 5. Pinnacle icon at the top of the beacon ────────────────────────
-    
-    // Create the balloon HTML if cvs is provided
-    String styleContent = '';
-    String descriptionTag = '';
-    
-    if (cvs != null) {
-      final String riskColor;
-      final String riskGradient;
-      switch (cvs.riskLevel) {
-        case RiskLevel.high:
-          riskColor    = '#EF4444';
-          riskGradient = '#7f1d1d';
-          break;
-        case RiskLevel.medium:
-          riskColor    = '#F59E0B';
-          riskGradient = '#78350f';
-          break;
-        case RiskLevel.low:
-          riskColor    = '#10B981';
-          riskGradient = '#064e3b';
-          break;
-      }
-      final typeIcon = _plantTypeIcon(plant.primaryFuel.csvLabel);
-      final capacityStr = plant.capacityMw != null ? '${plant.capacityMw!.toStringAsFixed(0)} MW' : 'N/A';
-      
-      final dims = [
-        ('&#127777; Temperature', cvs.temperatureStress),
-        ('&#128166; Water', cvs.waterStress),
-        ('&#127788; Wind', cvs.windStress),
-      ];
-      final dimRows = dims.map((d) {
-        final label  = d.$1;
-        final raw    = d.$2;
-        final scaled = raw / 10.0;
-        final barColor = scaled > 7 ? '#EF4444' : (scaled >= 4 ? '#F59E0B' : '#10B981');
-        final barPct   = (raw.clamp(0, 100)).toInt();
-        return '''
-                  <tr>
-                    <td style="font-size:21px;color:#CBD5E1;padding:4px 0;">$label</td>
-                    <td align="right" style="font-size:24px;font-weight:bold;color:$barColor;">${scaled.toStringAsFixed(1)}</td>
-                  </tr>
-                  <tr>
-                    <td colspan="2" style="padding-bottom:10px;">
-                      <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                        <td width="$barPct%" bgcolor="$barColor" height="14" style="border-radius:4px 0 0 4px;"></td>
-                        <td bgcolor="#1E293B" height="14"></td>
-                      </tr></table>
-                    </td>
-                  </tr>''';
-      }).join('\n');
-      
-      styleContent = '''
-      <Style id="plant_style_${plant.id}">
-        <IconStyle>
-          <scale>2.0</scale>
-          <Icon><href>$iconHref</href></Icon>
-          <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
-        </IconStyle>
-        <LabelStyle><scale>0</scale></LabelStyle>
-        <!-- TODO: duplicate of plantDetailBalloon() — consider consolidating -->
-        <BalloonStyle>
-          <bgColor>ff0d1117</bgColor>
-          <textColor>ffffffff</textColor>
-          <text><![CDATA[
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
 
-            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
-              <tr><td style="padding:1.4em 1.6em;">
-                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
-                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Comparison Network Data</p>
-              </td></tr>
-            </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
-              <tr><td style="padding:1.4em 1.6em;">
-                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">${_escapeXml(plant.name)}</p>
-                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">📍 ${_escapeXml(plant.countryLong ?? plant.country)} &nbsp; • &nbsp; $typeIcon ${_escapeXml(plant.primaryFuel.displayName)} &nbsp; • &nbsp; ⚙ $capacityStr</p>
-              </td></tr>
-            </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#1e293b" style="border-bottom:1px solid #0d1117;">
-              <tr><td style="padding:1.4em 1.6em;">
-                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">Climate Vulnerability Score (CVS)</p>
-                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:0.7em;"><tr>
-                  <td width="${cvs.score.round()}%" bgcolor="$riskColor" style="line-height:1.8em;font-size:0;border-radius:6px 0 0 6px;">&nbsp;</td>
-                  <td width="${100 - cvs.score.round()}%" bgcolor="#334155" style="line-height:1.8em;font-size:0;border-radius:0 6px 6px 0;">&nbsp;</td>
-                </tr></table>
-                <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                  <td><p style="color:$riskColor;font-size:2.5em;font-weight:bold;margin:0;">${cvs.score.toStringAsFixed(1)} / 100</p></td>
-                  <td align="right"><p style="color:#f8fafc;font-size:1.5em;font-weight:bold;margin:0;">${cvs.riskLevel.label} RISK</p></td>
-                </tr></table>
-              </td></tr>
-            </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0">
-              <tr><td style="padding:1.4em 1.6em;">
-                <p style="font-size:1.3em;color:#e2e8f0;font-weight:bold;margin:0 0 0.7em;">&#9888; Key Risk Drivers</p>
-                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #334155;">
-                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127777; Temp Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.temperatureStress.toStringAsFixed(1)}</p></td></tr>
-                  <tr><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#128166; Water Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.waterStress.toStringAsFixed(1)}</p></td></tr>
-                  <tr bgcolor="#111827"><td style="padding:0.6em 0.9em;"><p style="color:#94a3b8;font-size:1.15em;margin:0;">&#127788; Wind Stress</p></td><td align="right" style="padding:0.6em 0.9em;"><p style="color:#fff;font-size:1.15em;font-weight:bold;margin:0;">${cvs.windStress.toStringAsFixed(1)}</p></td></tr>
-                </table>
-              </td></tr>
-            </table>
-          </div>
-          ]]></text>
-        </BalloonStyle>
-      </Style>''';
-      descriptionTag = '<description>Click for info</description>';
-    } else {
-      styleContent = '''
-      <Style id="plant_style_${plant.id}">
-        <IconStyle>
-          <scale>2.0</scale>
-          <Icon><href>$iconHref</href></Icon>
-          <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>
-        </IconStyle>
-        <LabelStyle><scale>0</scale></LabelStyle>
-      </Style>''';
-    }
-
-    buf.writeln('''
-    $styleContent
-    <Placemark id="plant_pin_${plant.id}">
-      <name>${_escapeXml(plant.name)}</name>
-      $descriptionTag
-      <styleUrl>#plant_style_${plant.id}</styleUrl>
-      <Point>
-        <altitudeMode>relativeToGround</altitudeMode>
-        <coordinates>$lon,$lat,$beaconHeight</coordinates>
-      </Point>
-    </Placemark>''');
 
     return buf.toString();
   }

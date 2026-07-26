@@ -10,8 +10,8 @@ class GeminiRemoteDataSource implements AIDataSource {
   final GeminiApiService _apiService;
   final Logger _logger = Logger();
   static DateTime? _lastCallTime;
-  static const _maxRetries = 3;
-  static const _retryDelay = Duration(seconds: 2);
+  static const _maxRetries = 4;
+  static const _retryDelay = Duration(seconds: 5);
 
   GeminiRemoteDataSource({required GeminiApiService apiService})
     : _apiService = apiService;
@@ -72,7 +72,7 @@ class GeminiRemoteDataSource implements AIDataSource {
         return;
       } on DioException catch (error) {
         final status = error.response?.statusCode;
-        if (status != null && status >= 400 && status < 500) {
+        if (status != null && status >= 400 && status < 500 && status != 429) {
           yield NetworkFailure(
             exception: Exception(
               'Gemini API error ($status): ${error.response?.data}',
@@ -81,7 +81,11 @@ class GeminiRemoteDataSource implements AIDataSource {
           );
           return;
         }
-        lastError = Exception('Gemini network error: ${error.message}');
+        if (status == 429) {
+          lastError = Exception('Gemini API rate limit exceeded (429). Please wait a moment and try again.');
+        } else {
+          lastError = Exception('Gemini network error: ${error.message}');
+        }
       } on SocketException catch (error) {
         lastError = Exception('Network error: $error');
       } catch (error, stackTrace) {
@@ -92,7 +96,12 @@ class GeminiRemoteDataSource implements AIDataSource {
         );
         lastError = error is Exception ? error : Exception('$error');
       }
-      if (attempt < _maxRetries) await Future<void>.delayed(_retryDelay);
+      if (attempt < _maxRetries) {
+        final delay = lastError.toString().contains('429')
+            ? Duration(seconds: 3 * attempt)
+            : _retryDelay;
+        await Future<void>.delayed(delay);
+      }
     }
     yield NetworkFailure(
       exception: lastError ?? Exception('Gemini request failed.'),

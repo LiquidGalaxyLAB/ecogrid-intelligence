@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../config/theme/app_theme.dart';
 import '../../config/theme/theme_controller.dart';
 import 'bloc/search_bloc.dart';
@@ -11,10 +12,12 @@ import '../../di/dependency_injection.dart';
 import '../../service/speech_to_text_service.dart';
 import '../common/widgets/power_plant_list_tile.dart';
 import '../common/widgets/region_list_tile.dart';
+import 'widgets/stt_listening_overlay.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool autoStartVoice;
-  const SearchScreen({super.key, this.autoStartVoice = false});
+  final String? initialQuery;
+  const SearchScreen({super.key, this.autoStartVoice = false, this.initialQuery});
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
@@ -24,36 +27,78 @@ class _SearchScreenState extends State<SearchScreen> {
   final _focusNode = FocusNode();
   List<String> _recentSearches = [];
   bool _isListening = false;
+  double _soundLevel = 0.0;
+  String _partialText = '';
+  
   SpeechToTextService get _stt => sl<SpeechToTextService>();
   @override
   void initState() {
     super.initState();
     _loadRecentSearches();
+    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
+      _controller.text = widget.initialQuery!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<SearchBloc>().add(SearchQueryChanged(widget.initialQuery!));
+      });
+    }
     if (widget.autoStartVoice) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
     }
   }
 
   void _startListening() async {
-    await _stt.startListening(
+    setState(() {
+      _partialText = '';
+      _soundLevel = 0.0;
+    });
+
+    final status = await _stt.startListening(
       onResult: (words) {
         if (mounted) {
-          setState(() => _controller.text = words);
+          setState(() {
+            _partialText = words;
+            _controller.text = words;
+          });
           context.read<SearchBloc>().add(SearchQueryChanged(words));
         }
       },
       onListening: (listening) {
         if (mounted) setState(() => _isListening = listening);
       },
+      onSoundLevelChange: (level) {
+        if (mounted) {
+          // Normalize expected range (-40 to 10 dB) to 0.0 - 1.0
+          final normalized = ((level + 40) / 50).clamp(0.0, 1.0);
+          setState(() => _soundLevel = normalized);
+        }
+      },
     );
+
+    if (mounted) {
+      if (status == SttPermissionStatus.permanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone permission permanently denied. Please enable it in Settings.'),
+            backgroundColor: AppTheme.surface,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      } else if (status == SttPermissionStatus.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone unavailable or permission denied.'),
+            backgroundColor: AppTheme.surface,
+          ),
+        );
+      }
+    }
   }
 
   void _stopListening() async {
-    await _stt.stopListening(
-      onListening: (listening) {
-        if (mounted) setState(() => _isListening = listening);
-      },
-    );
+    await _stt.stopListening();
   }
 
   Future<void> _loadRecentSearches() async {
@@ -222,6 +267,12 @@ class _SearchScreenState extends State<SearchScreen> {
                   ],
                 ),
               ),
+              if (_isListening)
+                SttListeningOverlay(
+                  soundLevel: _soundLevel,
+                  partialText: _partialText,
+                  onStop: _stopListening,
+                ),
             ],
           ),
         );

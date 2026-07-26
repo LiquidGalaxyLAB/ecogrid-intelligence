@@ -1,7 +1,11 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import '../../config/theme/app_theme.dart';
+import '../../config/theme/theme_controller.dart';
 import '../../core/enums/risk_level.dart';
 import '../../core/resources/data_state.dart';
 import '../../di/di.dart';
@@ -16,6 +20,11 @@ import '../../core/utils/comparison_kml_builder.dart';
 import '../../core/utils/comparison_balloon_builder.dart';
 import '../../core/utils/kml_utils.dart';
 import '../../domain/model/lg_settings.dart';
+import '../../core/constants/tour_keys.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../service/tour_service.dart';
+import '../components/eco_showcase.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry-point widget
@@ -49,6 +58,30 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
   void initState() {
     super.initState();
     _startComparisonTour();
+    
+    // Trigger coachmark if tour is active in this phase
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          _triggerTour();
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => _triggerTour());
+            }
+          });
+        }
+      } else {
+        _triggerTour();
+      }
+    });
+  }
+
+  void _triggerTour() {
+    if (!mounted) return;
+    sl<TourService>().showIfPhase(context, TourPhase.exploreComparison, [TourKeys.compareScreenInfo]);
   }
 
   Future<void> _startComparisonTour() async {
@@ -121,21 +154,41 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
           await lgService.clearBalloonOnSlave(rightmostScreen);
         }
       },
-      child: Scaffold(
-        backgroundColor: AppTheme.background,
-        appBar: AppBar(
-          title: Text('Plant Comparison'),
-          actions: [
-            IconButton(
-              onPressed: () => setState(() => _isCarouselMode = !_isCarouselMode),
-              icon: Icon(
-                _isCarouselMode
-                    ? Icons.grid_view_rounded
-                    : Icons.view_carousel_rounded,
+      child: Builder(builder: (context) {
+        final isDark = ThemeController.instance.isDarkMode;
+        return Scaffold(
+          backgroundColor: isDark ? AppTheme.background : const Color(0xFFF5F7FB),
+          appBar: AppBar(
+            backgroundColor: isDark ? null : const Color(0xFFF5F7FB),
+            foregroundColor: isDark ? null : const Color(0xFF1E293B),
+            title: Text('Plant Comparison'),
+            actions: [
+              EcoShowcase(
+                showcaseKey: TourKeys.compareScreenInfo,
+                title: 'Plant Comparison',
+                description: 'Compare the risk scores, AI analysis, and stats side-by-side.',
+                targetBorderRadius: BorderRadius.circular(12),
+                disposeOnTap: false,
+                onTargetClick: () {},
+                nextButtonText: 'Next ➔',
+                onNextClick: () {
+                  ShowCaseWidget.of(context).dismiss();
+                  sl<TourService>().advancePhase();
+                  Future.delayed(const Duration(milliseconds: 300), () {
+                    if (mounted) Navigator.pop(context); // Go back to explore
+                  });
+                },
+                child: IconButton(
+                  onPressed: () => setState(() => _isCarouselMode = !_isCarouselMode),
+                  icon: Icon(
+                    _isCarouselMode
+                        ? Icons.grid_view_rounded
+                        : Icons.view_carousel_rounded,
+                  ),
+                  tooltip: _isCarouselMode ? 'Grid View' : 'Carousel View',
+                ),
               ),
-              tooltip: _isCarouselMode ? 'Grid View' : 'Carousel View',
-            ),
-          ],
+            ],
         ),
         body: AnimatedSwitcher(
           duration: const Duration(milliseconds: 400),
@@ -154,8 +207,9 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
                   plants: widget.plants,
                   cvsRepository: widget.cvsRepository,
                 ),
-        ),
-      ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -287,12 +341,18 @@ class _CarouselViewState extends State<_CarouselView>
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 400),
-                      child: _PlantCard(
-                        key: ValueKey(data['widget'].name),
-                        plant: data['widget'],
-                        cvsRepository: widget.cvsRepository,
-                        isFront: widget.isFront,
-                        onFlip: widget.onFlip,
+                      child: ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(
+                          sigmaX: data['depth'] < 0.95 ? 1.5 : 0.0,
+                          sigmaY: data['depth'] < 0.95 ? 1.5 : 0.0,
+                        ),
+                        child: _PlantCard(
+                          key: ValueKey(data['widget'].name),
+                          plant: data['widget'],
+                          cvsRepository: widget.cvsRepository,
+                          isFront: widget.isFront,
+                          onFlip: widget.onFlip,
+                        ),
                       ),
                     ),
                   ),
@@ -980,9 +1040,9 @@ class _AiInsightBody extends StatelessWidget {
         ),
       );
     }
-    return Text(
+    return HtmlWidget(
       insight!,
-      style: const TextStyle(
+      textStyle: const TextStyle(
         color: Color(0xFFCBD5E1),
         fontSize: 13,
         height: 1.6,

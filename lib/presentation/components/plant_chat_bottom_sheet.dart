@@ -5,6 +5,7 @@ import '../plant_detail/bloc/plant_detail_bloc.dart';
 import '../plant_detail/bloc/plant_detail_data.dart';
 import '../plant_detail/bloc/plant_detail_event.dart';
 import '../../core/resources/app_state.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 class PlantChatBottomSheet extends StatefulWidget {
   final String plantName;
@@ -326,9 +327,9 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
                       : AppTheme.cardBorder.withValues(alpha: 0.5),
                 ),
               ),
-              child: Text(
+              child: HtmlWidget(
                 message.text,
-                style: AppTheme.bodySmall.copyWith(
+                textStyle: AppTheme.bodySmall.copyWith(
                   color: AppTheme.textPrimary,
                   height: 1.5,
                 ),

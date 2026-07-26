@@ -12,6 +12,7 @@ import '../../core/enums/plant_type.dart';
 import '../../core/utils/cvs_calculator.dart';
 import '../../di/di.dart';
 import '../../service/tts_service.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 enum SimulationMode { simulateImpact, pathToDanger }
 
@@ -79,7 +80,11 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      if (mounted) {
+        widget.bloc.add(const PlantDetailDismissInsight());
+      }
+    });
   }
 
   void _selectPreset(String scenario, double temp, double water, double wind) {
@@ -759,7 +764,7 @@ class _ShareableInsightCardState extends State<_ShareableInsightCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.3,
+      height: MediaQuery.of(context).size.height * 0.45,
       padding: EdgeInsets.only(
         top: 16,
         left: 24,
@@ -865,9 +870,9 @@ class _ShareableInsightCardState extends State<_ShareableInsightCard> {
               ),
             )
           else
-            Text(
+            HtmlWidget(
               widget.insight ?? '',
-              style: const TextStyle(
+              textStyle: const TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 height: 1.5,

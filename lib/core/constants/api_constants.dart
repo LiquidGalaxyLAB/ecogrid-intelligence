@@ -9,7 +9,7 @@ class ApiConstants {
   static const String openMeteoArchive =
       'https://archive-api.open-meteo.com/v1/archive';
   static const String geminiBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/openai';
+      'https://generativelanguage.googleapis.com/v1beta';
   static const String geminiInsightModel = 'gemini-3.1-flash-lite';
   static const String geminiChatModel = 'gemini-3.1-flash-lite';
   static const Duration apiTimeout = Duration(seconds: 60);
