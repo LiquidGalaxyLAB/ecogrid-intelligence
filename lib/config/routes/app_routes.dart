@@ -11,6 +11,7 @@ import '../../presentation/about/about_screen.dart';
 import '../../presentation/infrastructure_map/infrastructure_map_screen.dart';
 import '../../presentation/explore/bloc/explore_bloc.dart';
 import '../../domain/repository/cvs_repository.dart';
+import '../../testing/kml_test_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../../di/di.dart';
@@ -29,6 +30,7 @@ class AppRoutes {
   static const String search = '/search';
   static const String about = '/about';
   static const String infrastructureMap = '/infrastructure-map';
+  static const String kmlTest = '/kml-test';
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
@@ -80,6 +82,8 @@ class AppRoutes {
           ),
           settings,
         );
+      case kmlTest:
+        return _buildRoute(const KmlTestPage(), settings);
       default:
         return _buildRoute(const HomePage(), settings);
     }

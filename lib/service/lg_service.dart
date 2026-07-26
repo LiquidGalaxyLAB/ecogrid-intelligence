@@ -32,6 +32,7 @@ class LGService {
     : _sshService = sshService;
   DateTime? _lastSnackbarTime;
   ConnectionStatus get connectionStatus => _status;
+  int get screenCount => _screenCount;
   String? get currentRegion => _currentRegion;
   void setCurrentRegion(String? region) => _currentRegion = region;
   LGDisplayMode get currentMode => _currentMode;
@@ -193,6 +194,22 @@ class LGService {
     }
     try {
       await _sendKmlToSlave(slaveNumber, kml);
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<DataState<void>> sendKmlToScreen(int screenNumber, String kmlContent) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      if (screenNumber <= 1) {
+        await _sendKmlToMaster(kmlContent);
+      } else {
+        await _sendKmlToSlave(screenNumber, kmlContent);
+      }
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
