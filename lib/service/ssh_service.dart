@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -7,6 +8,7 @@ import '../core/exception/invalid_response_exception.dart';
 
 class SSHService {
   SSHClient? _client;
+  SftpClient? _sftpClient;
   String _host = '';
   String _password = '';
   String _username = '';
@@ -15,7 +17,30 @@ class SSHService {
   String get password => _password;
   String get host => _host;
   String get username => _username;
-  bool get isConnected => _client != null;
+  bool get isConnected => _client != null && !_client!.isClosed;
+
+  /// Serialization lock: ensures only one SSH channel operation runs at a time.
+  /// dartssh2's SSHClient.run() opens a new exec channel per call; the LG rig's
+  /// OpenSSH server has a MaxSessions limit (typically 10). Without serialization,
+  /// concurrent retries + parallel KML writes easily exceed this limit, causing
+  /// SSHChannelOpenError(1: open failed) on every subsequent operation.
+  Completer<void>? _lock;
+
+  Future<T> _serialized<T>(Future<T> Function() action) async {
+    // Wait for any in-flight operation to finish before starting ours.
+    while (_lock != null) {
+      await _lock!.future;
+    }
+    _lock = Completer<void>();
+    try {
+      return await action();
+    } finally {
+      final l = _lock;
+      _lock = null;
+      l?.complete();
+    }
+  }
+
   Future<void> connect({
     required String host,
     required int port,
@@ -66,7 +91,7 @@ class SSHService {
     }
   }
 
-  Future<String> execute(String command) async {
+  Future<String> execute(String command) => _serialized(() async {
     if (_client == null) {
       throw const ConnectionException(
         message: 'Not connected to Liquid Galaxy',
@@ -78,17 +103,11 @@ class SSHService {
           .timeout(const Duration(seconds: 30));
       return String.fromCharCodes(result);
     } on TimeoutException {
-      // Timeout on a single command does NOT mean the connection is broken.
-      // Log it and throw, but keep the SSH client alive.
       throw ConnectionException(
         message:
             'Command timed out: ${command.length > 80 ? '${command.substring(0, 80)}...' : command}',
       );
     } catch (e) {
-      // Only treat as a connection-level failure if the client socket is gone.
-      // Regular command errors (non-zero exit codes, stderr, etc.) should NOT
-      // close the SSH session — that was killing the LG connection after every
-      // KML write that produced any stderr output.
       final msg = e.toString();
       final isConnectionLost = msg.contains('Connection closed') ||
           msg.contains('Connection reset') ||
@@ -97,28 +116,28 @@ class SSHService {
       if (isConnectionLost) {
         _client?.close();
         _client = null;
+        _sftpClient = null;
         _connectionController.add(false);
         debugPrint('[EcoGrid] SSH connection lost: $msg');
       }
       throw ConnectionException(message: 'Command execution failed: $e');
     }
-  }
+  });
 
   /// Writes [content] to [remotePath] via SFTP.
   /// Reliable for any file size — no shell argument-length limits.
-  /// The SFTP session is always closed in the finally block to avoid
-  /// leaking SSH channels (which would eventually kill the connection).
-  Future<void> writeFileViaSftp(String remotePath, String content) async {
+  Future<void> writeFileViaSftp(String remotePath, String content) =>
+      _serialized(() async {
     if (_client == null) {
       throw const ConnectionException(
         message: 'Not connected to Liquid Galaxy',
       );
     }
-    SftpClient? sftp;
     try {
       final bytes = Uint8List.fromList(utf8.encode(content));
-      sftp = await _client!.sftp();
-      final remoteFile = await sftp.open(
+      _sftpClient ??= await _client!.sftp();
+
+      final remoteFile = await _sftpClient!.open(
         remotePath,
         mode: SftpFileOpenMode.create |
             SftpFileOpenMode.write |
@@ -127,20 +146,20 @@ class SSHService {
       await remoteFile.write(Stream.value(bytes).cast<Uint8List>());
       await remoteFile.close();
     } catch (e) {
+      // If the SFTP session is stale, reset it so the next call reconnects.
+      _sftpClient = null;
       throw ConnectionException(
         message: 'SFTP write failed for $remotePath: $e',
       );
-    } finally {
-      // Always close the SFTP subsystem channel — not doing this leaks
-      // SSH channels and eventually causes the LG to drop the connection.
-      try { sftp?.close(); } catch (_) {}
     }
-  }
+  });
 
 
   void disconnect() {
     if (_client != null) {
       try {
+        _sftpClient?.close();
+        _sftpClient = null;
         _client!.close();
       } catch (_) {}
       _client = null;
@@ -149,35 +168,55 @@ class SSHService {
     }
   }
 
-  Future<void> uploadAsset(String assetPath, String remotePath) async {
-    if (_client == null) {
-      throw const ConnectionException(
-        message: 'Not connected to Liquid Galaxy',
-      );
+  Future<void> uploadAsset(String assetPath, String remotePath) =>
+      _serialized(() async {
+    if (!isConnected) {
+      throw Exception('SSH is not connected');
     }
-    SftpClient? sftp;
     try {
-      final byteData = await rootBundle.load(assetPath);
-      final bytes = byteData.buffer.asUint8List();
-      sftp = await _client!.sftp();
-      final remoteFile = await sftp.open(
+      final ByteData data = await rootBundle.load(assetPath);
+      final buffer = data.buffer;
+      final bytes = buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+
+      _sftpClient ??= await _client!.sftp();
+      final file = await _sftpClient!.open(
         remotePath,
-        mode:
-            SftpFileOpenMode.create |
-            SftpFileOpenMode.write |
-            SftpFileOpenMode.truncate,
+        mode: SftpFileOpenMode.create | SftpFileOpenMode.write | SftpFileOpenMode.truncate,
       );
-      await remoteFile.write(Stream.value(bytes).cast<Uint8List>());
-      await remoteFile.close();
+      await file.write(Stream.value(bytes));
+      await file.close();
       debugPrint('[EcoGrid] Successfully uploaded $assetPath to $remotePath');
     } catch (e) {
+      _sftpClient = null;
+      debugPrint('[EcoGrid] Failed to upload asset: $e');
       throw ConnectionException(
         message: 'SFTP upload failed for $assetPath: $e',
       );
-    } finally {
-      try { sftp?.close(); } catch (_) {}
     }
-  }
+  });
+
+  /// Upload raw bytes to a remote path via SFTP.
+  Future<void> uploadBytesViaSftp(Uint8List bytes, String remotePath) =>
+      _serialized(() async {
+    if (!isConnected) {
+      throw Exception('SSH is not connected');
+    }
+    try {
+      _sftpClient ??= await _client!.sftp();
+      final file = await _sftpClient!.open(
+        remotePath,
+        mode: SftpFileOpenMode.create | SftpFileOpenMode.write | SftpFileOpenMode.truncate,
+      );
+      await file.write(Stream.value(bytes));
+      await file.close();
+    } catch (e) {
+      _sftpClient = null;
+      debugPrint('[EcoGrid] Failed to upload bytes via SFTP: $e');
+      throw ConnectionException(
+        message: 'SFTP upload failed for $remotePath: $e',
+      );
+    }
+  });
 
 
   void dispose() {

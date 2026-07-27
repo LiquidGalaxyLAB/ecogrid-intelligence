@@ -71,9 +71,7 @@ class ExploreGenerateRegionalInsight extends ExploreEvent {
   const ExploreGenerateRegionalInsight();
 }
 
-class ExploreShowPlantsOnLG extends ExploreEvent {
-  const ExploreShowPlantsOnLG();
-}
+
 
 class ExploreLGRestoreRequested extends ExploreEvent {
   const ExploreLGRestoreRequested();

@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../config/routes/app_routes.dart';
 import '../../config/theme/theme_controller.dart';
-
+import '../../service/lg_service.dart';
+import '../../domain/model/lg_settings.dart';
+import '../../core/resources/data_state.dart';
+import '../../di/di.dart';
+import '../lg_connection/bloc/lg_connection_bloc.dart';
+import '../../service/tour_service.dart';
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
   @override
@@ -20,7 +25,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 5000),
     );
     _fadeIn = CurvedAnimation(
       parent: _controller,
@@ -42,6 +47,14 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+        // Kick off the FTUE tour if this is a first launch.
+        sl<TourService>().checkAndStartTour();
+        final lgService = sl<LGService>();
+        lgService.loadSettings().then((result) {
+          if (result is DataSuccess<LGSettings> && result.data!.host.isNotEmpty) {
+            sl<LGConnectionBloc>().add(LGConnectRequested(result.data!));
+          }
+        });
       }
     });
   }
@@ -90,145 +103,31 @@ class _SplashScreenState extends State<SplashScreen>
                         child: ScaleTransition(
                           scale: _scale,
                           child: Container(
-                            width: 240,
-                            height: 240,
+                            width: 500,
+                            height: 500,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               boxShadow: isDark
                                   ? [
                                       BoxShadow(
-                                        color: const Color(
-                                          0xFF00D4AA,
-                                        ).withValues(alpha: 0.3),
+                                        color: const Color(0xFF00D4AA).withValues(alpha: 0.3),
                                         blurRadius: 60,
                                         spreadRadius: 10,
                                       ),
                                     ]
                                   : [
                                       BoxShadow(
-                                        color: const Color(
-                                          0xFF0066FF,
-                                        ).withValues(alpha: 0.15),
+                                        color: const Color(0xFF0066FF).withValues(alpha: 0.15),
                                         blurRadius: 60,
                                         spreadRadius: 10,
                                       ),
                                     ],
                             ),
-                            child: ClipOval(
-                              child: Image.asset(
-                                'assets/images/splashscreen_logo.png',
-                                fit: BoxFit.cover,
-                              ),
+                            child: Image.asset(
+                              'assets/images/logos.png',
+                              fit: BoxFit.contain,
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      FadeTransition(
-                        opacity: _fadeIn,
-                        child: Text(
-                          'EcoGrid Intelligence',
-                          style: GoogleFonts.outfit(
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0D1F4A),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FadeTransition(
-                        opacity: _fadeIn,
-                        child: Text(
-                          'AI-Driven Climate Resilience on Liquid Galaxy',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
-                            color: isDark
-                                ? Colors.white54
-                                : const Color(0xFF6B80A0),
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 60),
-                      FadeTransition(
-                        opacity: _fadeIn,
-                        child: SizedBox(
-                          width: 160,
-                          child: AnimatedBuilder(
-                            animation: _controller,
-                            builder: (context, _) {
-                              final progress =
-                                  ((_controller.value - 0.2) / 0.65).clamp(
-                                    0.0,
-                                    1.0,
-                                  );
-                              return Stack(
-                                children: [
-                                  Container(
-                                    height: 3,
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? Colors.white12
-                                          : const Color(0xFFE2E8F0),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  FractionallySizedBox(
-                                    widthFactor: progress,
-                                    child: Container(
-                                      height: 3,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: isDark
-                                              ? const [
-                                                  Color(0xFF00D4AA),
-                                                  Color(0xFF00A8FF),
-                                                ]
-                                              : const [
-                                                  Color(0xFF0066FF),
-                                                  Color(0xFF00C8FF),
-                                                ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      FadeTransition(
-                        opacity: _fadeIn,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.public,
-                              size: 14,
-                              color: isDark
-                                  ? const Color(0xFF00D4AA)
-                                  : const Color(0xFF0066FF),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Liquid Galaxy LAB Project',
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                color: isDark
-                                    ? const Color(0xFF00D4AA)
-                                    : const Color(0xFF0066FF),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ],

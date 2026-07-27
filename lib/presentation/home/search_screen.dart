@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../config/theme/app_theme.dart';
 import '../../config/theme/theme_controller.dart';
 import 'bloc/search_bloc.dart';
@@ -9,48 +10,95 @@ import '../components/app_search_bar.dart';
 import '../components/atmospheric_globe_painter.dart';
 import '../../di/dependency_injection.dart';
 import '../../service/speech_to_text_service.dart';
+import '../common/widgets/power_plant_list_tile.dart';
+import '../common/widgets/region_list_tile.dart';
+import 'widgets/stt_listening_overlay.dart';
 
 class SearchScreen extends StatefulWidget {
   final bool autoStartVoice;
-  const SearchScreen({super.key, this.autoStartVoice = false});
+  final String? initialQuery;
+  const SearchScreen({super.key, this.autoStartVoice = false, this.initialQuery});
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   List<String> _recentSearches = [];
   bool _isListening = false;
+  double _soundLevel = 0.0;
+  String _partialText = '';
+  
   SpeechToTextService get _stt => sl<SpeechToTextService>();
   @override
   void initState() {
     super.initState();
     _loadRecentSearches();
+    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
+      _controller.text = widget.initialQuery!;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<SearchBloc>().add(SearchQueryChanged(widget.initialQuery!));
+      });
+    }
     if (widget.autoStartVoice) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
     }
   }
 
   void _startListening() async {
-    await _stt.startListening(
+    setState(() {
+      _partialText = '';
+      _soundLevel = 0.0;
+    });
+
+    final status = await _stt.startListening(
       onResult: (words) {
         if (mounted) {
-          setState(() => _controller.text = words);
+          setState(() {
+            _partialText = words;
+            _controller.text = words;
+          });
           context.read<SearchBloc>().add(SearchQueryChanged(words));
         }
       },
       onListening: (listening) {
         if (mounted) setState(() => _isListening = listening);
       },
+      onSoundLevelChange: (level) {
+        if (mounted) {
+          // Normalize expected range (-40 to 10 dB) to 0.0 - 1.0
+          final normalized = ((level + 40) / 50).clamp(0.0, 1.0);
+          setState(() => _soundLevel = normalized);
+        }
+      },
     );
+
+    if (mounted) {
+      if (status == SttPermissionStatus.permanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone permission permanently denied. Please enable it in Settings.'),
+            backgroundColor: AppTheme.surface,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      } else if (status == SttPermissionStatus.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone unavailable or permission denied.'),
+            backgroundColor: AppTheme.surface,
+          ),
+        );
+      }
+    }
   }
 
   void _stopListening() async {
-    await _stt.stopListening(
-      onListening: (listening) {
-        if (mounted) setState(() => _isListening = listening);
-      },
-    );
+    await _stt.stopListening();
   }
 
   Future<void> _loadRecentSearches() async {
@@ -90,27 +138,9 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     if (_isListening) _stt.stopListening();
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
-  }
-
-  IconData _plantTypeIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'nuclear':
-        return Icons.science;
-      case 'hydroelectric':
-        return Icons.water;
-      case 'solar':
-        return Icons.wb_sunny;
-      case 'wind':
-        return Icons.air;
-      case 'coal/thermal':
-        return Icons.factory;
-      case 'natural gas':
-        return Icons.local_fire_department;
-      default:
-        return Icons.bolt;
-    }
   }
 
   @override
@@ -177,8 +207,12 @@ class _SearchScreenState extends State<SearchScreen> {
                         hintText: 'Search regions or power plants...',
                         readOnly: false,
                         controller: _controller,
+                        focusNode: _focusNode,
                         isListening: _isListening,
-                        onPrefixIconTap: () => Navigator.pop(context),
+                        onPrefixIconTap: () {
+                          _focusNode.unfocus();
+                          Navigator.pop(context);
+                        },
                         prefixIcon: Icons.arrow_back_ios_new,
                         onMicTap: () {
                           if (_isListening) {
@@ -233,6 +267,12 @@ class _SearchScreenState extends State<SearchScreen> {
                   ],
                 ),
               ),
+              if (_isListening)
+                SttListeningOverlay(
+                  soundLevel: _soundLevel,
+                  partialText: _partialText,
+                  onStop: _stopListening,
+                ),
             ],
           ),
         );
@@ -467,72 +507,73 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildResultsList(SearchState state) {
-    final totalItems = state.regionResults.length + state.results.length;
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: totalItems,
-      itemBuilder: (context, index) {
-        if (index < state.regionResults.length) {
-          final region = state.regionResults[index];
-          return ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: Icon(Icons.public, color: AppTheme.primary, size: 20),
+    final widgets = <Widget>[];
+
+    if (state.regionResults.isNotEmpty) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            'REGIONS',
+            style: AppTheme.labelSmall.copyWith(
+              color: AppTheme.textSecondary,
+              letterSpacing: 2.2,
             ),
-            title: Text(
-              region.displayName ?? region.name,
-              style: AppTheme.bodyMedium,
-            ),
-            subtitle: Text('Region', style: AppTheme.caption),
-            trailing: Icon(Icons.explore, color: AppTheme.primary, size: 20),
+          ),
+        ),
+      );
+      for (final region in state.regionResults) {
+        widgets.add(
+          RegionListTile(
+            region: region,
             onTap: () {
+              _focusNode.unfocus();
               _addRecentSearch(region.displayName ?? region.name);
-              Navigator.pushReplacementNamed(
+              Navigator.pushNamed(
                 context,
                 AppRoutes.explore,
                 arguments: {'region': region},
               );
             },
-          );
-        } else {
-          final plantIndex = index - state.regionResults.length;
-          final plant = state.results[plantIndex];
-          return ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: Icon(
-                _plantTypeIcon(plant.primaryFuel.displayName),
-                color: AppTheme.primary,
-                size: 20,
-              ),
+          ),
+        );
+      }
+    }
+
+    if (state.results.isNotEmpty) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Text(
+            'POWER PLANTS',
+            style: AppTheme.labelSmall.copyWith(
+              color: AppTheme.textSecondary,
+              letterSpacing: 2.2,
             ),
-            title: Text(plant.name, style: AppTheme.bodyMedium),
-            subtitle: Text(
-              '${plant.primaryFuel.displayName} • ${plant.countryLong ?? plant.country}',
-              style: AppTheme.caption,
-            ),
-            trailing: Icon(Icons.chevron_right, color: AppTheme.textMuted),
+          ),
+        ),
+      );
+      for (final plant in state.results) {
+        widgets.add(
+          PowerPlantListTile(
+            plant: plant,
             onTap: () {
+              _focusNode.unfocus();
               _addRecentSearch(plant.name);
-              Navigator.pushReplacementNamed(
+              Navigator.pushNamed(
                 context,
                 AppRoutes.plantDetail,
                 arguments: {'plant': plant},
               );
             },
-          );
-        }
-      },
+          ),
+        );
+      }
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: widgets,
     );
   }
 }

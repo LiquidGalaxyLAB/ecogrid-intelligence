@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/utils/globals.dart';
+import 'dart:typed_data';
 import '../core/enums/connection_status.dart';
 import '../core/exception/invalid_response_exception.dart';
 import '../core/exception/unhandled_exception.dart';
@@ -12,6 +13,14 @@ import '../core/constants/lg_constants.dart';
 import 'ssh_service.dart';
 
 class LGService {
+  String _currentKmlContext = '';
+
+  void setKmlContext(String context) {
+    _currentKmlContext = context;
+  }
+
+  String get kmlContext => _currentKmlContext;
+
   final SSHService _sshService;
   final SettingsLocalDataSource settingsDataSource;
   ConnectionStatus _status = ConnectionStatus.disconnected;
@@ -23,6 +32,7 @@ class LGService {
     : _sshService = sshService;
   DateTime? _lastSnackbarTime;
   ConnectionStatus get connectionStatus => _status;
+  int get screenCount => _screenCount;
   String? get currentRegion => _currentRegion;
   void setCurrentRegion(String? region) => _currentRegion = region;
   LGDisplayMode get currentMode => _currentMode;
@@ -86,6 +96,12 @@ class LGService {
       } catch (e) {
         debugPrint('[EcoGrid] Failed to set refresh intervals: $e');
       }
+      try {
+        await clearKml();
+        await flyToDefault();
+      } catch (e) {
+        debugPrint('[EcoGrid] Failed to reset LG state on connect: $e');
+      }
       return const DataSuccess(true);
     } catch (e) {
       _status = ConnectionStatus.error;
@@ -129,6 +145,25 @@ class LGService {
     }
   }
 
+  Future<DataState<void>> flyToDefault() async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _withRetry(() => _flyTo(
+        40.4636688,
+        -3.7492199,
+        0,
+        0,
+        60,
+        1500000,
+      ));
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
   Future<DataState<void>> sendKmlToMaster(String kmlContent) async {
     if (!_checkConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
@@ -165,6 +200,43 @@ class LGService {
     }
   }
 
+  Future<DataState<void>> sendKmlToScreen(int screenNumber, String kmlContent) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      if (screenNumber <= 1) {
+        await _sendKmlToMaster(kmlContent);
+      } else {
+        await _sendKmlToSlave(screenNumber, kmlContent);
+      }
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  /// Sends placemarks KML to master AND all slave screens so that
+  /// pins are visible across the entire Liquid Galaxy panoramic view.
+  Future<DataState<void>> sendKmlToAllScreens(String kmlContent) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      // Send to master so it renders on screen 1
+      await _sendKmlToMaster(kmlContent);
+      // Also send the same KML to every slave so their Google Earth
+      // instances render the placemarks on their portion of the view.
+      for (var screen = 2; screen <= _screenCount; screen++) {
+        await _sendKmlToSlave(screen, kmlContent);
+      }
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+
   Future<DataState<void>> showBalloonOnSlave(
     int slaveNumber,
     String balloonKml,
@@ -192,6 +264,22 @@ class LGService {
     }
   }
 
+  Future<DataState<void>> uploadBalloonImage(String filename, Uint8List bytes) async {
+    if (!_checkConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _sshService.execute('mkdir -p /var/www/html/kml/images');
+      await _sshService.uploadBytesViaSftp(
+        bytes,
+        '/var/www/html/kml/images/$filename',
+      );
+      return const DataSuccess(null);
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
   Future<DataState<void>> startOrbit(
     double lat,
     double lon,
@@ -202,7 +290,7 @@ class LGService {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      final orbitKml = KmlUtils.orbitTour(
+      final orbitKml = _buildOrbitTour(
         lat: lat,
         lon: lon,
         range: range,
@@ -226,6 +314,15 @@ class LGService {
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  Future<void> startComparisonTour(String tourName) async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 3000));
+      await _playTour(tourName);
+    } catch (e) {
+      debugPrint('[LG] Error starting tour: $e');
     }
   }
 
@@ -352,9 +449,21 @@ class LGService {
     _screenCount = count < 1 ? 1 : count;
   }
 
-  String _escapeForEcho(String value) => value.replaceAll("'", "'\\\\''");
+
 
   Future<void> _initialize() async {
+    // NOTE: 'echo $password | sudo -S <cmd>' pipes the password to sudo via
+    // stdin, which is more secure than passing it as a CLI arg — sudo -S reads
+    // from stdin, so the password never appears in the command string itself
+    // (the shell expands $password before exec, but it stays in this process's
+    // memory, not in a child process's argv visible via 'ps aux').
+    // A cleaner alternative would be a dedicated executeWithStdin() method on
+    // SSHService using SSHSession.stdin (dartssh2 supports this via
+    // _client!.execute() rather than _client!.run()), but that requires a
+    // non-trivial change to ssh_service.dart. Leave as-is until the rig's
+    // sudo configuration is confirmed — if the LG account has NOPASSWD sudo
+    // (common on standard LG installs), the sudo -S piping can be removed
+    // entirely and replaced with plain 'sudo <cmd>'.
     final password = _sshService.password;
     await _sshService.execute(
       'echo $password | sudo -S mkdir -p ${LGConstants.kmlPath}',
@@ -389,27 +498,55 @@ class LGService {
     await _sshService.execute('echo "$query" > ${LGConstants.queryFile}');
   }
 
+  /// Retries [action] up to [maxAttempts] times with simple linear backoff.
+  /// Capped at a fixed number of attempts — never retries forever.
+  Future<T> _withRetry<T>(
+    Future<T> Function() action, {
+    int maxAttempts = 3,
+    Duration delay = const Duration(milliseconds: 400),
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (e) {
+        lastError = e;
+        debugPrint('[LG] Attempt $attempt/$maxAttempts failed: $e');
+        if (attempt < maxAttempts) {
+          await Future.delayed(delay * attempt); // linear backoff
+        }
+      }
+    }
+    throw lastError!;
+  }
+
   Future<void> _sendKmlToMaster(String kml) async {
-    final escaped = _escapeForEcho(kml);
     final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _sshService.execute(
-      "echo '$escaped' > ${LGConstants.masterKmlFile} ; "
-      "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
+    await _withRetry(
+      () => _sshService.writeFileViaSftp(LGConstants.masterKmlFile, kml),
+    );
+    await _withRetry(
+      () => _sshService.execute(
+        "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
+      ),
     );
   }
 
   Future<void> _clearMaster() async {
-    await _sshService.execute(
-      "echo '${_escapeForEcho(KmlUtils.emptyKml())}' > ${LGConstants.masterKmlFile} ; "
+    await _withRetry(() => _sshService.writeFileViaSftp(
+      LGConstants.masterKmlFile,
+      KmlUtils.emptyKml(),
+    ));
+    await _withRetry(() => _sshService.execute(
       "echo '' > /var/www/html/kmls.txt",
-    );
+    ));
   }
 
-  Future<void> _sendKmlToSlave(
-    int slaveNumber,
-    String kml,
-  ) => _sshService.execute(
-    "echo '${_escapeForEcho(kml)}' > ${LGConstants.kmlPath}slave_$slaveNumber.kml",
+  Future<void> _sendKmlToSlave(int slaveNumber, String kml) => _withRetry(
+    () => _sshService.writeFileViaSftp(
+      '${LGConstants.kmlPath}slave_$slaveNumber.kml',
+      kml,
+    ),
   );
 
   Future<void> _playTour(String name) =>
@@ -418,29 +555,72 @@ class LGService {
   Future<void> _exitTour() =>
       _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
 
-  Future<void> _sendOrbitKml(String kml) => _sshService.execute(
-    "echo '${_escapeForEcho(kml)}' > /var/www/html/orbit.kml ; "
-    "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
-  );
+  Future<void> _sendOrbitKml(String kml) async {
+    await _withRetry(
+      () => _sshService.writeFileViaSftp('/var/www/html/orbit.kml', kml),
+    );
+    await _withRetry(
+      () => _sshService.execute(
+        "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
+      ),
+    );
+  }
+
+  String _buildOrbitTour({
+    required double lat,
+    required double lon,
+    double range = 15000,
+    double tilt = 60,
+    int steps = 36,
+    double stepDuration = 0.8,
+  }) {
+    final buffer = StringBuffer();
+    for (int i = 0; i < steps; i++) {
+      final heading = (360.0 * i / steps);
+      buffer.writeln(
+        KmlUtils.flyTo(
+          lat: lat,
+          lon: lon,
+          altitude: 0,
+          heading: heading,
+          tilt: tilt,
+          range: range,
+          duration: stepDuration,
+        ),
+      );
+    }
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+  <gx:Tour>
+    <name>Orbit</name>
+    <gx:Playlist>
+${buffer.toString()}    </gx:Playlist>
+  </gx:Tour>
+</kml>''';
+  }
 
   Future<void> _clearAllKml() async {
-    final commands = <String>[
-      'echo "exittour=true" > ${LGConstants.queryFile}',
-      "echo '' > /var/www/html/kmls.txt",
-      "echo '${_escapeForEcho(KmlUtils.emptyKml())}' > ${LGConstants.masterKmlFile}",
-    ];
-    final emptyBalloon = _escapeForEcho(KmlUtils.emptyBalloon());
+    // Short fixed strings — no user content, safe as echo commands.
+    await _withRetry(() => _sshService.execute(
+      'echo "exittour=true" > ${LGConstants.queryFile} ; echo \'\' > /var/www/html/kmls.txt',
+    ));
+    // KML payloads written via SFTP — no shell escaping, no command-length limits.
+    await _withRetry(() => _sshService.writeFileViaSftp(
+      LGConstants.masterKmlFile,
+      KmlUtils.emptyKml(),
+    ));
     for (var screen = 2; screen <= _screenCount; screen++) {
-      commands.add(
-        "echo '$emptyBalloon' > ${LGConstants.kmlPath}slave_$screen.kml",
-      );
+      await _withRetry(() => _sshService.writeFileViaSftp(
+        '${LGConstants.kmlPath}slave_$screen.kml',
+        KmlUtils.emptyBalloon(),
+      ));
     }
     if (_isLogoVisible) {
-      commands.add(
-        "echo '${_escapeForEcho(KmlUtils.screenOverlayKml())}' > ${LGConstants.kmlPath}slave_${_leftScreenIndex()}.kml",
-      );
+      await _withRetry(() => _sshService.writeFileViaSftp(
+        '${LGConstants.kmlPath}slave_${_leftScreenIndex()}.kml',
+        KmlUtils.screenOverlayKml(),
+      ));
     }
-    await _sshService.execute(commands.join(' ; '));
   }
 
   Future<void> _setRefreshIntervals() => _updateRefreshIntervals(add: true);
@@ -466,6 +646,14 @@ class LGService {
   Future<void> _shutdown() => _runOnAllNodes('poweroff');
 
   Future<void> _runOnAllNodes(String command) async {
+    // NOTE: 'sshpass -p $password ssh -t lgN ...' is the standard pattern for
+    // hopping to slave nodes when the rig is configured with password-based
+    // inter-node SSH auth. sshpass fundamentally requires the password as a
+    // CLI argument, which means it is visible in 'ps aux' on lg1 while the
+    // command runs. The correct long-term fix is SSH key-based auth between
+    // rig nodes (add lg1's public key to authorized_keys on lg2..lgN), after
+    // which the sshpass wrapper and -p flag can be removed entirely. This is
+    // an infrastructure change on the Lleida rig, not a Flutter code change.
     final password = _sshService.password;
     for (var screen = _screenCount; screen >= 2; screen--) {
       try {

@@ -23,6 +23,23 @@ class AboutScreen extends StatefulWidget {
 
 class _AboutScreenState extends State<AboutScreen> {
   String _appVersion = '';
+  int _versionTapCount = 0;
+  DateTime? _lastVersionTapTime;
+
+  void _onVersionTap() {
+    final now = DateTime.now();
+    if (_lastVersionTapTime != null &&
+        now.difference(_lastVersionTapTime!).inMilliseconds > 1500) {
+      _versionTapCount = 0;
+    }
+    _lastVersionTapTime = now;
+    _versionTapCount++;
+    if (_versionTapCount >= 3) {
+      _versionTapCount = 0;
+      Navigator.pushNamed(context, '/kml-test');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -276,12 +293,22 @@ class _AboutScreenState extends State<AboutScreen> {
                           ),
                           if (_appVersion.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(
-                              'v$_appVersion',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: cs.onSurface.withValues(alpha: 0.4),
+                            GestureDetector(
+                              onTap: _onVersionTap,
+                              behavior: HitTestBehavior.opaque,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
+                                child: Text(
+                                  'v$_appVersion',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: cs.onSurface.withValues(alpha: 0.4),
+                                  ),
+                                ),
                               ),
                             ),
                           ],

@@ -16,6 +16,8 @@ class Region extends Equatable {
   /// The search query to send to Nominatim to fetch this region's boundary.
   /// Falls back to [name] if null.
   final String? nominatimQuery;
+  final Map<String, dynamic>? geoJson;
+
   const Region({
     required this.id,
     required this.name,
@@ -30,9 +32,46 @@ class Region extends Equatable {
     this.defaultZoom = 5.0,
     this.countries,
     this.nominatimQuery,
+    this.geoJson,
   });
+
+  Region copyWith({
+    String? id,
+    String? name,
+    String? displayName,
+    double? centerLat,
+    double? centerLon,
+    double? minLat,
+    double? minLon,
+    double? maxLat,
+    double? maxLon,
+    String? imageAsset,
+    double? defaultZoom,
+    List<String>? countries,
+    String? nominatimQuery,
+    Map<String, dynamic>? geoJson,
+  }) {
+    return Region(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      displayName: displayName ?? this.displayName,
+      centerLat: centerLat ?? this.centerLat,
+      centerLon: centerLon ?? this.centerLon,
+      minLat: minLat ?? this.minLat,
+      minLon: minLon ?? this.minLon,
+      maxLat: maxLat ?? this.maxLat,
+      maxLon: maxLon ?? this.maxLon,
+      imageAsset: imageAsset ?? this.imageAsset,
+      defaultZoom: defaultZoom ?? this.defaultZoom,
+      countries: countries ?? this.countries,
+      nominatimQuery: nominatimQuery ?? this.nominatimQuery,
+      geoJson: geoJson ?? this.geoJson,
+    );
+  }
+
   @override
-  List<Object?> get props => [id, name];
+  List<Object?> get props => [id, name, geoJson];
+
   static const List<Region> quickRegions = [
     Region(
       id: 'india',
@@ -66,33 +105,33 @@ class Region extends Equatable {
     ),
     Region(
       id: 'usa',
-      name: 'USA',
-      displayName: 'USA',
-      centerLat: 37.0902,
-      centerLon: -95.7129,
-      minLat: 24.396,
-      minLon: -125.0,
-      maxLat: 49.384,
-      maxLon: -66.934,
+      name: 'New York',
+      displayName: 'New York',
+      centerLat: 42.1657,
+      centerLon: -74.9481,
+      minLat: 40.496,
+      minLon: -79.762,
+      maxLat: 45.016,
+      maxLon: -71.856,
       imageAsset: 'assets/images/regions/dark/usa.png',
-      defaultZoom: 4.0,
-      countries: ['United States of America', 'USA', 'United States'],
-      nominatimQuery: 'United States of America',
+      defaultZoom: 7.0,
+      countries: null,
+      nominatimQuery: 'New York State, USA',
     ),
     Region(
       id: 'china',
-      name: 'China',
-      displayName: 'China',
-      centerLat: 35.8617,
-      centerLon: 104.1954,
-      minLat: 18.0,
-      minLon: 73.0,
-      maxLat: 54.0,
-      maxLon: 135.0,
+      name: 'Shandong',
+      displayName: 'Shandong',
+      centerLat: 36.6680,
+      centerLon: 119.1620,
+      minLat: 34.3750,
+      minLon: 114.7820,
+      maxLat: 38.4010,
+      maxLon: 122.7130,
       imageAsset: 'assets/images/regions/dark/china.png',
-      defaultZoom: 4.5,
-      countries: ['China'],
-      nominatimQuery: 'China',
+      defaultZoom: 6.0,
+      countries: null,
+      nominatimQuery: 'Shandong, China',
     ),
     Region(
       id: 'kenya',

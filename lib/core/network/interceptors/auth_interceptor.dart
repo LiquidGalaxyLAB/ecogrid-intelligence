@@ -11,9 +11,15 @@ class AuthInterceptor extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final apiKey = ApiConstants.geminiApiKey;
 
-    // Only inject if a key is available and the request doesn't already have
-    // its own Authorization header.
+    // Native Gemini API uses ?key= query param, not Bearer token.
+    final isNativeGemini =
+        options.uri.host.contains('generativelanguage.googleapis.com') &&
+        !options.path.contains('/openai/');
+
+    // Only inject if a key is available, the request doesn't already have
+    // its own Authorization header, and it's not a native Gemini call.
     if (apiKey.isNotEmpty &&
+        !isNativeGemini &&
         !options.headers.containsKey('Authorization')) {
       options.headers['Authorization'] = 'Bearer $apiKey';
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:logger/logger.dart';
 import '../../config/theme/app_theme.dart';
 import '../../config/routes/app_routes.dart';
@@ -20,8 +21,15 @@ import '../components/app_search_bar.dart';
 import '../../service/tts_service.dart';
 import '../../di/di.dart' show sl;
 import '../../config/theme/theme_controller.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import '../../service/lg_service.dart';
 import 'plant_comparison_screen.dart';
 import '../../domain/repository/cvs_repository.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../service/tour_service.dart';
+import '../components/eco_showcase.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../core/constants/tour_keys.dart';
 
 class ExploreScreen extends StatelessWidget {
   final Map<String, dynamic>? arguments;
@@ -61,8 +69,6 @@ class _ExploreScreenBody extends StatefulWidget {
 class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
-  bool _isNarrating = false;
-  bool _isMuted = false;
 
   // ── Compare mode state ─────────────────────────────────────────────────
   bool _isCompareMode = false;
@@ -83,12 +89,20 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         _selectedPlants.add(plant);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Maximum 4 plants can be compared'),
-          ),
+          const SnackBar(content: Text('Maximum 4 plants can be compared')),
         );
       }
     });
+    // During tour: show the Compare button coachmark when 2+ plants selected.
+    if (_tourService.isTourActive.value &&
+        _tourService.currentPhase.value == TourPhase.exploreCompareSelect &&
+        _selectedPlants.length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _tourService.showIfPhase(context, TourPhase.exploreCompareSelect, [TourKeys.compareBtn]);
+        }
+      });
+    }
   }
 
   void _openComparisonScreen() {
@@ -105,18 +119,18 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         ),
         transitionsBuilder: (ctx, animation, route, child) {
           return FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOut,
-            ),
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
             child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.08),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 0.08),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  ),
               child: child,
             ),
           );
@@ -127,17 +141,82 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
   }
   // ──────────────────────────────────────────────────────────────────────────
 
+  final TourService _tourService = sl<TourService>();
+
   @override
   void initState() {
     super.initState();
     Logger().i('[UI] Opened ExploreScreen');
+    _tourService.currentPhase.addListener(_onTourPhaseChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     _searchController.dispose();
+    _tourService.currentPhase.removeListener(_onTourPhaseChanged);
+    try {
+      final lgService = sl<LGService>();
+      lgService.clearKml();
+      lgService.flyToDefault();
+    } catch (_) {}
     super.dispose();
+  }
+
+  void _onTourPhaseChanged() {
+    if (!mounted || !_tourService.isTourActive.value) return;
+    final phase = _tourService.currentPhase.value;
+    
+    void trigger() {
+      if (!mounted) return;
+      switch (phase) {
+        case TourPhase.exploreAiFab:
+          _tourService.showIfPhase(context, TourPhase.exploreAiFab, [TourKeys.exploreAiFab]);
+          break;
+        case TourPhase.explorePlant:
+          // Ensure scroll is at top before showing plant coachmark.
+          _scrollController.animateTo(
+            0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+          ).then((_) {
+            if (mounted) {
+              _tourService.showIfPhase(context, TourPhase.explorePlant, [TourKeys.plant]);
+            }
+          });
+          break;
+        case TourPhase.exploreCompareFab:
+          _tourService.showIfPhase(context, TourPhase.exploreCompareFab, [TourKeys.compareFab]);
+          break;
+        case TourPhase.exploreCompareSelect:
+          // Only show coachmark on Compare button when 2+ plants selected.
+          if (_selectedPlants.length >= 2) {
+            _tourService.showIfPhase(context, TourPhase.exploreCompareSelect, [TourKeys.compareBtn]);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          trigger();
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+            }
+          });
+        }
+      } else {
+        trigger();
+      }
+    });
   }
 
   @override
@@ -153,13 +232,31 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         children: [
           // ── Compare FAB ────────────────────────────────────────────────
           if (!_isCompareMode)
-            FloatingActionButton(
-              heroTag: 'compare_fab',
-              onPressed: _toggleCompareMode,
-              backgroundColor: AppTheme.secondary,
-              child: const Icon(
-                Icons.compare_arrows_rounded,
-                color: Colors.white,
+            EcoShowcase(
+              showcaseKey: TourKeys.compareFab,
+              title: 'Compare Mode',
+              description: 'Tap here to enter compare mode and select up to 4 power plants to contrast',
+              targetBorderRadius: BorderRadius.circular(28),
+              disposeOnTap: false,
+              onTargetClick: () {}, // Required by showcaseview package even if disposeOnTap is false
+              onNextClick: () {
+                ShowCaseWidget.of(context).dismiss();
+                // Delay popping the route and updating tour phase to allow showcase dismiss animation
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) Navigator.pop(context); // Go back to Home
+                  _tourService.currentPhase.value = TourPhase.homeInfraMap;
+                });
+              },
+
+              child: FloatingActionButton(
+                heroTag: 'compare_fab',
+                onPressed: _toggleCompareMode,
+                backgroundColor: AppTheme.secondary,
+                child: const Icon(
+                  Symbols.folder_match,
+                  fill: 1.0,
+                  color: Colors.white,
+                ),
               ),
             ),
 
@@ -169,23 +266,41 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               if (_isCompareMode) return const SizedBox.shrink();
               if (state is AppSuccess<ExploreData>) {
                 final data = state.data!;
-                if (data.isLoadingInsight || data.aiInsight != null) {
+                if (data.isLoadingInsight) {
                   return const SizedBox.shrink();
                 }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: EcoShowcase(
+                    showcaseKey: TourKeys.exploreAiFab,
+                    title: 'Regional Insight',
+                    description: 'Tap here to view AI regional energy analysis and insights',
+                    targetBorderRadius: BorderRadius.circular(28),
+                    disposeOnTap: false,
+                    onTargetClick: () {}, // Required by showcaseview package even if disposeOnTap is false
+                    onNextClick: () {
+                      ShowCaseWidget.of(context).dismiss();
+                      if (mounted && _tourService.isTourActive.value) {
+                        _tourService.advancePhase();
+                      }
+                    },
+      
+                    child: FloatingActionButton(
+                      heroTag: 'ai_fab',
+                      onPressed: () {
+                        final bloc = context.read<ExploreBloc>();
+                        if (data.aiInsight == null && !data.isLoadingInsight) {
+                          bloc.add(const ExploreGenerateRegionalInsight());
+                        }
+                        _showRegionalInsightBottomSheet(context);
+                      },
+                      backgroundColor: AppTheme.secondary,
+                      child: const Icon(Icons.auto_awesome, color: Colors.white),
+                    ),
+                  ),
+                );
               }
-              return Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: FloatingActionButton(
-                  heroTag: 'ai_fab',
-                  onPressed: () {
-                    context.read<ExploreBloc>().add(
-                          const ExploreGenerateRegionalInsight(),
-                        );
-                  },
-                  backgroundColor: AppTheme.secondary,
-                  child: const Icon(Icons.auto_awesome, color: Colors.white),
-                ),
-              );
+              return const SizedBox.shrink();
             },
           ),
         ],
@@ -211,28 +326,10 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             ),
           SafeArea(
             child: BlocConsumer<ExploreBloc, AppState<ExploreData>>(
-              listenWhen: (prev, curr) {
-                if (prev is AppSuccess<ExploreData> && curr is AppSuccess<ExploreData>) {
-                  return prev.data!.isLoadingInsight && !curr.data!.isLoadingInsight && curr.data!.aiInsight != null;
-                }
-                return false;
-              },
               listener: (context, state) {
                 if (state is AppSuccess<ExploreData>) {
-                  final insight = state.data!.aiInsight;
-                  if (insight != null) {
-                    if (mounted) {
-                      setState(() {
-                         _isNarrating = true;
-                         _isMuted = false;
-                      });
-                    }
-                    sl<TTSService>().speak(insight).then((_) {
-                      if (mounted && !_isMuted) {
-                        setState(() => _isNarrating = false);
-                      }
-                    });
-                  }
+                  // After data loads and UI rebuilds, trigger the tour coachmarks again
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
                 }
               },
               builder: (context, state) {
@@ -276,7 +373,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     bottom: 16 + MediaQuery.of(context).padding.bottom,
                   ),
                   decoration: BoxDecoration(
-                    color: isDark ? DesignConstants.elevatedSurface(context) : Colors.white,
+                    color: isDark
+                        ? DesignConstants.elevatedSurface(context)
+                        : Colors.white,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.1),
@@ -284,7 +383,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                         offset: const Offset(0, -4),
                       ),
                     ],
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -296,7 +397,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                             Text(
                               '${_selectedPlants.length} / 4 Selected',
                               style: TextStyle(
-                                color: isDark ? DesignConstants.primaryText(context) : const Color(0xFF0D1F4A),
+                                color: isDark
+                                    ? DesignConstants.primaryText(context)
+                                    : const Color(0xFF0D1F4A),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -305,27 +408,42 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                             if (_selectedPlants.isNotEmpty)
                               Wrap(
                                 spacing: 4,
-                                children: _selectedPlants.map((p) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.secondary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    p.name.length > 10 ? '${p.name.substring(0, 10)}...' : p.name,
-                                    style: TextStyle(
-                                      color: AppTheme.secondary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                )).toList(),
+                                children: _selectedPlants
+                                    .map(
+                                      (p) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.secondary.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          p.name.length > 10
+                                              ? '${p.name.substring(0, 10)}...'
+                                              : p.name,
+                                          style: TextStyle(
+                                            color: AppTheme.secondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                               )
                             else
                               Text(
                                 'Select at least 2 plants',
                                 style: TextStyle(
-                                  color: isDark ? DesignConstants.secondaryText(context) : const Color(0xFF6B80A0),
+                                  color: isDark
+                                      ? DesignConstants.secondaryText(context)
+                                      : const Color(0xFF6B80A0),
                                   fontSize: 12,
                                 ),
                               ),
@@ -335,21 +453,44 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       AnimatedScale(
                         duration: const Duration(milliseconds: 300),
                         scale: _selectedPlants.length >= 2 ? 1.0 : 0.95,
-                        child: ElevatedButton(
-                          onPressed: _selectedPlants.length >= 2 ? _openComparisonScreen : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.secondary,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
-                            disabledForegroundColor: Colors.grey,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(100),
+                        child: EcoShowcase(
+                          showcaseKey: TourKeys.compareBtn,
+                          title: 'Launch Comparison',
+                          description: 'Select at least 2 plants, then tap here to compare their metrics',
+                          targetBorderRadius: BorderRadius.circular(32),
+                          disposeOnTap: false,
+                          onTargetClick: () {},
+                          onNextClick: () {
+                            ShowCaseWidget.of(context).dismiss();
+                            Future.delayed(const Duration(milliseconds: 300), () {
+                              if (mounted) Navigator.pop(context); // Go back to Home
+                              _tourService.currentPhase.value = TourPhase.homeInfraMap;
+                            });
+                          },
+            
+                          child: ElevatedButton(
+                            onPressed: _selectedPlants.length >= 2
+                                ? _openComparisonScreen
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.secondary,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.grey.withValues(
+                                alpha: 0.3,
+                              ),
+                              disabledForegroundColor: Colors.grey,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(100),
+                              ),
                             ),
-                          ),
-                          child: const Text(
-                            'Compare',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            child: const Text(
+                              'Compare',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       ),
@@ -359,10 +500,16 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9),
+                            color: isDark
+                                ? const Color(0xFF2A2A2A)
+                                : const Color(0xFFF1F5F9),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF6B80A0)),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: Color(0xFF6B80A0),
+                          ),
                         ),
                       ),
                     ],
@@ -710,131 +857,26 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         ),
         const SizedBox(height: 8),
         Expanded(child: _buildListContent(context, state, isDark)),
-        if (state.aiInsight != null)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: DesignConstants.cardSurface(context),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFF00C8FF).withValues(alpha: 0.25),
-                width: 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.auto_awesome,
-                      color: Color(0xFF00C8FF),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'AI Climate Insight',
-                      style: AppTheme.labelLarge.copyWith(
-                        color: const Color(0xFF00C8FF),
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Narration',
-                      style: AppTheme.bodySmall.copyWith(
-                        color: const Color(0xFF8A9BAE),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Switch(
-                      value: _isNarrating,
-                      onChanged: (v) async {
-                        final tts = sl<TTSService>();
-                        if (v) {
-                          setState(() {
-                            _isNarrating = true;
-                            _isMuted = false;
-                          });
-                          await tts.speak(state.aiInsight!);
-                          if (mounted && !_isMuted) setState(() => _isNarrating = false);
-                        } else {
-                          setState(() => _isNarrating = false);
-                          await tts.stop();
-                        }
-                      },
-                      activeThumbColor: const Color(0xFF00C8FF),
-                      activeTrackColor: const Color(0xFF0066FF).withValues(alpha: 0.5),
-                    ),
-                    if (_isNarrating) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () async {
-                          if (!_isMuted) {
-                            setState(() => _isMuted = true);
-                            await sl<TTSService>().stop();
-                          } else {
-                            setState(() => _isMuted = false);
-                            await sl<TTSService>().speak(state.aiInsight!);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: _isMuted
-                                ? Colors.red.withValues(alpha: 0.1)
-                                : Colors.grey.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            _isMuted ? Icons.volume_off : Icons.volume_up,
-                            color: _isMuted ? Colors.red : Colors.grey,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () async {
-                        final bloc = context.read<ExploreBloc>();
-                        if (_isNarrating) {
-                          await sl<TTSService>().stop();
-                          if (mounted) setState(() => _isNarrating = false);
-                        }
-                        bloc.add(const ExploreDismissInsight());
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF8A9BAE,
-                          ).withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Color(0xFF8A9BAE),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  state.aiInsight!,
-                  style: AppTheme.bodySmall.copyWith(
-                    color: const Color(0xFF8A9BAE),
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
       ],
     );
+  }
+
+  Future<void> _showRegionalInsightBottomSheet(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
+    final bloc = context.read<ExploreBloc>();
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => BlocProvider.value(
+        value: bloc,
+        child: _BottomSheetInsightContent(isDark: isDark),
+      ),
+    ).then((_) {
+    if (bloc.state is AppSuccess<ExploreData>) {
+      bloc.add(const ExploreDismissInsight());
+    }
+  });
   }
 
   Widget _buildTypeChip(
@@ -870,7 +912,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ? (isDark
                     ? const Color(0xFF0066FF).withValues(alpha: 0.2)
                     : const Color(0xFFE8F4FC))
-              : (isDark ? DesignConstants.cardSurface(context) : const Color(0xFFF1F5F9)),
+              : (isDark
+                    ? DesignConstants.cardSurface(context)
+                    : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: isSelected
@@ -942,7 +986,9 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
               ? (isDark
                     ? const Color(0xFF0066FF).withValues(alpha: 0.2)
                     : const Color(0xFFE8F4FC))
-              : (isDark ? DesignConstants.cardSurface(context) : const Color(0xFFF1F5F9)),
+              : (isDark
+                    ? DesignConstants.cardSurface(context)
+                    : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: (isSelected && isAllPill)
@@ -1041,7 +1087,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
             if (index < displayCount) {
               final plant = state.filteredPlants[index];
               final isSelected = _selectedPlants.contains(plant);
-              return _CompareListItemWrapper(
+              Widget tile = _CompareListItemWrapper(
                 isCompareMode: _isCompareMode,
                 isSelected: isSelected,
                 onTap: () {
@@ -1071,13 +1117,38 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   },
                 ),
               );
+              if (index == 0) {
+                tile = EcoShowcase(
+                  showcaseKey: TourKeys.plant,
+                  title: 'Power Plant Details',
+                  description: 'Tap any plant to see deep insights, live stats, and satellite imagery',
+                  targetBorderRadius: BorderRadius.circular(16),
+                  disposeOnTap: false,
+                  onTargetClick: () {},
+                  onNextClick: () {
+                    ShowCaseWidget.of(context).dismiss();
+                    _tourService.advancePhase();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.plantDetail,
+                          arguments: {'plant': plant},
+                        );
+                      }
+                    });
+                  },
+                  child: tile,
+                );
+              }
+              return tile;
             }
             final isLoadMoreIndex = showLoadMore && index == (totalItems - 1);
             if (isLoadMoreIndex) {
               return Padding(
                 padding: const EdgeInsets.only(
                   top: 8,
-                  bottom: 20,
+                  bottom: 8,
                   left: 16,
                   right: 16,
                 ),
@@ -1096,7 +1167,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     onPressed: () {
                       context.read<ExploreBloc>().add(const ExploreLoadMore());
                     },
-                    child: const Text('Load More Plants'),
+                    child: const Text('Load More'),
                   ),
                 ),
               );
@@ -1335,11 +1406,11 @@ class _CompareListItemWrapper extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Slide the tile to the right
-          AnimatedSlide(
+          // Shrink the tile from the left
+          AnimatedPadding(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
-            offset: isCompareMode ? const Offset(0.1, 0) : Offset.zero,
+            padding: EdgeInsets.only(left: isCompareMode ? 32.0 : 0.0),
             child: Stack(
               children: [
                 child,
@@ -1347,13 +1418,19 @@ class _CompareListItemWrapper extends StatelessWidget {
                 if (isCompareMode)
                   Positioned.fill(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
+                      padding: const EdgeInsets.only(
+                        bottom: 8,
+                        left: 16,
+                        right: 16,
+                      ),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 300),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isSelected ? AppTheme.secondary : Colors.transparent,
+                            color: isSelected
+                                ? AppTheme.secondary
+                                : Colors.transparent,
                             width: 2,
                           ),
                         ),
@@ -1380,13 +1457,19 @@ class _CompareListItemWrapper extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isSelected ? AppTheme.secondary : Colors.transparent,
                     border: Border.all(
-                      color: isSelected ? AppTheme.secondary : const Color(0xFFE2E8F0),
+                      color: isSelected
+                          ? AppTheme.secondary
+                          : const Color(0xFFE2E8F0),
                       width: 2,
                     ),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        )
                       : null,
                 ),
               ),
@@ -1395,5 +1478,152 @@ class _CompareListItemWrapper extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Regional Insight Bottom Sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomSheetInsightContent extends StatefulWidget {
+  final bool isDark;
+
+  const _BottomSheetInsightContent({
+    required this.isDark,
+  });
+
+  @override
+  State<_BottomSheetInsightContent> createState() =>
+      _BottomSheetInsightContentState();
+}
+
+class _BottomSheetInsightContentState
+    extends State<_BottomSheetInsightContent> {
+  bool _isNarrating = false;
+  bool _isMuted = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ExploreBloc, AppState<ExploreData>>(
+      builder: (context, state) {
+        if (state is! AppSuccess<ExploreData>) return const SizedBox.shrink();
+        final data = state.data!;
+        
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.45,
+          decoration: BoxDecoration(
+            color: widget.isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            top: 16,
+            left: 24,
+            right: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.auto_awesome,
+                    color: Color(0xFF00C8FF),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'AI Regional Analysis',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (data.aiInsight != null)
+                    GestureDetector(
+                      onTap: () async {
+                        final tts = sl<TTSService>();
+                        if (_isNarrating) {
+                          await tts.stop();
+                          if (mounted) setState(() => _isNarrating = false);
+                        } else {
+                          if (mounted) setState(() => _isNarrating = true);
+                          await tts.speak(data.aiInsight!);
+                          if (mounted) setState(() => _isNarrating = false);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C8FF).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          _isNarrating ? Icons.stop_circle_outlined : Icons.volume_up,
+                          color: const Color(0xFF00C8FF),
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (data.isLoadingInsight)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        const CircularProgressIndicator(color: Color(0xFF00C8FF)),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Generating AI Insight...",
+                          style: TextStyle(
+                            color: widget.isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (data.aiInsight != null)
+                HtmlWidget(
+                  data.aiInsight!,
+                  textStyle: AppTheme.bodyMedium.copyWith(
+                    color: widget.isDark
+                        ? const Color(0xFFE2E8F0)
+                        : const Color(0xFF334155),
+                    height: 1.6,
+                  ),
+                ),
+            ],
+          ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_isNarrating) {
+      sl<TTSService>().stop();
+    }
+    super.dispose();
   }
 }

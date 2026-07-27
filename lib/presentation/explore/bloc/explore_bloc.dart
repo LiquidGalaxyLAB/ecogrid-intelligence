@@ -62,12 +62,72 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     on<ExploreLoadMore>(_onLoadMore);
     on<ExploreRiskFilterChanged>(_onRiskFilterChanged);
     on<ExploreGenerateRegionalInsight>(_onGenerateRegionalInsight);
-    on<ExploreShowPlantsOnLG>(_onShowPlantsOnLG);
     on<ExploreLGRestoreRequested>(_onLGRestoreRequested, transformer: restartable());
-    on<ExploreDismissInsight>((event, emit) {
+    on<ExploreDismissInsight>((event, emit) async {
       if (state is AppSuccess<ExploreData>) {
         final data = (state as AppSuccess<ExploreData>).data!;
         emit(AppSuccess(data.copyWith(clearAiInsight: true)));
+        
+        final plants = data.filteredPlants;
+        final region = data.region!;
+        
+        final highRiskPlants = getPlantsByRiskLevelUsecase(
+          plants,
+          RiskLevel.high,
+          pageSize: plants.length,
+        );
+        final highCount = highRiskPlants.length;
+        final mediumCount = countPlantsByRiskLevelUsecase(plants, RiskLevel.medium);
+        final lowCount = countPlantsByRiskLevelUsecase(plants, RiskLevel.low);
+        String dominantRisk = 'None';
+        List<String> top3 = [];
+        if (highRiskPlants.isNotEmpty) {
+          double totalTemp = 0;
+          double totalWater = 0;
+          double totalWind = 0;
+          for (final p in highRiskPlants) {
+            final score = getUnifiedScoreUsecase(p);
+            totalTemp += score.temperatureStress;
+            totalWater += score.waterStress;
+            totalWind += score.windStress;
+          }
+          if (totalTemp > totalWater && totalTemp > totalWind) {
+            dominantRisk = 'Temperature/Heat';
+          } else if (totalWater > totalTemp && totalWater > totalWind) {
+            dominantRisk = 'Water/Drought/Flood';
+          } else if (totalWind > totalTemp && totalWind > totalWater) {
+            dominantRisk = 'Wind/Storms';
+          } else {
+            dominantRisk = 'Multiple Equal Threats';
+          }
+          final topPlants = highRiskPlants.take(3).toList();
+          top3 = topPlants
+              .map(
+                (p) =>
+                    ' () - Score: ',
+              )
+              .toList();
+        }
+        
+        final settingsResult = await lgService.loadSettings();
+        int rightmostScreen = 1;
+        if (settingsResult is DataSuccess) {
+          rightmostScreen = settingsResult.data!.rightmostScreen;
+        }
+        
+        final balloonKml = KmlUtils.slaveScreenBalloon(
+          regionName: region.name,
+          lat: region.centerLat,
+          lon: region.centerLon,
+          totalPlants: plants.length,
+          highRiskCount: highCount,
+          mediumRiskCount: mediumCount,
+          lowRiskCount: lowCount,
+          dominantRisk: dominantRisk,
+          top3Plants: top3,
+          aiInsight: null,
+        );
+        await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
       }
     });
   }
@@ -86,17 +146,20 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
       double optimalRange = maxDiff * 111000.0 * 1.5;
       if (optimalRange < 500000) optimalRange = 500000;
+      if (optimalRange > 12000000) optimalRange = 12000000;
 
       await lgService.flyTo(
         event.region.centerLat,
         event.region.centerLon,
         0,
         0,
-        0,
+        55,
         optimalRange,
       );
       // Fetch real country boundary polygon from OpenStreetMap (Nominatim) in the background
       // so it doesn't block the UI from immediately loading the power plant list.
+      final currentContext = 'explore_region_';
+      lgService.setKmlContext(currentContext);
       Future.microtask(() async {
         final regionKml = await RegionBoundaryService.fetchBoundaryKml(
           regionName: event.region.nominatimQuery ?? event.region.name,
@@ -106,8 +169,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           maxLat: event.region.maxLat,
           maxLon: event.region.maxLon,
           countries: event.region.countries,
+          preFetchedGeoJson: event.region.geoJson,
         );
-        if (lgService.connectionStatus == ConnectionStatus.connected) {
+        if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
           await lgService.sendKmlToMaster(regionKml);
         }
       });
@@ -128,6 +192,8 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           );
         } else if (dataState is DataSuccess<List<PowerPlant>>) {
           final plants = dataState.data!;
+          final currentContext = 'explore_region_';
+          lgService.setKmlContext(currentContext);
           Future.microtask(() async {
             final regionKml = await RegionBoundaryService.fetchBoundaryKml(
               regionName: event.region.nominatimQuery ?? event.region.name,
@@ -137,11 +203,15 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
               maxLat: event.region.maxLat,
               maxLon: event.region.maxLon,
               countries: event.region.countries,
+              preFetchedGeoJson: event.region.geoJson,
             );
-            if (lgService.connectionStatus == ConnectionStatus.connected) {
-              await lgService.sendKmlToMaster(regionKml);
-            }
             await preComputeAllScoresUsecase(plants);
+            if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
+              final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
+              final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
+              final combinedKml = regionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
+              await lgService.sendKmlToMaster(combinedKml);
+            }
             _startBackgroundWarmer();
             await _updateRightScreenOverlay(event.region, plants);
           });
@@ -168,6 +238,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     Region region,
     List<PowerPlant> plants, {
     String? aiInsight,
+    bool updateMaster = true,
   }) async {
     final highRiskPlants = getPlantsByRiskLevelUsecase(
       plants,
@@ -213,17 +284,10 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       screenCount = settingsResult.data!.screenCount;
       rightmostScreen = settingsResult.data!.rightmostScreen;
     }
-    final offsetPerSideScreen = 10.0;
-    final sideScreens = (screenCount - 1) / 2;
-    final rightmostLonOffset =
-        region.centerLon + (offsetPerSideScreen * sideScreens);
-    final adjustedLon = rightmostLonOffset > 180.0
-        ? rightmostLonOffset - 360.0
-        : rightmostLonOffset;
     final balloonKml = KmlUtils.slaveScreenBalloon(
       regionName: region.name,
       lat: region.centerLat,
-      lon: adjustedLon,
+      lon: region.centerLon,
       totalPlants: plants.length,
       highRiskCount: highCount,
       mediumRiskCount: mediumCount,
@@ -234,38 +298,23 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     );
     if (lgService.connectionStatus != ConnectionStatus.connected) return;
     await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
-    final masterRegionKml = await RegionBoundaryService.fetchBoundaryKml(
-      regionName: region.nominatimQuery ?? region.name,
-      displayName: region.displayName ?? region.name,
-      minLat: region.minLat,
-      minLon: region.minLon,
-      maxLat: region.maxLat,
-      maxLon: region.maxLon,
-      countries: region.countries,
-    );
-    await lgService.sendKmlToMaster(masterRegionKml);
+    if (updateMaster) {
+      final masterRegionKml = await RegionBoundaryService.fetchBoundaryKml(
+        regionName: region.nominatimQuery ?? region.name,
+        displayName: region.displayName ?? region.name,
+        minLat: region.minLat,
+        minLon: region.minLon,
+        maxLat: region.maxLat,
+        maxLon: region.maxLon,
+        countries: region.countries,
+      );
+      final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
+      final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
+      final combinedKml = masterRegionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
+      await lgService.sendKmlToMaster(combinedKml);
+    }
   }
 
-  Future<void> _onShowPlantsOnLG(
-    ExploreShowPlantsOnLG event,
-    Emitter<AppState<ExploreData>> emit,
-  ) async {
-    if (state is! AppSuccess<ExploreData>) return;
-    final data = (state as AppSuccess<ExploreData>).data!;
-    if (data.filteredPlants.isEmpty) return;
-    lgService.setCurrentMode(LGDisplayMode.plantPlacemarks);
-    await lgService.clearMasterScreen();
-    final batchPlants = data.filteredPlants.take(100).toList();
-    final scores = batchPlants.map((p) => getUnifiedScoreUsecase(p)).toList();
-    final risks = scores.map((s) => s.riskLevel).toList();
-    final kml = KmlUtils.plantPlacemarksBatch(
-      plants: batchPlants,
-      scores: scores,
-      risks: risks,
-      title: '${data.region?.name ?? "Global"} Plants',
-    );
-    await lgService.sendKmlToMaster(kml);
-  }
 
   Future<void> _onLGRestoreRequested(
     ExploreLGRestoreRequested event,
@@ -444,6 +493,16 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           )
           .toList();
     }
+
+    if (data.region != null) {
+      _updateRightScreenOverlay(
+        data.region!,
+        plants,
+        aiInsight: "Generating AI Regional Insight... Please wait.",
+        updateMaster: false,
+      );
+    }
+
     final insightResult = await generateRegionalInsightUsecase(
       params: {
         'regionName': data.region?.displayName ?? data.region?.name ?? 'Global',
@@ -469,6 +528,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
             currentData.region!,
             plants,
             aiInsight: insight,
+            updateMaster: false,
           );
         }
       }
@@ -527,6 +587,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       totalFilteredCount: totalFilteredCount,
     );
   }
+
 
   void _startBackgroundWarmer() async {
     // Disabled background warmer as per user request to stop continuous API polling.

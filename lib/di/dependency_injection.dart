@@ -3,6 +3,7 @@ import '../service/lg_service.dart';
 import '../service/ssh_service.dart';
 import '../service/speech_to_text_service.dart';
 import '../service/tts_service.dart';
+import '../service/tour_service.dart';
 import '../presentation/explore/bloc/explore_bloc.dart';
 import '../presentation/home/bloc/home_bloc.dart';
 import '../presentation/home/bloc/search_bloc.dart';
@@ -31,6 +32,7 @@ void _registerCoreDependencies() {
   sl.registerLazySingleton<LGService>(
     () => LGService(sshService: sl(), settingsDataSource: sl()),
   );
+  sl.registerLazySingleton<TourService>(() => TourService());
 }
 
 void _registerPresentationDependencies() {

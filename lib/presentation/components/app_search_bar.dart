@@ -7,6 +7,7 @@ class AppSearchBar extends StatelessWidget {
   final VoidCallback? onTap;
   final bool readOnly;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final Function(String)? onChanged;
   final bool isListening;
   final VoidCallback? onMicTap;
@@ -25,12 +26,14 @@ class AppSearchBar extends StatelessWidget {
     this.onClearTap,
     this.onPrefixIconTap,
     this.prefixIcon,
+    this.focusNode,
   });
   @override
   Widget build(BuildContext context) {
     final isDark = ThemeController.instance.isDarkMode;
     Widget innerTextField = TextField(
       controller: controller,
+      focusNode: focusNode,
       autofocus: !readOnly,
       readOnly: readOnly,
       onTap: onTap,

@@ -10,8 +10,16 @@ import '../../di/di.dart';
 import 'bloc/home_bloc.dart';
 import 'bloc/home_event.dart';
 import '../components/app_search_bar.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../service/speech_to_text_service.dart';
+import 'widgets/stt_listening_overlay.dart';
 import '../components/atmospheric_globe_painter.dart';
 import '../components/lg_connection_pill.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../service/tour_service.dart';
+import '../../core/enums/tour_phase.dart';
+import '../../core/constants/tour_keys.dart';
+import '../components/eco_showcase.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -29,8 +37,135 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class _HomePageBody extends StatelessWidget {
+class _HomePageBody extends StatefulWidget {
   const _HomePageBody();
+  @override
+  State<_HomePageBody> createState() => _HomePageBodyState();
+}
+
+class _HomePageBodyState extends State<_HomePageBody> {
+  bool _isListening = false;
+  double _soundLevel = 0.0;
+  String _partialText = '';
+  
+  SpeechToTextService get _stt => sl<SpeechToTextService>();
+  final TourService _tourService = sl<TourService>();
+
+  @override
+  void initState() {
+    super.initState();
+    _tourService.currentPhase.addListener(_onTourPhaseChanged);
+    // Check if we should show a tour step right away (e.g. after splash).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
+  }
+
+  @override
+  void dispose() {
+    _tourService.currentPhase.removeListener(_onTourPhaseChanged);
+    super.dispose();
+  }
+
+  void _onTourPhaseChanged() {
+    if (!mounted || !_tourService.isTourActive.value) return;
+    final phase = _tourService.currentPhase.value;
+    
+    void trigger() {
+      if (!mounted) return;
+      switch (phase) {
+        case TourPhase.homeSettings:
+          _tourService.showIfPhase(context, TourPhase.homeSettings, [TourKeys.settings]);
+          break;
+        case TourPhase.homeRegion:
+          _tourService.showIfPhase(context, TourPhase.homeRegion, [TourKeys.region]);
+          break;
+        case TourPhase.homeInfraMap:
+          _tourService.showIfPhase(context, TourPhase.homeInfraMap, [TourKeys.infraMap]);
+          break;
+        default:
+          break;
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.animation != null) {
+        if (route.animation!.isCompleted) {
+          trigger();
+        } else {
+          route.animation!.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+            }
+          });
+        }
+      } else {
+        trigger();
+      }
+    });
+  }
+
+  void _startListening() async {
+    setState(() {
+      _partialText = '';
+      _soundLevel = 0.0;
+    });
+
+    final status = await _stt.startListening(
+      onResult: (words) {
+        if (mounted) {
+          setState(() {
+            _partialText = words;
+          });
+        }
+      },
+      onListening: (listening) {
+        if (mounted) {
+          setState(() => _isListening = listening);
+          if (!listening && _partialText.isNotEmpty) {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.search,
+              arguments: {'initialQuery': _partialText},
+            );
+          }
+        }
+      },
+      onSoundLevelChange: (level) {
+        if (mounted) {
+          final normalized = ((level + 40) / 50).clamp(0.0, 1.0);
+          setState(() => _soundLevel = normalized);
+        }
+      },
+    );
+
+    if (mounted) {
+      if (status == SttPermissionStatus.permanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone permission permanently denied. Please enable it in Settings.'),
+            backgroundColor: AppTheme.surface,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+      } else if (status == SttPermissionStatus.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Microphone unavailable or permission denied.'),
+            backgroundColor: AppTheme.surface,
+          ),
+        );
+      }
+    }
+  }
+
+  void _stopListening() async {
+    await _stt.stopListening();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -39,6 +174,7 @@ class _HomePageBody extends StatelessWidget {
         final isDark = ThemeController.instance.isDarkMode;
         final screenWidth = MediaQuery.of(context).size.width;
         return Scaffold(
+          resizeToAvoidBottomInset: false,
           backgroundColor: isDark ? AppTheme.background : Colors.white,
           body: Stack(
             children: [
@@ -79,10 +215,10 @@ class _HomePageBody extends StatelessWidget {
                       ),
                     )
                   : Positioned(
-                      bottom: -screenWidth * 0.05,
+                      bottom: -screenWidth * 0.18,
                       left: -screenWidth * 0.15,
                       right: -screenWidth * 0.15,
-                      height: screenWidth * 1.25,
+                      height: screenWidth * 1.15,
                       child: Image.asset(
                         'assets/images/hero_globe_light.png',
                         fit: BoxFit.cover,
@@ -90,57 +226,70 @@ class _HomePageBody extends StatelessWidget {
                       ),
                     ),
               SafeArea(
-                child: CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: AppTheme.spacingMD),
-                          _HeaderSection(isDark: isDark),
-                          const SizedBox(height: AppTheme.spacingLG),
-                          _SearchBarSection(isDark: isDark),
-                          const SizedBox(height: AppTheme.spacingXL),
-                          _QuickExploreSection(isDark: isDark),
-                          const SizedBox(height: AppTheme.spacingLG + 16),
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppTheme.spacingXL,
-                              ),
-                              child: Text(
-                                'Explore global energy infrastructure\nand climate risk',
-                                textAlign: TextAlign.center,
-                                style: AppTheme.bodySmall.copyWith(
-                                  color: isDark
-                                      ? AppTheme.textSecondary
-                                      : const Color(0xFF6B80A0),
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppTheme.spacingMD),
+                    _HeaderSection(isDark: isDark),
+                    const SizedBox(height: AppTheme.spacingLG),
+                    _SearchBarSection(
+                      isDark: isDark,
+                      onMicTap: _startListening,
                     ),
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(height: AppTheme.spacingLG * 2),
-                            _InfrastructureMapButton(isDark: isDark),
-                            const SizedBox(height: AppTheme.spacingLG),
-                          ],
+                    const SizedBox(height: AppTheme.spacingXL),
+                    _QuickExploreSection(isDark: isDark),
+                    
+                    const Spacer(),
+                    
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingXL,
+                        ),
+                        child: Text(
+                          'Explore global energy infrastructure\nand climate risk',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.bodySmall.copyWith(
+                            color: isDark
+                                ? AppTheme.textSecondary
+                                : const Color(0xFF6B80A0),
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ),
+                    const Spacer(flex: 3),
+                    
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: EcoShowcase(
+                        showcaseKey: TourKeys.infraMap,
+                        title: 'Infrastructure Map',
+                        description: 'Tap to view the global infrastructure map',
+                        targetBorderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                        disposeOnTap: false,
+                        onTargetClick: () {},
+                        onNextClick: () {
+                          ShowCaseWidget.of(context).dismiss();
+                          sl<TourService>().advancePhase();
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            if (mounted) Navigator.pushNamed(context, AppRoutes.infrastructureMap);
+                          });
+                        },
+                        child: _InfrastructureMapButton(isDark: isDark),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spacingXL),
                   ],
                 ),
               ),
+              
+              if (_isListening)
+                SttListeningOverlay(
+                  soundLevel: _soundLevel,
+                  partialText: _partialText,
+                  onStop: _stopListening,
+                ),
             ],
           ),
         );
@@ -219,7 +368,22 @@ class _HeaderSection extends StatelessWidget {
               ),
             ],
           ),
-          const LgConnectionPill(),
+          EcoShowcase(
+            showcaseKey: TourKeys.settings,
+            title: 'Connect to Liquid Galaxy',
+            description: 'Tap here to connect to your Liquid Galaxy rig',
+            targetBorderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            disposeOnTap: false,
+            onTargetClick: () {},
+            onNextClick: () {
+              ShowCaseWidget.of(context).dismiss();
+              sl<TourService>().advancePhase();
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (context.mounted) Navigator.pushNamed(context, AppRoutes.lgSettings);
+              });
+            },
+            child: const LgConnectionPill(),
+          ),
         ],
       ),
     );
@@ -228,58 +392,19 @@ class _HeaderSection extends StatelessWidget {
 
 class _SearchBarSection extends StatelessWidget {
   final bool isDark;
-  const _SearchBarSection({required this.isDark});
+  final VoidCallback onMicTap;
+  const _SearchBarSection({required this.isDark, required this.onMicTap});
   @override
   Widget build(BuildContext context) {
-    if (isDark) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
-        child: AppSearchBar(
-          hintText: 'Search regions or power plants...',
-          readOnly: true,
-          onTap: () => Navigator.pushNamed(context, AppRoutes.search),
-        ),
-      );
-    } else {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
-        child: GestureDetector(
-          onTap: () => Navigator.pushNamed(context, AppRoutes.search),
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(100),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 20),
-                const Icon(Icons.search, color: Color(0xFF6B80A0), size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Search regions or power plants...',
-                    style: AppTheme.bodyLarge.copyWith(
-                      color: const Color(0xFF8A9BAE),
-                    ),
-                  ),
-                ),
-                const Icon(Icons.mic_none, color: Color(0xFF6B80A0), size: 24),
-                const SizedBox(width: 20),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+      child: AppSearchBar(
+        hintText: 'Search regions or power plants...',
+        readOnly: true,
+        onTap: () => Navigator.pushNamed(context, AppRoutes.search),
+        onMicTap: onMicTap,
+      ),
+    );
   }
 }
 
@@ -315,19 +440,49 @@ class _QuickExploreSection extends StatelessWidget {
         const SizedBox(height: AppTheme.spacingMD),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
-              childAspectRatio: 0.78,
-            ),
-            itemCount: Region.quickRegions.length,
-            itemBuilder: (context, index) {
-              final region = Region.quickRegions[index];
-              return _RegionCard(region: region, isDark: isDark);
+          child: Builder(
+            builder: (context) {
+              final crossAxisCount = MediaQuery.of(context).size.width < 340 ? 2 : 3;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                  childAspectRatio: 0.78,
+                ),
+                itemCount: Region.quickRegions.length,
+                itemBuilder: (context, index) {
+                  final region = Region.quickRegions[index];
+                  final card = _RegionCard(region: region, isDark: isDark);
+                  if (index == 0) {
+                    return EcoShowcase(
+                      showcaseKey: TourKeys.region,
+                      title: 'Pick a Region',
+                      description: 'Tap a region to explore its energy infrastructure',
+                      targetBorderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                      disposeOnTap: false,
+                      onTargetClick: () {},
+                      onNextClick: () {
+                        ShowCaseWidget.of(context).dismiss();
+                        sl<TourService>().advancePhase();
+                        Future.delayed(const Duration(milliseconds: 300), () {
+                          if (context.mounted) {
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.explore,
+                              arguments: {'region': region},
+                            );
+                          }
+                        });
+                      },
+                      child: card,
+                    );
+                  }
+                  return card;
+                },
+              );
             },
           ),
         ),
@@ -393,7 +548,7 @@ class _RegionCardState extends State<_RegionCard>
       switch (regionId) {
         case 'kenya': return 1.35;
         case 'italy': return 1.40;
-        case 'spain':  return 0.85;
+        case 'spain':  return 1.0;
         default: return 1.0;
       }
     }
@@ -606,14 +761,20 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // ── Light theme: static bright-blue gradient, narrower width ──────────
     if (!widget.isDark) {
       return Padding(
         padding: const EdgeInsets.only(
-          left: AppTheme.spacingXL,
-          right: AppTheme.spacingXL,
-          bottom: 12,
+          left: 32,
+          right: 32,
+          bottom: 0,
         ),
         child: GestureDetector(
           onTapDown: (_) => setState(() => _pressed = true),
@@ -628,7 +789,7 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
             curve: Curves.easeInOut,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 gradient: const LinearGradient(
@@ -651,17 +812,19 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
                   const Icon(Icons.public, color: Colors.white, size: 20),
                   const SizedBox(width: 10),
                   Flexible(
-                    child: Text(
-                      'Show Infrastructure Map',
-                      style: AppTheme.labelLarge.copyWith(
-                        color: Colors.white,
-                        fontSize: 16,
-                        height: 1.0,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Show Infrastructure Map',
+                        style: AppTheme.labelLarge.copyWith(
+                          color: Colors.white,
+                          fontSize: 15,
+                          height: 1.0,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                        softWrap: false,
                       ),
-                      overflow: TextOverflow.visible,
-                      softWrap: false,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -681,9 +844,9 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
     // ── Dark theme: animated flowing navy shimmer ──────────────────────────
     return Padding(
       padding: const EdgeInsets.only(
-        left: AppTheme.spacingLG,
-        right: AppTheme.spacingLG,
-        bottom: 12,
+        left: 32,
+        right: 32,
+        bottom: 0,
       ),
       child: GestureDetector(
         onTapDown: (_) => setState(() => _pressed = true),
@@ -702,7 +865,7 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
               final t = _controller.value;
               return Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 24),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                   gradient: LinearGradient(
@@ -761,14 +924,20 @@ class _InfrastructureMapButtonState extends State<_InfrastructureMapButton>
                       children: [
                         const Icon(Icons.public, color: Colors.white, size: 20),
                         const SizedBox(width: 10),
-                        Text(
-                          'Show Infrastructure Map',
-                          style: AppTheme.labelLarge.copyWith(
-                            color: Colors.white,
-                            fontSize: 16,
-                            height: 1.0,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Show Infrastructure Map',
+                              style: AppTheme.labelLarge.copyWith(
+                                color: Colors.white,
+                                fontSize: 15,
+                                height: 1.0,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                              softWrap: false,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),

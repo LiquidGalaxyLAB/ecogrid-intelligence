@@ -11,9 +11,13 @@ import '../../presentation/about/about_screen.dart';
 import '../../presentation/infrastructure_map/infrastructure_map_screen.dart';
 import '../../presentation/explore/bloc/explore_bloc.dart';
 import '../../domain/repository/cvs_repository.dart';
+import '../../testing/kml_test_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../../di/di.dart';
 import '../theme/theme_controller.dart';
+import '../../service/tour_service.dart';
+import '../../presentation/components/tour_skip_pill.dart';
 
 class AppRoutes {
   AppRoutes._();
@@ -26,6 +30,7 @@ class AppRoutes {
   static const String search = '/search';
   static const String about = '/about';
   static const String infrastructureMap = '/infrastructure-map';
+  static const String kmlTest = '/kml-test';
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case splash:
@@ -54,10 +59,13 @@ class AppRoutes {
       case lgSettings:
         return _buildRoute(const LgSettingsScreen(), settings);
       case search:
+        final args = settings.arguments as Map<String, dynamic>?;
+        final autoStartVoice = args?['autoStartVoice'] as bool? ?? false;
+        final initialQuery = args?['initialQuery'] as String?;
         return _buildRoute(
           BlocProvider(
             create: (context) => sl<SearchBloc>(),
-            child: const SearchScreen(),
+            child: SearchScreen(autoStartVoice: autoStartVoice, initialQuery: initialQuery),
           ),
           settings,
         );
@@ -74,6 +82,8 @@ class AppRoutes {
           ),
           settings,
         );
+      case kmlTest:
+        return _buildRoute(const KmlTestPage(), settings);
       default:
         return _buildRoute(const HomePage(), settings);
     }
@@ -82,8 +92,25 @@ class AppRoutes {
   static PageRouteBuilder _buildRoute(Widget page, RouteSettings settings) {
     return PageRouteBuilder(
       settings: settings,
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          _ThemeRefreshBoundary(child: page),
+      pageBuilder: (context, animation, secondaryAnimation) => ShowCaseWidget(
+            disableBarrierInteraction: true,
+            blurValue: 1.5,
+            globalFloatingActionWidget: (ctx) => FloatingActionWidget(
+              bottom: 40,
+              left: 16,
+              right: 16,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: TourSkipPill(
+                  onTap: () {
+                    ShowCaseWidget.of(ctx).dismiss();
+                    sl<TourService>().skipTour();
+                  },
+                ),
+              ),
+            ),
+            builder: (context) => _ThemeRefreshBoundary(child: page),
+          ),
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
