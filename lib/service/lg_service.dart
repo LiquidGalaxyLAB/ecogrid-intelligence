@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/utils/globals.dart';
 import 'dart:typed_data';
@@ -280,6 +281,9 @@ class LGService {
     }
   }
 
+  Timer? _orbitTimer;
+  bool _isOrbiting = false;
+
   Future<DataState<void>> startOrbit(
     double lat,
     double lon,
@@ -290,6 +294,9 @@ class LGService {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
+      await stopOrbit();
+      await _exitTour();
+      
       final orbitKml = _buildOrbitTour(
         lat: lat,
         lon: lon,
@@ -297,8 +304,9 @@ class LGService {
         tilt: tilt,
       );
       await _sendOrbitKml(orbitKml);
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(milliseconds: 1500));
       await _playTour('Orbit');
+      
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -306,11 +314,15 @@ class LGService {
   }
 
   Future<DataState<void>> stopOrbit() async {
+    _isOrbiting = false;
+    _orbitTimer?.cancel();
+    _orbitTimer = null;
     if (!_checkConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
       await _exitTour();
+      await _sshService.execute('echo "flytoview=" > ${LGConstants.queryFile}');
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -525,20 +537,12 @@ class LGService {
     await _withRetry(
       () => _sshService.writeFileViaSftp(LGConstants.masterKmlFile, kml),
     );
-    await _withRetry(
-      () => _sshService.execute(
-        "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
-      ),
-    );
   }
 
   Future<void> _clearMaster() async {
     await _withRetry(() => _sshService.writeFileViaSftp(
       LGConstants.masterKmlFile,
       KmlUtils.emptyKml(),
-    ));
-    await _withRetry(() => _sshService.execute(
-      "echo '' > /var/www/html/kmls.txt",
     ));
   }
 
@@ -559,9 +563,10 @@ class LGService {
     await _withRetry(
       () => _sshService.writeFileViaSftp('/var/www/html/orbit.kml', kml),
     );
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
     await _withRetry(
       () => _sshService.execute(
-        "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
+        "echo 'http://lg1:81/orbit.kml?t=\$timestamp' > /var/www/html/kmls.txt",
       ),
     );
   }

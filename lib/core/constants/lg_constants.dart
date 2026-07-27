@@ -6,7 +6,7 @@ class LGConstants {
   static const String queryFile = '/tmp/query.txt';
   static const String flyToFile = '/tmp/query.txt';
   static const int screenCount = 3;
-  static const String masterKmlFile = '/var/www/html/kml/kmls.kml';
+  static const String masterKmlFile = '/var/www/html/kml/master.kml';
   static const String dashboardHtmlFile = '/var/www/html/dashboard.html';
   static const String dashboardUrl = 'http://lg1:81/dashboard.html';
   static const double defaultOrbitRadius = 5000;

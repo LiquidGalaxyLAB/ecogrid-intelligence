@@ -57,21 +57,18 @@ class ComparisonKmlBuilder {
     final riskLevel = cvs?.riskLevel ?? RiskLevel.low;
 
     final String colorBBGGRR;
-    final String iconHref;
     switch (riskLevel) {
       case RiskLevel.high:
         colorBBGGRR = '4444ef';
-        iconHref = 'http://maps.google.com/mapfiles/kml/paddle/red-blank.png';
         break;
       case RiskLevel.medium:
         colorBBGGRR = '0b9ef5';
-        iconHref = 'http://maps.google.com/mapfiles/kml/paddle/ylw-blank.png';
         break;
       case RiskLevel.low:
         colorBBGGRR = '81b910';
-        iconHref = 'http://maps.google.com/mapfiles/kml/paddle/grn-blank.png';
         break;
     }
+    const iconHref = 'http://maps.google.com/mapfiles/kml/paddle/wht-blank.png';
 
     // Crystal height scales with CVS score (higher = more vulnerable = taller)
     final score = cvs?.score ?? 30;
@@ -221,6 +218,7 @@ class ComparisonKmlBuilder {
       styleContent = '''
       <Style id="crystal_style_${plant.id}">
         <IconStyle>
+          <color>ff$colorBBGGRR</color>
           <scale>2.2</scale>
           <Icon><href>$iconHref</href></Icon>
           <hotSpot x="0.5" y="0" xunits="fraction" yunits="fraction"/>

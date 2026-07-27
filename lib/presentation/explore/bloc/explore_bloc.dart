@@ -207,10 +207,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
             );
             await preComputeAllScoresUsecase(plants);
             if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
-              final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
-              final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
-              final combinedKml = regionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
-              await lgService.sendKmlToMaster(combinedKml);
+              await lgService.sendKmlToMaster(regionKml);
             }
             _startBackgroundWarmer();
             await _updateRightScreenOverlay(event.region, plants);
@@ -308,10 +305,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         maxLon: region.maxLon,
         countries: region.countries,
       );
-      final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
-      final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
-      final combinedKml = masterRegionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
-      await lgService.sendKmlToMaster(combinedKml);
+      await lgService.sendKmlToMaster(masterRegionKml);
     }
   }
 
