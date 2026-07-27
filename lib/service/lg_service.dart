@@ -296,17 +296,43 @@ class LGService {
     try {
       await stopOrbit();
       await _exitTour();
+      _isOrbiting = true;
+      final int steps = 360;
+      final double delta = 360.0 / steps;
+      double heading = 0.0;
+      bool isOrbitStepBusy = false;
       
-      final orbitKml = _buildOrbitTour(
-        lat: lat,
-        lon: lon,
-        range: range,
-        tilt: tilt,
-      );
-      await _sendOrbitKml(orbitKml);
-      await Future.delayed(const Duration(milliseconds: 1500));
-      await _playTour('Orbit');
-      
+      _orbitTimer = Timer.periodic(const Duration(milliseconds: 120), (timer) async {
+        if (!_checkConnection(silent: true) || !_isOrbiting) {
+          timer.cancel();
+          return;
+        }
+        if (isOrbitStepBusy) return;
+        
+        isOrbitStepBusy = true;
+        heading = (heading + delta) % 360;
+        final lookat = '<gx:duration>0.15</gx:duration>'
+                       '<gx:flyToMode>smooth</gx:flyToMode>'
+                       '<LookAt>'
+                       '<longitude>$lon</longitude>'
+                       '<latitude>$lat</latitude>'
+                       '<altitude>0</altitude>'
+                       '<heading>$heading</heading>'
+                       '<tilt>$tilt</tilt>'
+                       '<range>$range</range>'
+                       '<gx:altitudeMode>relativeToGround</gx:altitudeMode>'
+                       '</LookAt>';
+        
+        try {
+          if (_isOrbiting) {
+            await _sshService.execute('echo "flytoview=$lookat" > ${LGConstants.queryFile}');
+          }
+        } catch (e) {
+          debugPrint('[LG] Orbit step failed: $e');
+        } finally {
+          isOrbitStepBusy = false;
+        }
+      });
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -322,7 +348,7 @@ class LGService {
     }
     try {
       await _exitTour();
-      await _sshService.execute('echo "flytoview=" > ${LGConstants.queryFile}');
+      await _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));

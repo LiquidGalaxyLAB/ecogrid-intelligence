@@ -23,12 +23,14 @@ class PlantDetailScenarioInsightRequested extends PlantDetailEvent {
   final double waterMultiplier;
   final double windMultiplier;
   final String scenarioType;
+  final bool generateAi;
   final double projectedCvs;
   const PlantDetailScenarioInsightRequested({
     this.tempMultiplier = 1.0,
     this.waterMultiplier = 1.0,
     this.windMultiplier = 1.0,
     this.scenarioType = 'Custom',
+    this.generateAi = true,
     required this.projectedCvs,
   });
   @override
@@ -37,6 +39,7 @@ class PlantDetailScenarioInsightRequested extends PlantDetailEvent {
     waterMultiplier,
     windMultiplier,
     scenarioType,
+    generateAi,
     projectedCvs,
   ];
 }

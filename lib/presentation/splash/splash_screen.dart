@@ -102,30 +102,12 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _fadeIn,
                         child: ScaleTransition(
                           scale: _scale,
-                          child: Container(
-                            width: 500,
-                            height: 500,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: isDark
-                                  ? [
-                                      BoxShadow(
-                                        color: const Color(0xFF00D4AA).withValues(alpha: 0.3),
-                                        blurRadius: 60,
-                                        spreadRadius: 10,
-                                      ),
-                                    ]
-                                  : [
-                                      BoxShadow(
-                                        color: const Color(0xFF0066FF).withValues(alpha: 0.15),
-                                        blurRadius: 60,
-                                        spreadRadius: 10,
-                                      ),
-                                    ],
-                            ),
+                          child: SizedBox(
+                            width: MediaQuery.of(context).size.width,
+                            height: MediaQuery.of(context).size.height,
                             child: Image.asset(
-                              'assets/images/logos.png',
-                              fit: BoxFit.contain,
+                              'assets/images/splash_screen.png',
+                              fit: BoxFit.fill,
                             ),
                           ),
                         ),

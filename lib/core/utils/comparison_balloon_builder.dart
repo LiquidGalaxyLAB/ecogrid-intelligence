@@ -50,22 +50,22 @@ class ComparisonBalloonBuilder {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:1200px;padding:32px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
-            <table width="100%" cellpadding="24" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:24px;background-color:#0d1117;">
+          <div style="font-family:Arial,sans-serif;width:700px;padding:16px;box-sizing:border-box;background-color:#0d1117;color:#ffffff;">
+            <table width="100%" cellpadding="14" cellspacing="0" style="border:2px solid #334155;border-collapse:collapse;border-radius:16px;background-color:#0d1117;">
               
               <!-- Header -->
               <tr bgcolor="#0F766E">
-                <td style="padding:40px;border-top-left-radius:24px;border-top-right-radius:24px;">
-                  <span style="color:white;font-size:56px;font-weight:bold;">&#9878; Plant Comparison</span>
+                <td style="padding:20px;border-top-left-radius:16px;border-top-right-radius:16px;">
+                  <span style="color:white;font-size:26px;font-weight:bold;">&#9878; Plant Comparison</span>
                   <br><br>
-                  <span style="color:#ccfbf1;font-size:36px;">Plant Comparison Dashboard • ${plants.length} Plants Selected</span>
+                  <span style="color:#ccfbf1;font-size:15px;">Plant Comparison Dashboard • ${plants.length} Plants Selected</span>
                 </td>
               </tr>
               
               <!-- Plant Cards Row -->
               <tr>
-                <td style="padding:40px;">
-                  <table width="100%" cellpadding="16" cellspacing="0">
+                <td style="padding:16px;">
+                  <table width="100%" cellpadding="8" cellspacing="0">
                     <tr>
                       ${cardsHtml.toString()}
                     </tr>
@@ -75,9 +75,9 @@ class ComparisonBalloonBuilder {
               
               <!-- Stress Comparison Table -->
               <tr bgcolor="#1e293b">
-                <td style="padding:40px;border-top:2px solid #334155;border-bottom-left-radius:24px;border-bottom-right-radius:24px;">
-                  <span style="font-size:48px;color:#e2e8f0;font-weight:bold;margin-bottom:32px;display:block;">&#128202; Stress Comparison</span>
-                  <br><br>
+                <td style="padding:20px;border-top:2px solid #334155;border-bottom-left-radius:16px;border-bottom-right-radius:16px;">
+                  <span style="font-size:22px;color:#e2e8f0;font-weight:bold;margin-bottom:16px;display:block;">&#128202; Stress Comparison</span>
+                  <br>
                   $tableHtml
                 </td>
               </tr>
@@ -130,29 +130,29 @@ class ComparisonBalloonBuilder {
     final widthPct = (100 / totalPlants).floor();
 
     return '''
-      <td width="$widthPct%" valign="top" style="padding:16px;">
-        <table width="100%" cellpadding="16" cellspacing="0" style="border:2px solid #334155;border-top:8px solid $riskColor;border-radius:12px;background:#111827;">
+      <td width="$widthPct%" valign="top" style="padding:8px;">
+        <table width="100%" cellpadding="10" cellspacing="0" style="border:2px solid #334155;border-top:6px solid $riskColor;border-radius:10px;background:#111827;">
           <tr>
             <td align="center">
-              <span style="font-size:32px;color:$riskColor;font-weight:bold;">$typeIcon ${KmlUtils.escapeXml(plant.primaryFuel.displayName).toUpperCase()}</span>
+              <span style="font-size:14px;color:$riskColor;font-weight:bold;">$typeIcon ${KmlUtils.escapeXml(plant.primaryFuel.displayName).toUpperCase()}</span>
               <br><br>
-              <span style="font-size:48px;font-weight:bold;color:#fff;">$name</span>
+              <span style="font-size:22px;font-weight:bold;color:#fff;">$name</span>
               <br><br>
-              <span style="font-size:32px;color:#94a3b8;">&#127758; $country &nbsp; &#9889; $capacity</span>
+              <span style="font-size:14px;color:#94a3b8;">&#127758; $country &nbsp; &#9889; $capacity</span>
               
-              <br><br><br>
+              <br><br>
               
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
                 <tr>
-                  <td align="center" style="padding:24px;background:#1e293b;border-radius:12px;">
-                    <span style="font-size:72px;font-weight:bold;color:$riskColor;">${score.toStringAsFixed(1)}</span>
+                  <td align="center" style="padding:12px;background:#1e293b;border-radius:8px;">
+                    <span style="font-size:34px;font-weight:bold;color:$riskColor;">${score.toStringAsFixed(1)}</span>
                     <br>
-                    <span style="font-size:32px;color:#94a3b8;">out of 100</span>
+                    <span style="font-size:13px;color:#94a3b8;">out of 100</span>
                   </td>
                 </tr>
                 <tr>
-                  <td align="center" style="padding:16px;background:$riskColor;border-radius:12px;margin-top:12px;">
-                    <span style="font-size:36px;font-weight:bold;color:#ffffff;">$riskLabel RISK</span>
+                  <td align="center" style="padding:8px;background:$riskColor;border-radius:8px;margin-top:8px;">
+                    <span style="font-size:15px;font-weight:bold;color:#ffffff;">$riskLabel RISK</span>
                   </td>
                 </tr>
               </table>
@@ -169,19 +169,19 @@ class ComparisonBalloonBuilder {
     List<CVSResult?> cvsResults,
   ) {
     final headerCells = StringBuffer();
-    headerCells.write('<th style="padding:24px;text-align:left;font-size:36px;color:#94A3B8;border-bottom:2px solid #334155;">Metric</th>');
+    headerCells.write('<th style="padding:10px;text-align:left;font-size:15px;color:#94A3B8;border-bottom:2px solid #334155;">Metric</th>');
     for (int i = 0; i < plants.length; i++) {
       final shortName = plants[i].name.length > 15
           ? '${plants[i].name.substring(0, 15)}...'
           : plants[i].name;
       headerCells.write(
-        '<th style="padding:24px;text-align:center;font-size:36px;color:#E2E8F0;border-bottom:2px solid #334155;font-weight:bold;">${KmlUtils.escapeXml(shortName)}</th>',
+        '<th style="padding:10px;text-align:center;font-size:15px;color:#E2E8F0;border-bottom:2px solid #334155;font-weight:bold;">${KmlUtils.escapeXml(shortName)}</th>',
       );
     }
 
     String stressRow(String label, double Function(CVSResult) getter) {
       final cells = StringBuffer();
-      cells.write('<td style="padding:24px;font-size:42px;color:#CBD5E1;">$label</td>');
+      cells.write('<td style="padding:10px;font-size:15px;color:#CBD5E1;">$label</td>');
       for (int i = 0; i < cvsResults.length; i++) {
         final val = cvsResults[i] != null
             ? getter(cvsResults[i]!).toStringAsFixed(1)
@@ -192,14 +192,14 @@ class ComparisonBalloonBuilder {
                 ? '#F59E0B'
                 : '#10B981';
         cells.write(
-          '<td style="padding:24px;text-align:center;font-size:56px;font-weight:bold;color:$color;">$val</td>',
+          '<td style="padding:10px;text-align:center;font-size:18px;font-weight:bold;color:$color;">$val</td>',
         );
       }
       return '<tr>$cells</tr>';
     }
 
     return '''
-      <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #334155;border-radius:12px;background:#111827;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #334155;border-radius:10px;background:#111827;">
         <tr>$headerCells</tr>
         ${stressRow('&#127777; Temp Stress', (c) => c.temperatureStress)}
         ${stressRow('&#128167; Water Stress', (c) => c.waterStress)}

@@ -328,12 +328,22 @@ class PlantDetailBloc
       plant: currentData.plant,
       cvs: currentData.cvsResult!,
       projectedCvs: event.projectedCvs,
-      scenarioInsight: "Generating Scenario Simulation Analysis... Please wait.",
+      scenarioInsight: event.generateAi 
+          ? "Generating Scenario Simulation Analysis... Please wait." 
+          : "Tap the AI Insight button to generate AI analysis for this scenario.",
       scenarioType: event.scenarioType,
       lat: currentData.plant.latitude,
       lon: adjustedLon,
     );
     await lgService.showBalloonOnSlave(rightmostScreen, loadingBalloonKml);
+
+    if (!event.generateAi) {
+      emit(AppSuccess(currentData.copyWith(
+          isLoadingInsight: false, 
+          scenarioInsight: "Tap the AI Insight button to generate AI analysis for this scenario.",
+      )));
+      return;
+    }
 
     final insightResult = await generateScenarioAnalysisUsecase(
       params: {
