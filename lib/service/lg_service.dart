@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/utils/globals.dart';
 import 'dart:typed_data';
@@ -134,7 +135,7 @@ class LGService {
     double tilt,
     double range,
   ) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -146,7 +147,7 @@ class LGService {
   }
 
   Future<DataState<void>> flyToDefault() async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -165,7 +166,7 @@ class LGService {
   }
 
   Future<DataState<void>> sendKmlToMaster(String kmlContent) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -177,7 +178,7 @@ class LGService {
   }
 
   Future<DataState<void>> clearMasterScreen() async {
-    if (!_checkConnection(silent: true)) {
+    if (!await _ensureConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -189,7 +190,7 @@ class LGService {
   }
 
   Future<DataState<void>> sendKmlToSlave(int slaveNumber, String kml) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -201,7 +202,7 @@ class LGService {
   }
 
   Future<DataState<void>> sendKmlToScreen(int screenNumber, String kmlContent) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -219,7 +220,7 @@ class LGService {
   /// Sends placemarks KML to master AND all slave screens so that
   /// pins are visible across the entire Liquid Galaxy panoramic view.
   Future<DataState<void>> sendKmlToAllScreens(String kmlContent) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -241,7 +242,7 @@ class LGService {
     int slaveNumber,
     String balloonKml,
   ) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -253,7 +254,7 @@ class LGService {
   }
 
   Future<DataState<void>> clearBalloonOnSlave(int slaveNumber) async {
-    if (!_checkConnection(silent: true)) {
+    if (!await _ensureConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -265,7 +266,7 @@ class LGService {
   }
 
   Future<DataState<void>> uploadBalloonImage(String filename, Uint8List bytes) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -280,25 +281,58 @@ class LGService {
     }
   }
 
+  Timer? _orbitTimer;
+  bool _isOrbiting = false;
+
   Future<DataState<void>> startOrbit(
     double lat,
     double lon,
     double range,
     double tilt,
   ) async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      final orbitKml = _buildOrbitTour(
-        lat: lat,
-        lon: lon,
-        range: range,
-        tilt: tilt,
-      );
-      await _sendOrbitKml(orbitKml);
-      await Future.delayed(const Duration(seconds: 2));
-      await _playTour('Orbit');
+      await stopOrbit();
+      await _exitTour();
+      _isOrbiting = true;
+      final int steps = 360;
+      final double delta = 360.0 / steps;
+      double heading = 0.0;
+      bool isOrbitStepBusy = false;
+      
+      _orbitTimer = Timer.periodic(const Duration(milliseconds: 120), (timer) async {
+        if (!_checkConnection(silent: true) || !_isOrbiting) {
+          timer.cancel();
+          return;
+        }
+        if (isOrbitStepBusy) return;
+        
+        isOrbitStepBusy = true;
+        heading = (heading + delta) % 360;
+        final lookat = '<gx:duration>0.15</gx:duration>'
+                       '<gx:flyToMode>smooth</gx:flyToMode>'
+                       '<LookAt>'
+                       '<longitude>$lon</longitude>'
+                       '<latitude>$lat</latitude>'
+                       '<altitude>0</altitude>'
+                       '<heading>$heading</heading>'
+                       '<tilt>$tilt</tilt>'
+                       '<range>$range</range>'
+                       '<gx:altitudeMode>relativeToGround</gx:altitudeMode>'
+                       '</LookAt>';
+        
+        try {
+          if (_isOrbiting) {
+            await _sshService.execute('echo "flytoview=$lookat" > ${LGConstants.queryFile}');
+          }
+        } catch (e) {
+          debugPrint('[LG] Orbit step failed: $e');
+        } finally {
+          isOrbitStepBusy = false;
+        }
+      });
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -306,11 +340,15 @@ class LGService {
   }
 
   Future<DataState<void>> stopOrbit() async {
-    if (!_checkConnection(silent: true)) {
+    _isOrbiting = false;
+    _orbitTimer?.cancel();
+    _orbitTimer = null;
+    if (!await _ensureConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
       await _exitTour();
+      await _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -327,7 +365,7 @@ class LGService {
   }
 
   Future<DataState<void>> clearKml() async {
-    if (!_checkConnection(silent: true)) {
+    if (!await _ensureConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -341,7 +379,7 @@ class LGService {
   }
 
   Future<DataState<void>> reboot() async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -354,7 +392,7 @@ class LGService {
   }
 
   Future<DataState<void>> shutdown() async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -367,7 +405,7 @@ class LGService {
   }
 
   Future<DataState<void>> relaunch() async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -401,7 +439,7 @@ class LGService {
   }
 
   Future<DataState<void>> showLogos() async {
-    if (!_checkConnection()) {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -413,7 +451,7 @@ class LGService {
   }
 
   Future<DataState<void>> clearLogos() async {
-    if (!_checkConnection(silent: true)) {
+    if (!await _ensureConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
@@ -521,33 +559,17 @@ class LGService {
   }
 
   Future<void> _sendKmlToMaster(String kml) async {
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await _withRetry(
-      () => _sshService.writeFileViaSftp(LGConstants.masterKmlFile, kml),
-    );
-    await _withRetry(
-      () => _sshService.execute(
-        "echo 'http://lg1:81/kml/kmls.kml?t=$timestamp' > /var/www/html/kmls.txt",
-      ),
-    );
+    await _deployKml('master.kml', kml);
+    await _updateKmlsTxt('http://lg1:81/kml/master.kml');
   }
 
   Future<void> _clearMaster() async {
-    await _withRetry(() => _sshService.writeFileViaSftp(
-      LGConstants.masterKmlFile,
-      KmlUtils.emptyKml(),
-    ));
-    await _withRetry(() => _sshService.execute(
-      "echo '' > /var/www/html/kmls.txt",
-    ));
+    await _deployKml('master.kml', KmlUtils.emptyKml());
   }
 
-  Future<void> _sendKmlToSlave(int slaveNumber, String kml) => _withRetry(
-    () => _sshService.writeFileViaSftp(
-      '${LGConstants.kmlPath}slave_$slaveNumber.kml',
-      kml,
-    ),
-  );
+  Future<void> _sendKmlToSlave(int slaveNumber, String kml) async {
+    await _deployKml('slave_$slaveNumber.kml', kml);
+  }
 
   Future<void> _playTour(String name) =>
       _sshService.execute('echo "playtour=$name" > ${LGConstants.queryFile}');
@@ -555,71 +577,17 @@ class LGService {
   Future<void> _exitTour() =>
       _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
 
-  Future<void> _sendOrbitKml(String kml) async {
-    await _withRetry(
-      () => _sshService.writeFileViaSftp('/var/www/html/orbit.kml', kml),
-    );
-    await _withRetry(
-      () => _sshService.execute(
-        "echo 'http://lg1:81/orbit.kml' >> /var/www/html/kmls.txt",
-      ),
-    );
-  }
 
-  String _buildOrbitTour({
-    required double lat,
-    required double lon,
-    double range = 15000,
-    double tilt = 60,
-    int steps = 36,
-    double stepDuration = 0.8,
-  }) {
-    final buffer = StringBuffer();
-    for (int i = 0; i < steps; i++) {
-      final heading = (360.0 * i / steps);
-      buffer.writeln(
-        KmlUtils.flyTo(
-          lat: lat,
-          lon: lon,
-          altitude: 0,
-          heading: heading,
-          tilt: tilt,
-          range: range,
-          duration: stepDuration,
-        ),
-      );
-    }
-    return '''<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
-  <gx:Tour>
-    <name>Orbit</name>
-    <gx:Playlist>
-${buffer.toString()}    </gx:Playlist>
-  </gx:Tour>
-</kml>''';
-  }
 
   Future<void> _clearAllKml() async {
-    // Short fixed strings — no user content, safe as echo commands.
-    await _withRetry(() => _sshService.execute(
-      'echo "exittour=true" > ${LGConstants.queryFile} ; echo \'\' > /var/www/html/kmls.txt',
-    ));
-    // KML payloads written via SFTP — no shell escaping, no command-length limits.
-    await _withRetry(() => _sshService.writeFileViaSftp(
-      LGConstants.masterKmlFile,
-      KmlUtils.emptyKml(),
-    ));
+    await _exitTour();
+    await _updateKmlsTxt('');
+    await _deployKml('master.kml', KmlUtils.emptyKml());
     for (var screen = 2; screen <= _screenCount; screen++) {
-      await _withRetry(() => _sshService.writeFileViaSftp(
-        '${LGConstants.kmlPath}slave_$screen.kml',
-        KmlUtils.emptyBalloon(),
-      ));
+      await _deployKml('slave_$screen.kml', KmlUtils.emptyBalloon());
     }
     if (_isLogoVisible) {
-      await _withRetry(() => _sshService.writeFileViaSftp(
-        '${LGConstants.kmlPath}slave_${_leftScreenIndex()}.kml',
-        KmlUtils.screenOverlayKml(),
-      ));
+      await _deployKml('slave_${_leftScreenIndex()}.kml', KmlUtils.screenOverlayKml());
     }
   }
 
@@ -690,5 +658,36 @@ ${buffer.toString()}    </gx:Playlist>
   Future<void> _clearLogos() async {
     _isLogoVisible = false;
     await _sendKmlToSlave(_leftScreenIndex(), KmlUtils.emptyBalloon());
+  }
+
+  Future<bool> _ensureConnection({bool silent = false}) async {
+    if (_checkConnection(silent: true) && _sshService.isConnected) {
+      return true;
+    }
+    try {
+      final settings = await settingsDataSource.loadSettings();
+      if (settings.isConfigured) {
+        final result = await connect(settings);
+        if (result is DataSuccess) return true;
+      }
+    } catch (_) {}
+    return _checkConnection(silent: silent);
+  }
+
+  Future<void> _deployKml(String filename, String content) async {
+    final remotePath = filename.startsWith('/') ? filename : '${LGConstants.kmlPath}$filename';
+    await _withRetry(
+      () => _sshService.atomicUploadText(
+        remotePath: remotePath,
+        content: content,
+      ),
+    );
+  }
+
+  Future<void> _updateKmlsTxt(String url) async {
+    final command = url.isEmpty
+        ? 'echo "" > /var/www/html/kmls.txt'
+        : "echo '$url?t=\${DateTime.now().millisecondsSinceEpoch}' > /var/www/html/kmls.txt";
+    await _withRetry(() => _sshService.execute(command));
   }
 }

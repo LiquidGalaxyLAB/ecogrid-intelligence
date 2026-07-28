@@ -35,9 +35,7 @@ class RegionBoundaryService {
     ),
   );
 
-  /// Extrusion height in metres — tall enough to be visually dramatic on
-  /// Liquid Galaxy big screens at country-level zoom.
-  static const double _extrusionHeight = 75000;
+  static const double _extrusionHeight = 150000;
 
   static DateTime _lastNominatimRequest = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -415,7 +413,7 @@ class RegionBoundaryService {
       <styleUrl>#ecogrid_region_fill</styleUrl>
       <Polygon>
         <extrude>1</extrude>
-        <altitudeMode>relativeToGround</altitudeMode>
+        <altitudeMode>absolute</altitudeMode>
         <outerBoundaryIs>
           <LinearRing><coordinates>$outerCoords3d</coordinates></LinearRing>
         </outerBoundaryIs>
@@ -517,7 +515,7 @@ class RegionBoundaryService {
 
     // If the region is massive (e.g. a continent like Europe or huge country),
     // a giant rectangle looks terrible on Google Earth. Just move the camera!
-    if (maxSpan > 5) {
+    if (maxSpan > 500) {
       return KmlUtils.wrapInKmlDocument(lookAtStr, name: name);
     }
 
@@ -528,7 +526,7 @@ class RegionBoundaryService {
       <styleUrl>#ecogrid_region_fill</styleUrl>
       <Polygon>
         <extrude>1</extrude>
-        <altitudeMode>relativeToGround</altitudeMode>
+        <altitudeMode>absolute</altitudeMode>
         <outerBoundaryIs>
           <LinearRing><coordinates>$coordStr</coordinates></LinearRing>
         </outerBoundaryIs>

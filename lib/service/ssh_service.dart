@@ -154,6 +154,62 @@ class SSHService {
     }
   });
 
+  /// Atomically uploads a text file.
+  ///
+  /// Instead of writing directly to the destination, the file is first uploaded
+  /// to a hidden temporary file and then moved into place.
+  ///
+  /// This prevents Google Earth from reading a partially-written KML during
+  /// refresh.
+  ///
+  /// Flow:
+  ///
+  /// destination.uploading
+  ///        ↓
+  ///      SFTP
+  ///        ↓
+  /// mv "destination.uploading" "destination"
+  Future<void> atomicUploadText({
+    required String remotePath,
+    required String content,
+  }) =>
+      _serialized(() async {
+        if (_client == null) {
+          throw const ConnectionException(
+            message: 'Not connected to Liquid Galaxy',
+          );
+        }
+
+        try {
+          final tempPath = '$remotePath.uploading';
+
+          // Upload to temporary file.
+          final bytes = Uint8List.fromList(utf8.encode(content));
+
+          _sftpClient ??= await _client!.sftp();
+
+          final tempFile = await _sftpClient!.open(
+            tempPath,
+            mode: SftpFileOpenMode.create |
+                SftpFileOpenMode.write |
+                SftpFileOpenMode.truncate,
+          );
+
+          await tempFile.write(Stream.value(bytes).cast<Uint8List>());
+          await tempFile.close();
+
+          // Atomically replace destination.
+          await _client!
+              .run('mv "$tempPath" "$remotePath"')
+              .timeout(const Duration(seconds: 10));
+        } catch (e) {
+          _sftpClient = null;
+
+          throw ConnectionException(
+            message: 'Atomic upload failed for $remotePath: $e',
+          );
+        }
+      });
 
   void disconnect() {
     if (_client != null) {

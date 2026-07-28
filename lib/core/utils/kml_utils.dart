@@ -60,9 +60,9 @@ class KmlUtils {
           <href>http://lg1:81/logos.png</href>
         </Icon>
         <overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
-        <screenXY x="0.02" y="0.98" xunits="fraction" yunits="fraction"/>
+        <screenXY x="0.025" y="0.95" xunits="fraction" yunits="fraction"/>
         <rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
-        <size x="554" y="500" xunits="pixels" yunits="pixels"/>
+        <size x="814" y="630" xunits="pixels" yunits="pixels"/>
       </ScreenOverlay>
     ''';
     return wrapInKmlDocument(content, name: 'EcoGrid Logos');
@@ -409,24 +409,12 @@ class KmlUtils {
     required int lowRiskCount,
     required String dominantRisk,
     required List<String> top3Plants,
-    String? aiInsight,
   }) {
     final top3Html = top3Plants.isEmpty
         ? '<p style="color:#94A3B8;margin:0;">No critical plants identified.</p>'
         : top3Plants
               .map((p) => '<p style="color:#F87171;margin:0.6em 0;font-weight:bold;">&#9888; ${_escapeXml(p)}</p>')
               .join('');
-
-    final formattedAiInsight = aiInsight?.replaceAll('\n', '<br/>') ?? '';
-    final aiSection = aiInsight != null && aiInsight.isNotEmpty
-        ? '''
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:1.4em;border-top:2px solid #334155;">
-            <tr><td style="padding-top:1.2em;">
-              <p style="color:#A855F7;font-size:1.5em;font-weight:bold;margin:0 0 0.6em;border-bottom:2px solid #A855F7;padding-bottom:0.3em;display:inline-block;">&#10024; AI Risk Analysis</p>
-              <p style="color:#E2E8F0;font-size:1.25em;line-height:1.6;margin:0.6em 0 0;">$formattedAiInsight</p>
-            </td></tr>
-          </table>'''
-        : '';
 
     final highPct = totalPlants > 0 ? (highRiskCount * 100 ~/ totalPlants) : 0;
     final medPct  = totalPlants > 0 ? (mediumRiskCount * 100 ~/ totalPlants) : 0;
@@ -472,33 +460,33 @@ class KmlUtils {
             };
           </script>
 
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:560px;background:#0d1117;color:#fff;font-size:calc(17px + 2vw);border:2px solid #1e293b;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #38BDF8;border-radius:12px;">
 
             <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0f2a3d" style="border-bottom:4px solid #38BDF8;">
-              <tr><td style="padding:1.6em 1.8em 1.3em;">
-                <p style="font-size:1em;color:#38BDF8;margin:0 0 0.5em;letter-spacing:0.2em;font-weight:bold;">ECOGRID INTELLIGENCE</p>
-                <p style="font-size:3.2em;font-weight:bold;color:#fff;margin:0;">&#127757; ${_escapeXml(regionName)}</p>
-                <p style="font-size:1.35em;color:#94A3B8;margin:0.5em 0 0;">Climate Risk Dashboard</p>
+              <tr><td style="padding:1.4em 1.6em 1.1em;">
+                <p style="font-size:0.9em;color:#38BDF8;margin:0 0 0.4em;letter-spacing:0.2em;font-weight:bold;">ECOGRID INTELLIGENCE</p>
+                <p style="font-size:2.2em;font-weight:bold;color:#fff;margin:0;">&#127757; ${_escapeXml(regionName)}</p>
+                <p style="font-size:1.15em;color:#94A3B8;margin:0.4em 0 0;">Climate Risk Dashboard</p>
               </td></tr>
             </table>
 
             <table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:1px solid #1e293b;">
               <tr>
-                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #64748B;">
-                  <p style="font-size:3.8em;font-weight:bold;color:#fff;margin:0;line-height:1;">$totalPlants</p>
-                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Monitored Plants</p>
+                <td width="25%" align="center" style="padding:1.4em 0.5em;border-left:4px solid #38BDF8;">
+                  <p style="font-size:2.6em;font-weight:bold;color:#fff;margin:0;line-height:1;">$totalPlants</p>
+                  <p style="font-size:1.05em;color:#94A3B8;margin:0.4em 0 0;">Monitored Plants</p>
                 </td>
-                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #EF4444;">
-                  <p style="font-size:3.8em;font-weight:bold;color:#EF4444;margin:0;line-height:1;">$highRiskCount</p>
-                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">High Risk</p>
+                <td width="25%" align="center" style="padding:1.4em 0.5em;border-left:4px solid #EF4444;">
+                  <p style="font-size:2.6em;font-weight:bold;color:#EF4444;margin:0;line-height:1;">$highRiskCount</p>
+                  <p style="font-size:1.05em;color:#94A3B8;margin:0.4em 0 0;">High Risk</p>
                 </td>
-                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #F59E0B;">
-                  <p style="font-size:3.8em;font-weight:bold;color:#F59E0B;margin:0;line-height:1;">$mediumRiskCount</p>
-                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Medium Risk</p>
+                <td width="25%" align="center" style="padding:1.4em 0.5em;border-left:4px solid #F59E0B;">
+                  <p style="font-size:2.6em;font-weight:bold;color:#F59E0B;margin:0;line-height:1;">$mediumRiskCount</p>
+                  <p style="font-size:1.05em;color:#94A3B8;margin:0.4em 0 0;">Medium Risk</p>
                 </td>
-                <td width="25%" align="center" style="padding:1.7em 0.6em;border-left:4px solid #10B981;">
-                  <p style="font-size:3.8em;font-weight:bold;color:#10B981;margin:0;line-height:1;">$lowRiskCount</p>
-                  <p style="font-size:1.15em;color:#64748B;margin:0.5em 0 0;">Low Risk</p>
+                <td width="25%" align="center" style="padding:1.4em 0.5em;border-left:4px solid #10B981;">
+                  <p style="font-size:2.6em;font-weight:bold;color:#10B981;margin:0;line-height:1;">$lowRiskCount</p>
+                  <p style="font-size:1.05em;color:#94A3B8;margin:0.4em 0 0;">Low Risk</p>
                 </td>
               </tr>
             </table>
@@ -528,7 +516,6 @@ class KmlUtils {
                     </td>
                   </tr>
                 </table>
-                $aiSection
               </td></tr>
             </table>
           </div>
@@ -544,6 +531,72 @@ class KmlUtils {
     </Placemark>''';
 
     return wrapInKmlDocument(content, name: 'EcoGrid Dashboard');
+  }
+
+  static String regionalAiInsightBalloon({
+    required String regionName,
+    required String aiInsight,
+    required double lat,
+    required double lon,
+  }) {
+    final formattedAiInsight = aiInsight.replaceAll('\n', '<br/><br/>').replaceAll("'", "&#8217;");
+    
+    final content = '''
+    <Style id="ai_insight_style">
+      <IconStyle><scale>0</scale></IconStyle>
+      <BalloonStyle>
+        <bgColor>ff17110d</bgColor>
+        <textColor>ffffffff</textColor>
+        <text><![CDATA[
+          <script>
+            var bId = 'ai_insight_regional';
+            window.onload = function() {
+              if(localStorage.getItem('lg_bId') === bId) {
+                var pos = localStorage.getItem('lg_sPos');
+                if (pos) window.scrollTo(0, parseInt(pos, 10));
+              } else {
+                localStorage.setItem('lg_bId', bId);
+                localStorage.setItem('lg_sPos', 0);
+              }
+              setInterval(function() {
+                var pos = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                localStorage.setItem('lg_sPos', pos);
+              }, 100);
+            };
+          </script>
+          
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #1e293b;">
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#10024; AI Regional Risk Analysis</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">ECOGRID INTELLIGENCE</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#111827" style="border-bottom:1px solid #1e293b;">
+              <tr><td style="padding:1.4em 1.6em;">
+                <p style="font-size:2.5em;font-weight:bold;color:#fff;margin:0;">&#127757; ${_escapeXml(regionName)}</p>
+                <p style="font-size:1.1em;color:#94a3b8;margin:0.5em 0 0;">Climate Risk Dashboard</p>
+              </td></tr>
+            </table>
+
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr><td style="padding:1.8em 1.6em;">
+                <p style="color:#a855f7;font-size:1.8em;font-weight:bold;margin:0 0 0.6em;">&#10024; Regional AI Assessment</p>
+                <p style="color:#e2e8f0;font-size:1.3em;line-height:1.7;margin:0;">$formattedAiInsight</p>
+              </td></tr>
+            </table>
+          </div>
+        ]]></text>
+      </BalloonStyle>
+    </Style>
+    <Placemark id="ai_insight_placemark">
+      <name>AI Insight</name>
+      <styleUrl>#ai_insight_style</styleUrl>
+      <gx:balloonVisibility>1</gx:balloonVisibility>
+      <Point><coordinates>$lon,$lat,0</coordinates></Point>
+    </Placemark>''';
+    return wrapInKmlDocument(content, name: 'AI Insight - ${_escapeXml(regionName)}');
   }
 
 
@@ -709,12 +762,12 @@ class KmlUtils {
           <bgColor>ff0d1117</bgColor>
           <textColor>ffffffff</textColor>
           <text><![CDATA[
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #0f766e;border-radius:12px;overflow:hidden;">
 
-            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#115e59" style="border-bottom:4px solid #10b981;">
               <tr><td style="padding:1.4em 1.6em;">
-                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
-                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Comparison Network Data</p>
+                <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Strategic Energy Assessment</p>
+                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Network Resilience & Risk Profile</p>
               </td></tr>
             </table>
 
@@ -928,12 +981,12 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #0284c7;border-radius:12px;">
 
-            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
+            <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0284c7" style="border-bottom:4px solid #38bdf8;">
               <tr><td style="padding:1.4em 1.6em;">
                 <p style="font-size:1.8em;font-weight:bold;color:#fff;margin:0;">&#127981; Plant Analysis</p>
-                <p style="font-size:1.1em;color:#ccfbf1;margin:0.3em 0 0;">Power Plant Information</p>
+                <p style="font-size:1.1em;color:#e0f2fe;margin:0.3em 0 0;">Power Plant Diagnostics &amp; Risk Intelligence</p>
               </td></tr>
             </table>
 
@@ -1082,7 +1135,7 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #1e293b;">
 
             <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
               <tr><td style="padding:1.4em 1.6em;">
@@ -1201,7 +1254,7 @@ class KmlUtils {
     gridHtml += '<line x1="80" y1="$yZero" x2="${width - 40}" y2="$yZero" stroke="#64748B" stroke-width="3" />\n';
 
     final svgContent = '''
-      <svg width="$width" height="$height" viewBox="0 0 $width $height" xmlns="http://www.w3.org/2000/svg">
+      <svg width="100%" height="286" viewBox="0 0 $width $height" xmlns="http://www.w3.org/2000/svg">
         $gridHtml
         <polyline points="$polylineTemp" fill="none" stroke="#FF5252" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
         <polyline points="$polylinePrecip" fill="none" stroke="#448AFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
@@ -1234,7 +1287,7 @@ class KmlUtils {
               }, 100);
             };
           </script>
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;padding:1.8em;box-sizing:border-box;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #1e293b;padding:1.8em;box-sizing:border-box;">
             <div style="padding-bottom:1em;border-bottom:2px solid #1e293b;margin-bottom:1.4em;">
               <p style="font-size:1.8em;font-weight:bold;color:#10B981;margin:0;">&#128200; Historical Trends</p>
               <p style="font-size:1.1em;color:#94A3B8;margin:0.4em 0 0;">${_escapeXml(plant.name)}</p>
@@ -1302,7 +1355,7 @@ class KmlUtils {
             };
           </script>
           
-          <div style="font-family:Arial,sans-serif;width:64vw;min-width:480px;background:#0d1117;color:#fff;font-size:calc(14px + 1.6vw);border:2px solid #1e293b;">
+          <div style="font-family:Arial,sans-serif;width:700px;background:#0d1117;color:#fff;font-size:14px;border:2px solid #1e293b;">
 
             <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#0F766E" style="border-bottom:3px solid #10b981;">
               <tr><td style="padding:1.4em 1.6em;">

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
@@ -29,6 +30,9 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
   void initState() {
     super.initState();
     Logger().i('[UI] Opened ScenarioSimulationScreen');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dispatchScenarioUpdate();
+    });
   }
 
   SimulationMode _currentMode = SimulationMode.simulateImpact;
@@ -37,6 +41,49 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
   double _tempMultiplier = 1.0;
   double _waterMultiplier = 1.0;
   double _windMultiplier = 1.0;
+  Timer? _debounce;
+  
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _dispatchScenarioUpdate() {
+    final state = widget.bloc.state;
+    if (state is AppSuccess<PlantDetailData>) {
+      final plant = state.data!.plant;
+      final cvs = state.data!.cvsResult;
+      if (cvs != null) {
+        final baseAnomalies = CVSCalculator.generateBaseAnomalies(plant.latitude, plant.longitude);
+        final projectedCvs = CVSCalculator.simulateScenario(
+          plantType: plant.primaryFuel,
+          tempAnomaly: baseAnomalies['temp'] ?? 0.15,
+          waterAnomaly: baseAnomalies['water'] ?? 0.15,
+          windAnomaly: baseAnomalies['wind'] ?? 0.15,
+          tempMultiplier: _tempMultiplier,
+          waterMultiplier: _waterMultiplier,
+          windMultiplier: _windMultiplier,
+        );
+        
+        if (_debounce?.isActive ?? false) _debounce!.cancel();
+        _debounce = Timer(const Duration(milliseconds: 400), () {
+          if (!mounted) return;
+          widget.bloc.add(
+            PlantDetailScenarioInsightRequested(
+              tempMultiplier: _tempMultiplier,
+              waterMultiplier: _waterMultiplier,
+              windMultiplier: _windMultiplier,
+              scenarioType: _selectedScenario,
+              projectedCvs: projectedCvs,
+              generateAi: false,
+            ),
+          );
+        });
+      }
+    }
+  }
+
   void _generateInsight(double projectedCvs) {
     widget.bloc.add(
       PlantDetailScenarioInsightRequested(
@@ -45,6 +92,7 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
         windMultiplier: _windMultiplier,
         scenarioType: _selectedScenario,
         projectedCvs: projectedCvs,
+        generateAi: true,
       ),
     );
   }
@@ -94,6 +142,7 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
       _waterMultiplier = water;
       _windMultiplier = wind;
     });
+    _dispatchScenarioUpdate();
   }
 
   @override
@@ -138,33 +187,6 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
           final isDark = ThemeController.instance.isDarkMode;
           return Scaffold(
             backgroundColor: isDark ? AppTheme.background : Colors.white,
-            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-            floatingActionButton: _currentMode == SimulationMode.simulateImpact
-                ? (state.data!.isLoadingInsight
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(top: 16.0),
-                        child: FloatingActionButton(
-                          heroTag: 'ai_fab_scenario',
-                          onPressed: () {
-                            if (state.data!.scenarioInsight == null || _lastInsightScenario != _selectedScenario) {
-                              _lastInsightScenario = _selectedScenario;
-                              _generateInsight(projectedCvs);
-                            }
-                            _showScenarioInsightBottomSheet(
-                              context,
-                              state.data!,
-                              plant.name,
-                              baseCvs,
-                              projectedCvs,
-                              consequences['outputReduction']!,
-                            );
-                          },
-                          backgroundColor: AppTheme.secondary,
-                          child: const Icon(Icons.auto_awesome, color: Colors.white),
-                        ),
-                      ))
-                : null,
             appBar: AppBar(
               backgroundColor: AppTheme.surface,
               elevation: 0,
@@ -449,6 +471,41 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                   ],
                 ),
               ],
+            ),
+            floatingActionButton: FloatingActionButton(
+              onPressed: () {
+                if (state is AppSuccess<PlantDetailData>) {
+                  final plant = state.data!.plant;
+                  final baseAnomalies = CVSCalculator.generateBaseAnomalies(plant.latitude, plant.longitude);
+                  final projectedCvs = CVSCalculator.simulateScenario(
+                    plantType: plant.primaryFuel,
+                    tempAnomaly: baseAnomalies['temp'] ?? 0.15,
+                    waterAnomaly: baseAnomalies['water'] ?? 0.15,
+                    windAnomaly: baseAnomalies['wind'] ?? 0.15,
+                    tempMultiplier: _tempMultiplier,
+                    waterMultiplier: _waterMultiplier,
+                    windMultiplier: _windMultiplier,
+                  );
+                  _generateInsight(projectedCvs);
+                  _showScenarioInsightBottomSheet(
+                    context,
+                    state.data!,
+                    plant.name,
+                    state.data!.cvsResult?.score ?? 0.0,
+                    projectedCvs,
+                    CVSCalculator.calculateHumanConsequences(
+                      plantType: plant.primaryFuel,
+                      baseCvs: state.data!.cvsResult?.score ?? 0.0,
+                      projectedCvs: projectedCvs,
+                      tempMultiplier: _tempMultiplier,
+                      waterMultiplier: _waterMultiplier,
+                      windMultiplier: _windMultiplier,
+                    )['description'] ?? '',
+                  );
+                }
+              },
+              backgroundColor: AppTheme.primary,
+              child: const Icon(Icons.auto_awesome, color: Colors.white),
             ),
           );
         },

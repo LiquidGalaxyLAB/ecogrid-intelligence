@@ -125,7 +125,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           lowRiskCount: lowCount,
           dominantRisk: dominantRisk,
           top3Plants: top3,
-          aiInsight: null,
         );
         await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
       }
@@ -207,10 +206,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
             );
             await preComputeAllScoresUsecase(plants);
             if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
-              final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
-              final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
-              final combinedKml = regionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
-              await lgService.sendKmlToMaster(combinedKml);
+              await lgService.sendKmlToMaster(regionKml);
             }
             _startBackgroundWarmer();
             await _updateRightScreenOverlay(event.region, plants);
@@ -237,7 +233,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
   Future<void> _updateRightScreenOverlay(
     Region region,
     List<PowerPlant> plants, {
-    String? aiInsight,
     bool updateMaster = true,
   }) async {
     final highRiskPlants = getPlantsByRiskLevelUsecase(
@@ -294,7 +289,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       lowRiskCount: lowCount,
       dominantRisk: dominantRisk,
       top3Plants: top3,
-      aiInsight: aiInsight,
     );
     if (lgService.connectionStatus != ConnectionStatus.connected) return;
     await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
@@ -308,10 +302,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         maxLon: region.maxLon,
         countries: region.countries,
       );
-      final topPlantsForKml = plants.toList()..sort((a, b) => getUnifiedScoreUsecase(b).score.compareTo(getUnifiedScoreUsecase(a).score));
-      final pinsKml = KmlUtils.buildPlantNetworkKml(topPlantsForKml.take(50).toList(), getUnifiedScoreUsecase);
-      final combinedKml = masterRegionKml.replaceFirst('</Document>', '\n$pinsKml\n</Document>');
-      await lgService.sendKmlToMaster(combinedKml);
+      await lgService.sendKmlToMaster(masterRegionKml);
     }
   }
 
@@ -327,7 +318,6 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     await _updateRightScreenOverlay(
       data.region!,
       data.plants,
-      aiInsight: data.aiInsight,
     );
   }
 
@@ -495,12 +485,21 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     }
 
     if (data.region != null) {
-      _updateRightScreenOverlay(
-        data.region!,
-        plants,
+      final settingsResult = await lgService.loadSettings();
+      int rightmostScreen = LGSettings.empty.rightmostScreen;
+      if (settingsResult is DataSuccess<LGSettings>) {
+        rightmostScreen = settingsResult.data!.rightmostScreen;
+      }
+      
+      final loadingKml = KmlUtils.regionalAiInsightBalloon(
+        regionName: data.region!.displayName ?? data.region!.name,
         aiInsight: "Generating AI Regional Insight... Please wait.",
-        updateMaster: false,
+        lat: data.region!.centerLat,
+        lon: data.region!.centerLon,
       );
+      if (lgService.connectionStatus == ConnectionStatus.connected) {
+        await lgService.showBalloonOnSlave(rightmostScreen, loadingKml);
+      }
     }
 
     final insightResult = await generateRegionalInsightUsecase(
@@ -524,12 +523,21 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           ),
         );
         if (currentData.region != null) {
-          _updateRightScreenOverlay(
-            currentData.region!,
-            plants,
+          final settingsResult = await lgService.loadSettings();
+          int rightmostScreen = LGSettings.empty.rightmostScreen;
+          if (settingsResult is DataSuccess<LGSettings>) {
+            rightmostScreen = settingsResult.data!.rightmostScreen;
+          }
+          
+          final insightKml = KmlUtils.regionalAiInsightBalloon(
+            regionName: currentData.region!.displayName ?? currentData.region!.name,
             aiInsight: insight,
-            updateMaster: false,
+            lat: currentData.region!.centerLat,
+            lon: currentData.region!.centerLon,
           );
+          if (lgService.connectionStatus == ConnectionStatus.connected) {
+            await lgService.showBalloonOnSlave(rightmostScreen, insightKml);
+          }
         }
       }
     } else {
