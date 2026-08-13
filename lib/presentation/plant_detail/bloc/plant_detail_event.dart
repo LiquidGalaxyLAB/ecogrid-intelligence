@@ -15,7 +15,10 @@ class PlantDetailLoadRequested extends PlantDetailEvent {
 }
 
 class PlantDetailGenerateInsightRequested extends PlantDetailEvent {
-  const PlantDetailGenerateInsightRequested();
+  final bool isCancel;
+  const PlantDetailGenerateInsightRequested({this.isCancel = false});
+  @override
+  List<Object?> get props => [isCancel];
 }
 
 class PlantDetailScenarioInsightRequested extends PlantDetailEvent {
@@ -25,13 +28,15 @@ class PlantDetailScenarioInsightRequested extends PlantDetailEvent {
   final String scenarioType;
   final bool generateAi;
   final double projectedCvs;
+  final bool isCancel;
   const PlantDetailScenarioInsightRequested({
     this.tempMultiplier = 1.0,
     this.waterMultiplier = 1.0,
     this.windMultiplier = 1.0,
     this.scenarioType = 'Custom',
     this.generateAi = true,
-    required this.projectedCvs,
+    this.projectedCvs = 0.0,
+    this.isCancel = false,
   });
   @override
   List<Object?> get props => [
@@ -41,6 +46,7 @@ class PlantDetailScenarioInsightRequested extends PlantDetailEvent {
     scenarioType,
     generateAi,
     projectedCvs,
+    isCancel,
   ];
 }
 
@@ -52,7 +58,10 @@ class PlantDetailTrendRequested extends PlantDetailEvent {
 }
 
 class PlantDetailTrendInsightRequested extends PlantDetailEvent {
-  const PlantDetailTrendInsightRequested();
+  final bool isCancel;
+  const PlantDetailTrendInsightRequested({this.isCancel = false});
+  @override
+  List<Object?> get props => [isCancel];
 }
 
 class PlantDetailChatMessageSent extends PlantDetailEvent {
@@ -64,6 +73,10 @@ class PlantDetailChatMessageSent extends PlantDetailEvent {
 
 class PlantDetailChatStarted extends PlantDetailEvent {
   const PlantDetailChatStarted();
+}
+
+class PlantDetailChatEnded extends PlantDetailEvent {
+  const PlantDetailChatEnded();
 }
 
 class PlantDetailClearLGError extends PlantDetailEvent {

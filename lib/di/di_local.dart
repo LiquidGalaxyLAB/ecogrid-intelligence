@@ -1,3 +1,5 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../data/local/app_database.dart';
 import '../data/local/data_sources/climate_cache_ds.dart';
 import '../data/local/data_sources/power_plant_local_ds.dart';
@@ -13,5 +15,12 @@ void registerLocalDependencies() {
   );
   sl.registerLazySingleton(
     () => SettingsLocalDataSource(dao: database.settingsDao),
+  );
+
+  // Secure storage for API keys
+  sl.registerLazySingleton<FlutterSecureStorage>(
+    () => const FlutterSecureStorage(
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    ),
   );
 }

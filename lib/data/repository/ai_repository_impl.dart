@@ -73,6 +73,7 @@ Provide a concise 3-4 sentence climate risk assessment explaining:
 2. The primary climate threat to its operations
 3. A brief recommendation for resilience improvement
 Be specific to the plant type's operational characteristics. Use professional, data-driven language.
+Format your response using basic HTML tags (like <b>, <i>, <ul>, <li>, <br>) instead of Markdown.
 ''';
     final stream = dataSource.generateInsight(
       prompt: prompt,
@@ -137,6 +138,7 @@ Provide a concise 3-4 sentence regional assessment covering:
 1. Overall infrastructure vulnerability profile for this region
 2. Why the dominant climate threat is dangerous to the most vulnerable plant types here
 3. A brief mention of the top risk plants as prime targets for resilience upgrades
+Format your response using basic HTML tags (like <b>, <i>, <ul>, <li>, <br>) instead of Markdown.
 ''';
     final stream = dataSource.generateInsight(
       prompt: prompt,
@@ -178,6 +180,7 @@ ${context.toPromptContext()}
 **Projected CVS:** ${projectedCvs.toStringAsFixed(1)}/100
 **Change:** ${(projectedCvs - context.cvsScore) >= 0 ? '+' : ''}${(projectedCvs - context.cvsScore).toStringAsFixed(1)} points
 Focus ONLY on the impacts of the selected '$scenarioType' scenario. In 2-3 sentences, explain the projected impact of this specific scenario on the plant's operations and what specific risks would increase.
+Format your response using basic HTML tags (like <b>, <i>, <ul>, <li>, <br>) instead of Markdown.
 ''';
     final stream = dataSource.generateInsight(
       prompt: prompt,
@@ -220,6 +223,7 @@ In 3-4 sentences, explain:
 2. What the primary trend drivers are (temperature, precipitation, wind changes)
 3. What the operational implications are for this specific plant type over the coming decade
 Be specific, data-driven, and reference the actual trend data provided.
+Format your response using basic HTML tags (like <b>, <i>, <ul>, <li>, <br>) instead of Markdown.
 ''';
     final stream = dataSource.generateInsight(
       prompt: prompt,
@@ -259,6 +263,7 @@ Guidelines:
 - Keep responses concise (3-5 sentences) unless the user asks for more detail.
 - Use professional, data-driven language.
 - If you don't have enough information to answer precisely, say so rather than guessing.
+- Format your response using basic HTML tags (like <b>, <i>, <ul>, <li>, <br>) instead of Markdown.
 ''';
     _chatSessions[sessionId] = [
       {'role': 'user', 'content': systemPrompt},

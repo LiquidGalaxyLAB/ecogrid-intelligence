@@ -80,3 +80,11 @@ class ExploreLGRestoreRequested extends ExploreEvent {
 class ExploreDismissInsight extends ExploreEvent {
   const ExploreDismissInsight();
 }
+
+class ExploreStartOrbit extends ExploreEvent {
+  const ExploreStartOrbit();
+}
+
+class ExploreStopOrbit extends ExploreEvent {
+  const ExploreStopOrbit();
+}

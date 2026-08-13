@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../domain/model/power_plant.dart';
@@ -51,11 +53,21 @@ class PlantDetailBloc
     required this.sendChatMessageUsecase,
   }) : super(const AppLoading()) {
     on<PlantDetailLoadRequested>(_onLoadRequested);
-    on<PlantDetailGenerateInsightRequested>(_onGenerateInsightRequested);
-    on<PlantDetailScenarioInsightRequested>(_onScenarioInsightRequested);
+    on<PlantDetailGenerateInsightRequested>(
+      _onGenerateInsightRequested,
+      transformer: restartable(),
+    );
+    on<PlantDetailScenarioInsightRequested>(
+      _onScenarioInsightRequested,
+      transformer: restartable(),
+    );
     on<PlantDetailTrendRequested>(_onTrendRequested);
-    on<PlantDetailTrendInsightRequested>(_onTrendInsightRequested);
+    on<PlantDetailTrendInsightRequested>(
+      _onTrendInsightRequested,
+      transformer: restartable(),
+    );
     on<PlantDetailChatStarted>(_onChatStarted);
+    on<PlantDetailChatEnded>(_onChatEnded);
     on<PlantDetailChatMessageSent>(_onChatMessageSent);
     on<PlantDetailDismissInsight>(_onDismissInsight);
     on<PlantDetailClearLGError>((event, emit) {
@@ -66,6 +78,12 @@ class PlantDetailBloc
     });
     on<PlantDetailStartOrbitRequested>(_onStartOrbitRequested);
     on<PlantDetailStopOrbitRequested>(_onStopOrbitRequested);
+  }
+
+  @override
+  Future<void> close() {
+    lgService.stopOrbit();
+    return super.close();
   }
   PlantContextPayload? _buildContext() {
     if (state is! AppSuccess<PlantDetailData>) return null;
@@ -220,6 +238,7 @@ class PlantDetailBloc
     PlantDetailGenerateInsightRequested event,
     Emitter<AppState<PlantDetailData>> emit,
   ) async {
+    if (event.isCancel) return;
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
     final context = _buildContext();
@@ -299,6 +318,7 @@ class PlantDetailBloc
     PlantDetailScenarioInsightRequested event,
     Emitter<AppState<PlantDetailData>> emit,
   ) async {
+    if (event.isCancel) return;
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
     final context = _buildContext();
@@ -541,6 +561,7 @@ class PlantDetailBloc
     PlantDetailTrendInsightRequested event,
     Emitter<AppState<PlantDetailData>> emit,
   ) async {
+    if (event.isCancel) return;
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
     final context = _buildContext();
@@ -578,6 +599,11 @@ class PlantDetailBloc
   ) async {
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
+    
+    // Dispatch cancel events to cleanly abort any ongoing AI generation streams
+    add(const PlantDetailGenerateInsightRequested(isCancel: true));
+    add(const PlantDetailScenarioInsightRequested(isCancel: true));
+    add(const PlantDetailTrendInsightRequested(isCancel: true));
     
     emit(AppSuccess(currentData.copyWith(
       clearAiInsight: true,
@@ -621,6 +647,24 @@ class PlantDetailBloc
     );
   }
 
+  Future<void> _onChatEnded(
+    PlantDetailChatEnded event,
+    Emitter<AppState<PlantDetailData>> emit,
+  ) async {
+    if (state is AppSuccess<PlantDetailData>) {
+      try {
+        final settingsResult = await lgService.loadSettings();
+        int rightmostScreen = 5;
+        if (settingsResult is DataSuccess<LGSettings>) {
+          rightmostScreen = settingsResult.data!.rightmostScreen;
+        }
+        await lgService.clearBalloonOnSlave(rightmostScreen);
+      } catch (e) {
+        debugPrint('[LG] Failed to clear chat balloon: $e');
+      }
+    }
+  }
+
   Future<void> _onChatMessageSent(
     PlantDetailChatMessageSent event,
     Emitter<AppState<PlantDetailData>> emit,
@@ -652,6 +696,32 @@ class PlantDetailBloc
             ),
           ),
         );
+
+        // Send the AI response as a KML balloon to the LG rightmost screen.
+        try {
+          final settingsResult = await lgService.loadSettings();
+          int rightmostScreen = LGSettings.empty.rightmostScreen;
+          int screenCount = LGSettings.empty.screenCount;
+          if (settingsResult is DataSuccess<LGSettings>) {
+            rightmostScreen = settingsResult.data!.rightmostScreen;
+            screenCount = settingsResult.data!.screenCount;
+          }
+          final offsetPerSideScreen = 10.0;
+          final sideScreens = (screenCount - 1) / 2;
+          final rawLon = d.plant.longitude + (offsetPerSideScreen * sideScreens);
+          final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+          final balloonKml = KmlUtils.chatResponseBalloon(
+            plant: d.plant,
+            userQuestion: event.message,
+            aiResponse: result.data!,
+            lat: d.plant.latitude,
+            lon: adjustedLon,
+          );
+          await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+        } catch (e) {
+          debugPrint('[LG] Failed to send chat balloon: $e');
+        }
       }
     } else {
       final errorMessage = ChatMessage(

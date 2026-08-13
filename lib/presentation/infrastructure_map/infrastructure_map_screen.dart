@@ -17,6 +17,8 @@ import '../../domain/model/cvs_result.dart';
 import '../../domain/repository/cvs_repository.dart';
 import '../components/plant_map_bottom_sheet.dart';
 import '../components/eco_showcase.dart';
+import '../../core/utils/plant_detail_balloon_builder.dart';
+import '../../core/resources/data_state.dart';
 import '../explore/bloc/explore_bloc.dart';
 import '../explore/bloc/explore_event.dart';
 import '../explore/bloc/explore_data.dart';
@@ -40,18 +42,21 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
   Timer? _markerDebounce;
   MapType _mapType = MapType.normal;
   String _mapTheme = MapThemes.mapsThemeNone;
-  double _currentZoom = 2.0;
-  final double _minZoom = 2.0;
+  double _currentZoom = 1.5;
+  final double _minZoom = 1.5;
   final double _maxZoom = 12.0;
   bool _isDraggingSlider = false;
   bool _lgSyncEnabled = true;
+  bool _showZoomHint = true;
   Set<Marker> _markers = {};
   Set<Marker>? _cachedWorldMarkers;
+  String? _cachedWorldKml;
+  String? _cachedPlantKml;
   // Cache keyed by "fuelType_riskLevel" — only ~42 unique combos ever generated
   final Map<String, BitmapDescriptor> _markerBitmapCache = {};
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(20.0, 0.0),
-    zoom: 2.0,
+    zoom: 1.5,
   );
   @override
   void initState() {
@@ -109,7 +114,8 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
   }
 
   double _zoomToRange(double zoom) {
-    return 40000000 / math.pow(2, zoom);
+    final range = 120000000 / math.pow(2, zoom);
+    return range.clamp(100000.0, 15000000.0);
   }
 
   Future<void> _onZoomChanged(double zoom) async {
@@ -129,10 +135,10 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
   }
 
   int _getMarkerLimitForZoom(double zoom) {
-    if (zoom < 4.0) return 80;
-    if (zoom < 6.0) return 200;
-    if (zoom < 9.0) return 350;
-    return 500;
+    if (zoom < 3.0) return 200;
+    if (zoom < 6.0) return 500;
+    if (zoom < 9.0) return 1000;
+    return 2000;
   }
 
   List<PowerPlant> _selectProportionalSample(
@@ -155,25 +161,35 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     final highCount = ((high.length / total) * limit).round();
     final mediumCount = ((medium.length / total) * limit).round();
     final lowCount = limit - highCount - mediumCount;
-    high.sort(
-      (a, b) => (cvsRepo.getCachedCvs(b)?.score ?? 0).compareTo(
-        cvsRepo.getCachedCvs(a)?.score ?? 0,
-      ),
-    );
-    medium.sort(
-      (a, b) => (cvsRepo.getCachedCvs(b)?.score ?? 0).compareTo(
-        cvsRepo.getCachedCvs(a)?.score ?? 0,
-      ),
-    );
-    low.sort(
-      (a, b) => (cvsRepo.getCachedCvs(b)?.score ?? 0).compareTo(
-        cvsRepo.getCachedCvs(a)?.score ?? 0,
-      ),
-    );
+
+    List<PowerPlant> takeUniformly(List<PowerPlant> source, int count) {
+      if (source.isEmpty || count <= 0) return [];
+      if (count >= source.length) return source;
+      final cells = <String, List<PowerPlant>>{};
+      for (final p in source) {
+        final key = '${(p.longitude / 2.0).floor()}_${(p.latitude / 2.0).floor()}';
+        cells.putIfAbsent(key, () => []).add(p);
+      }
+      final cellLists = cells.values.toList();
+      final result = <PowerPlant>[];
+      int idx = 0;
+      while (result.length < count && cellLists.isNotEmpty) {
+        final cell = cellLists[idx % cellLists.length];
+        if (cell.isNotEmpty) {
+          result.add(cell.removeAt(0));
+        } else {
+          cellLists.removeAt(idx % cellLists.length);
+          continue;
+        }
+        idx++;
+      }
+      return result;
+    }
+
     return [
-      ...high.take(highCount),
-      ...medium.take(mediumCount),
-      ...low.take(lowCount < 0 ? 0 : lowCount),
+      ...takeUniformly(high, highCount),
+      ...takeUniformly(medium, mediumCount),
+      ...takeUniformly(low, lowCount),
     ];
   }
 
@@ -346,6 +362,7 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
           position: LatLng(plant.latitude, plant.longitude),
           icon: bitmap,
           anchor: const Offset(0.5, 0.5),
+          consumeTapEvents: true,
           onTap: () => _showBottomSheet(plant, cvs),
         ),
       );
@@ -353,13 +370,50 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     return markers;
   }
 
-  void _showBottomSheet(PowerPlant plant, CVSResult cvs) {
+  void _showBottomSheet(PowerPlant plant, CVSResult cvs) async {
+    if (_lgSyncEnabled) {
+      final lgService = sl<LGService>();
+      final controller = await _controller.future;
+      final bounds = await controller.getVisibleRegion();
+      
+      double lngDiff = bounds.northeast.longitude - bounds.southwest.longitude;
+      if (lngDiff < 0) lngDiff += 360;
+      
+      // Calculate a coordinate that is guaranteed to be in the center of the rightmost screen
+      double rightScreenLng = plant.longitude + lngDiff;
+      if (rightScreenLng > 180) rightScreenLng -= 360;
+      
+      lgService.loadSettings().then((settingsRes) {
+        final rightScreen = settingsRes is DataSuccess && settingsRes.data != null
+            ? settingsRes.data!.rightmostScreen
+            : (lgService.screenCount > 1 ? lgService.screenCount : 2);
+            
+        final balloonKml = PlantDetailBalloonBuilder.build(
+          plant: plant, 
+          cvs: cvs,
+          overrideLng: rightScreenLng,
+          overrideLat: plant.latitude,
+        );
+        lgService.sendKmlToSlave(rightScreen, balloonKml);
+      });
+    }
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => PlantMapBottomSheet(plant: plant, cvs: cvs),
-    );
+    ).whenComplete(() {
+      if (_lgSyncEnabled) {
+        final lgService = sl<LGService>();
+        lgService.loadSettings().then((settingsRes) {
+          final rightScreen = settingsRes is DataSuccess && settingsRes.data != null
+              ? settingsRes.data!.rightmostScreen
+              : (lgService.screenCount > 1 ? lgService.screenCount : 2);
+          lgService.sendKmlToSlave(rightScreen, KmlUtils.emptyBalloon());
+        });
+      }
+    });
   }
 
 
@@ -371,6 +425,8 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
       byCountry.putIfAbsent(countryName, () => []).add(plant);
     }
     final markers = <Marker>{};
+    final StringBuffer kmlBuffer = StringBuffer();
+
     for (final entry in byCountry.entries) {
       final countryName = entry.key;
       final plants = entry.value;
@@ -385,6 +441,35 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
       if (markers.length % 20 == 0) {
         await Future.delayed(Duration.zero);
       }
+      
+      kmlBuffer.writeln('''
+        <Placemark>
+          <name>$countryName (${plants.length})</name>
+          <description>${plants.length} plants</description>
+          <Style>
+            <IconStyle>
+              <color>ffffee00</color> <!-- Cyan -->
+              <scale>2.5</scale>
+              <Icon>
+                <href>http://maps.google.com/mapfiles/kml/paddle/wht-blank.png</href>
+              </Icon>
+            </IconStyle>
+            <LineStyle>
+              <color>99ffee00</color>
+              <width>8</width>
+            </LineStyle>
+            <LabelStyle>
+              <color>ffffffff</color>
+              <scale>1.5</scale>
+            </LabelStyle>
+          </Style>
+          <Point>
+            <extrude>1</extrude>
+            <altitudeMode>relativeToGround</altitudeMode>
+            <coordinates>$avgLon,$avgLat,1200000</coordinates>
+          </Point>
+        </Placemark>''');
+
       markers.add(
         Marker(
           markerId: MarkerId('country_$countryName'),
@@ -407,6 +492,11 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
         ),
       );
     }
+    
+    if (kmlBuffer.isNotEmpty) {
+      _cachedWorldKml = KmlUtils.wrapInKmlDocument(kmlBuffer.toString(), name: 'Region Pins');
+    }
+    
     return markers;
   }
 
@@ -426,7 +516,8 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
       risks: risks,
       title: 'Infrastructure Map Plants',
     );
-    await lgService.sendKmlToAllScreens(kml);
+    _cachedPlantKml = kml;
+    await lgService.sendKmlToMaster(kml);
   }
 
   Future<void> _refreshMarkers(LatLng center, double zoom) async {
@@ -436,14 +527,16 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
         ? exploreState.data!.plants
         : <PowerPlant>[];
     if (allPlants.isEmpty) return;
-    if (zoom < 4.0) {
+    if (zoom < 3.0) {
       _cachedWorldMarkers ??= await _buildWorldViewMarkers(allPlants);
       if (mounted) {
         setState(() {
           _markers = _cachedWorldMarkers!;
         });
       }
-      await sl<LGService>().clearMasterScreen();
+      if (_lgSyncEnabled && _cachedWorldKml != null) {
+        sl<LGService>().sendKmlToMaster(_cachedWorldKml!);
+      }
       return;
     }
     final controller = await _controller.future;
@@ -457,7 +550,26 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
         _markers = fuelMarkers;
       });
     }
-    await _syncMarkersToLG(selectedPlants);
+
+    // LG panoramic display: 3 screens show ~3× the phone's longitude span.
+    // Sample plants across the full panoramic field so side screens (LG2/LG3) also get pins.
+    final lonSpan = (bounds.northeast.longitude - bounds.southwest.longitude).abs();
+    final latSpan = (bounds.northeast.latitude - bounds.southwest.latitude).abs();
+    final centerLon = (bounds.northeast.longitude + bounds.southwest.longitude) / 2.0;
+    final centerLat = (bounds.northeast.latitude + bounds.southwest.latitude) / 2.0;
+    // Cover 3× the phone viewport width for the full LG panorama
+    final panoramaLonHalf = (lonSpan * 3.0).clamp(10.0, 90.0);
+    final panoramaLatHalf = (latSpan * 1.5).clamp(5.0, 45.0);
+
+    final panoramicPlants = allPlants.where((p) {
+      double dLon = (p.longitude - centerLon).abs();
+      if (dLon > 180.0) dLon = 360.0 - dLon;
+      double dLat = (p.latitude - centerLat).abs();
+      return dLon <= panoramaLonHalf && dLat <= panoramaLatHalf;
+    }).toList();
+
+    final lgSample = _selectProportionalSample(panoramicPlants, 800);
+    await _syncMarkersToLG(lgSample);
   }
 
   @override
@@ -466,48 +578,30 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Infrastructure Map',
-          style: AppTheme.headingSmall.copyWith(
-            color: isDark ? Colors.white : AppTheme.textPrimary,
+        title: EcoShowcase(
+          showcaseKey: TourKeys.mapExplain,
+          title: 'Liquid Galaxy Sync',
+          description:
+              'Panning and zooming the map moves the Liquid Galaxy camera to follow, if connected. This concludes the tour!',
+          targetBorderRadius: BorderRadius.circular(20),
+          disposeOnTap: false,
+          nextButtonText: 'Finish Tour',
+          onTargetClick: () {},
+          onNextClick: () {
+            ShowCaseWidget.of(context).dismiss();
+            sl<TourService>().completeTour();
+          },
+          child: Text(
+            'Infrastructure Map',
+            style: AppTheme.headingSmall.copyWith(
+              color: isDark ? Colors.white : AppTheme.textPrimary,
+            ),
           ),
         ),
         backgroundColor: AppTheme.surfaceLight,
         iconTheme: IconThemeData(
           color: isDark ? Colors.white : AppTheme.textPrimary,
         ),
-        actions: [
-          EcoShowcase(
-            showcaseKey: TourKeys.mapExplain,
-            title: 'Liquid Galaxy Sync',
-            description: 'Panning and zooming the map moves the Liquid Galaxy camera to follow, if connected. This concludes the tour!',
-            targetBorderRadius: BorderRadius.circular(20),
-            disposeOnTap: false,
-            nextButtonText: 'Finish Tour',
-            onTargetClick: () {},
-            onNextClick: () {
-              ShowCaseWidget.of(context).dismiss();
-              sl<TourService>().completeTour();
-            },
-
-            child: IconButton(
-              icon: Icon(
-                _lgSyncEnabled ? Icons.sync : Icons.sync_disabled,
-                color: _lgSyncEnabled
-                    ? AppTheme.primary
-                    : (isDark ? Colors.white54 : Colors.black38),
-              ),
-              tooltip: _lgSyncEnabled
-                  ? 'LG Sync: ON — tap to disable'
-                  : 'LG Sync: OFF — tap to enable',
-              onPressed: () {
-                setState(() {
-                  _lgSyncEnabled = !_lgSyncEnabled;
-                });
-              },
-            ),
-          ),
-        ],
       ),
       body: BlocListener<ExploreBloc, AppState<ExploreData>>(
         listenWhen: (previous, current) {
@@ -555,7 +649,7 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
                 });
                 _markerDebounce?.cancel();
                 _markerDebounce = Timer(
-                  const Duration(milliseconds: 800),
+                  const Duration(milliseconds: 300),
                   () => _refreshMarkers(
                     cameraPosition.target,
                     cameraPosition.zoom,
@@ -563,6 +657,47 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
                 );
               },
             ),
+            if (_currentZoom < 3.0 && _showZoomHint)
+              Positioned(
+                bottom: 32,
+                left: 16,
+                child: Container(
+                  width: 250,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLight.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.zoom_in, color: AppTheme.primary, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Please zoom in and tap any powerplant icon to explore',
+                          style: AppTheme.bodySmall.copyWith(color: AppTheme.textPrimary),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _showZoomHint = false;
+                          });
+                        },
+                        child: Icon(Icons.close, color: AppTheme.textSecondary, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Positioned(
               right: 16,
               bottom: 40,
@@ -590,7 +725,11 @@ class _InfrastructureMapScreenState extends State<InfrastructureMapScreen> {
                       onPressed: () async {
                         if (_currentZoom < _maxZoom) {
                           final controller = await _controller.future;
-                          controller.animateCamera(CameraUpdate.zoomIn());
+                          if (_currentZoom < 3.0) {
+                            controller.animateCamera(CameraUpdate.zoomTo(3.0));
+                          } else {
+                            controller.animateCamera(CameraUpdate.zoomIn());
+                          }
                         }
                       },
                     ),

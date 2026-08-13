@@ -25,6 +25,7 @@ import '../../core/enums/tour_phase.dart';
 import '../../service/tour_service.dart';
 import '../components/eco_showcase.dart';
 import 'package:showcaseview/showcaseview.dart';
+import '../../service/tts_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry-point widget
@@ -51,6 +52,27 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
     setState(() {
       _globalIsFront = !_globalIsFront;
     });
+    if (_globalIsFront) {
+      _sendOriginalComparisonBalloon();
+    }
+  }
+
+  Future<void> _sendOriginalComparisonBalloon() async {
+    final lgService = sl<LGService>();
+    final scores = widget.plants.map((p) => widget.cvsRepository.getUnifiedScore(p)).toList();
+    final bbox = ComparisonTourBuilder.boundingBox(widget.plants);
+    final balloonKml = ComparisonBalloonBuilder.build(
+      plants: widget.plants,
+      cvsResults: scores,
+      lat: bbox.centerLat,
+      lon: bbox.centerLon,
+    );
+    final settingsResult = await lgService.loadSettings();
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    if (settingsResult is DataSuccess) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+    }
+    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
   }
   bool _isCarouselMode = true;
 
@@ -464,6 +486,7 @@ class _PlantCardState extends State<_PlantCard>
   String? _aiInsight;
   bool _isLoadingInsight = false;
   bool _insightError = false;
+  bool _isNarrating = false;
 
   @override
   void initState() {
@@ -509,6 +532,9 @@ class _PlantCardState extends State<_PlantCard>
 
   @override
   void dispose() {
+    if (_isNarrating) {
+      sl<TTSService>().stop();
+    }
     _flipController.dispose();
     super.dispose();
   }
@@ -518,6 +544,9 @@ class _PlantCardState extends State<_PlantCard>
       _flipController.forward();
       if (_aiInsight == null && !_isLoadingInsight) {
         _loadInsight();
+      } else if (_aiInsight != null) {
+        final cvs = widget.cvsRepository.getUnifiedScore(widget.plant);
+        _sendInsightBalloon(_aiInsight!, cvs);
       }
     } else {
       _flipController.reverse();
@@ -549,6 +578,7 @@ class _PlantCardState extends State<_PlantCard>
             _aiInsight = result.data;
             _isLoadingInsight = false;
           });
+          _sendInsightBalloon(result.data!, cvs);
         } else {
           setState(() {
             _insightError = true;
@@ -564,6 +594,24 @@ class _PlantCardState extends State<_PlantCard>
         });
       }
     }
+  }
+
+  Future<void> _sendInsightBalloon(String insight, CVSResult cvs) async {
+    final lgService = sl<LGService>();
+    final balloonKml = ComparisonBalloonBuilder.buildAiInsightBalloon(
+      plant: widget.plant,
+      cvs: cvs,
+      aiInsight: insight,
+      lat: widget.plant.latitude,
+      lon: widget.plant.longitude,
+    );
+
+    final settingsResult = await lgService.loadSettings();
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    if (settingsResult is DataSuccess) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+    }
+    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
   }
 
   @override
@@ -891,6 +939,32 @@ class _PlantCardState extends State<_PlantCard>
                     ),
                   ),
                 ),
+                if (_aiInsight != null && !_isLoadingInsight && !_insightError)
+                  GestureDetector(
+                    onTap: () async {
+                      final tts = sl<TTSService>();
+                      if (_isNarrating) {
+                        await tts.stop();
+                        if (mounted) setState(() => _isNarrating = false);
+                      } else {
+                        if (mounted) setState(() => _isNarrating = true);
+                        await tts.speak(_aiInsight!);
+                        if (mounted) setState(() => _isNarrating = false);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        _isNarrating ? Icons.stop_circle_outlined : Icons.volume_up,
+                        color: AppTheme.secondary,
+                        size: 16,
+                      ),
+                    ),
+                  ),
                 if (_insightError)
                   GestureDetector(
                     onTap: _loadInsight,
@@ -1074,12 +1148,16 @@ class _ComparisonGridView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(14),
-      child: GridView.count(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.55,
-        children: plants.map((plant) {
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          mainAxisExtent: 340,
+        ),
+        itemCount: plants.length,
+        itemBuilder: (context, index) {
+          final plant = plants[index];
           final cvs = cvsRepository.getUnifiedScore(plant);
           final risk = cvs.riskLevel ?? RiskLevel.low;
           final score = cvs.score ?? 0.0;
@@ -1215,7 +1293,7 @@ class _ComparisonGridView extends StatelessWidget {
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }

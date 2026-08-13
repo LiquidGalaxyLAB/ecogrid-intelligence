@@ -13,6 +13,11 @@ import '../../core/enums/plant_type.dart';
 import '../../core/utils/cvs_calculator.dart';
 import '../../di/di.dart';
 import '../../service/tts_service.dart';
+import '../../core/utils/kml_utils.dart';
+import '../../service/lg_service.dart';
+import '../../domain/model/lg_settings.dart';
+import '../../core/resources/data_state.dart';
+import '../../domain/model/power_plant.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 enum SimulationMode { simulateImpact, pathToDanger }
@@ -82,6 +87,39 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
         });
       }
     }
+  }
+
+  Future<void> _sendPathToDangerBalloon(
+    PowerPlant plant,
+    Map<String, double> baseAnomalies,
+    double baseCvs,
+  ) async {
+    final dangerResult = CVSCalculator.findPathToDanger(
+      plant.primaryFuel,
+      baseAnomalies,
+      baseCvs,
+    );
+    final lgService = sl<LGService>();
+    final settingsResult = await lgService.loadSettings();
+    int rightmostScreen = LGSettings.empty.rightmostScreen;
+    int screenCount = LGSettings.empty.screenCount;
+    if (settingsResult is DataSuccess<LGSettings>) {
+      rightmostScreen = settingsResult.data!.rightmostScreen;
+      screenCount = settingsResult.data!.screenCount;
+    }
+    final offsetPerSideScreen = 10.0;
+    final sideScreens = (screenCount - 1) / 2;
+    final rawLon = plant.longitude + (offsetPerSideScreen * sideScreens);
+    final adjustedLon = rawLon > 180.0 ? rawLon - 360.0 : rawLon;
+
+    final balloonKml = KmlUtils.plantPathToDangerBalloon(
+      plant: plant,
+      currentCvs: baseCvs,
+      dangerResult: dangerResult,
+      lat: plant.latitude,
+      lon: adjustedLon,
+    );
+    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
   }
 
   void _generateInsight(double projectedCvs) {
@@ -259,10 +297,13 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                                       isSelected:
                                           _currentMode ==
                                           SimulationMode.simulateImpact,
-                                      onTap: () => setState(
-                                        () => _currentMode =
-                                            SimulationMode.simulateImpact,
-                                      ),
+                                      onTap: () {
+                                        setState(
+                                          () => _currentMode =
+                                              SimulationMode.simulateImpact,
+                                        );
+                                        _dispatchScenarioUpdate();
+                                      },
                                     ),
                                   ),
                                   Expanded(
@@ -271,10 +312,13 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                                       isSelected:
                                           _currentMode ==
                                           SimulationMode.pathToDanger,
-                                      onTap: () => setState(
-                                        () => _currentMode =
-                                            SimulationMode.pathToDanger,
-                                      ),
+                                      onTap: () {
+                                        setState(
+                                          () => _currentMode =
+                                              SimulationMode.pathToDanger,
+                                        );
+                                        _sendPathToDangerBalloon(plant, baseAnomalies, baseCvs);
+                                      },
                                     ),
                                   ),
                                 ],
@@ -472,8 +516,12 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                 ),
               ],
             ),
-            floatingActionButton: FloatingActionButton(
-              onPressed: () {
+            floatingActionButton: _currentMode == SimulationMode.pathToDanger
+                ? null
+                : FloatingActionButton(
+              onPressed: state.data!.isLoadingInsight 
+                  ? null 
+                  : () {
                 if (state is AppSuccess<PlantDetailData>) {
                   final plant = state.data!.plant;
                   final baseAnomalies = CVSCalculator.generateBaseAnomalies(plant.latitude, plant.longitude);
@@ -504,8 +552,16 @@ class _ScenarioSimulationScreenState extends State<ScenarioSimulationScreen> {
                   );
                 }
               },
-              backgroundColor: AppTheme.primary,
-              child: const Icon(Icons.auto_awesome, color: Colors.white),
+              backgroundColor: state.data!.isLoadingInsight
+                  ? Colors.grey
+                  : AppTheme.secondary,
+              child: state.data!.isLoadingInsight
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome, color: Colors.white),
             ),
           );
         },

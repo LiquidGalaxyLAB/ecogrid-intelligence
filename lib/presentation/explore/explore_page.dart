@@ -158,6 +158,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     _tourService.currentPhase.removeListener(_onTourPhaseChanged);
     try {
       final lgService = sl<LGService>();
+      lgService.stopOrbit();
       lgService.clearKml();
       lgService.flyToDefault();
     } catch (_) {}
@@ -622,6 +623,47 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  if (state.isOrbiting) {
+                    context.read<ExploreBloc>().add(const ExploreStopOrbit());
+                  } else {
+                    context.read<ExploreBloc>().add(const ExploreStartOrbit());
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: state.isOrbiting 
+                        ? (isDark ? Colors.red.withValues(alpha: 0.1) : Colors.red.shade50)
+                        : (isDark ? AppTheme.primary.withValues(alpha: 0.1) : AppTheme.primary.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        state.isOrbiting ? Icons.stop_circle_outlined : Icons.threesixty,
+                        color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
