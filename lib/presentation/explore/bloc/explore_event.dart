@@ -56,6 +56,10 @@ class ExploreSearchQueryChanged extends ExploreEvent {
   List<Object?> get props => [query];
 }
 
+class ExploreSetOrbitReady extends ExploreEvent {
+  const ExploreSetOrbitReady();
+}
+
 class ExploreLoadMore extends ExploreEvent {
   const ExploreLoadMore();
 }

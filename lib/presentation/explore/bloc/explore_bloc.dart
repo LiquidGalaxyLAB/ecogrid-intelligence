@@ -66,6 +66,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     on<ExploreLGRestoreRequested>(_onLGRestoreRequested, transformer: restartable());
     on<ExploreStartOrbit>(_onStartOrbit);
     on<ExploreStopOrbit>(_onStopOrbit);
+    on<ExploreSetOrbitReady>(_onSetOrbitReady);
     on<ExploreDismissInsight>((event, emit) async {
       if (state is AppSuccess<ExploreData>) {
         final data = (state as AppSuccess<ExploreData>).data!;
@@ -133,10 +134,20 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       }
     });
   }
+
+  @override
+  Future<void> close() {
+    lgService.stopRegionalOrbit();
+    return super.close();
+  }
+
   Future<void> _onRegionLoaded(
     ExploreRegionLoaded event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
+    // Auto-stop any running regional orbit when switching regions.
+    await lgService.stopRegionalOrbit();
+
     emit(const AppLoading<ExploreData>());
     initCvsBlocUseCase();
     lgService.setCurrentRegion(event.region.name);
@@ -159,8 +170,13 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         optimalRange,
       );
 
-      // We do not start the orbit automatically anymore.
-      // The user must click the Start Orbit button.
+      // We wait 6 seconds for the initial flyTo animation to finish before
+      // enabling the orbit button, ensuring the camera has arrived.
+      Future.delayed(const Duration(seconds: 6), () {
+        if (!isClosed) {
+          add(const ExploreSetOrbitReady());
+        }
+      });
 
       // Fetch real country boundary polygon from OpenStreetMap (Nominatim) in the background
       // so it doesn't block the UI from immediately loading the power plant list.
@@ -622,26 +638,17 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         final latDiff = data.region!.maxLat - data.region!.minLat;
         final lonDiff = data.region!.maxLon - data.region!.minLon;
         final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
+        // EXACT same range as _onRegionLoaded flyTo — no position change.
         double optimalRange = maxDiff * 111000.0 * 1.5;
         if (optimalRange < 500000) optimalRange = 500000;
-        if (optimalRange > 8000000) optimalRange = 8000000;
+        if (optimalRange > 12000000) optimalRange = 12000000;
 
-        // For large regions, reduce tilt to avoid camera oscillation.
-        // Small regions (Kenya-sized ~1M) get 45° tilt for a nice angled view.
-        // Large regions (China/Russia ~5M+) get 0° tilt (top-down) for stability.
-        double orbitTilt;
-        if (optimalRange <= 1500000) {
-          orbitTilt = 45;
-        } else if (optimalRange <= 3000000) {
-          orbitTilt = 30;
-        } else if (optimalRange <= 5000000) {
-          orbitTilt = 15;
-        } else {
-          orbitTilt = 0;
-        }
+        const double orbitTilt = 45.0;
         
         try {
-          await lgService.startOrbit(
+          // Just start orbiting from the current camera position.
+          // NO flyTo, NO zoom change — heading rotates, everything else stays.
+          await lgService.startRegionalOrbit(
             data.region!.centerLat,
             data.region!.centerLon,
             optimalRange,
@@ -659,19 +666,20 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     ExploreStopOrbit event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
-    await lgService.stopOrbit();
+    await lgService.stopRegionalOrbit();
     if (state is AppSuccess<ExploreData>) {
       final data = (state as AppSuccess<ExploreData>).data!;
       emit(AppSuccess(data.copyWith(isOrbiting: false)));
     }
   }
-}
+
+  Future<void> _onSetOrbitReady(
+    ExploreSetOrbitReady event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
-    await lgService.stopRegionalOrbit();
     if (state is AppSuccess<ExploreData>) {
       final data = (state as AppSuccess<ExploreData>).data!;
-      emit(AppSuccess(data.copyWith(isOrbiting: false)));
+      emit(AppSuccess(data.copyWith(isOrbitReady: true)));
     }
   }
 }

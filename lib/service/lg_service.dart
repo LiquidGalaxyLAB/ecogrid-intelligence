@@ -356,6 +356,85 @@ class LGService {
     return const DataSuccess(null);
   }
 
+  bool _isRegionalOrbiting = false;
+  bool get isRegionalOrbiting => _isRegionalOrbiting;
+
+  /// Starts a smooth regional orbit using an async flyToView loop.
+  ///
+  /// This uses an async `while` loop that **awaits** each SSH command before
+  /// scheduling the next. This prevents command pileup — the #1 cause of
+  /// jerky/disordered regional orbits.
+  Future<DataState<void>> startRegionalOrbit(
+    double lat,
+    double lon,
+    double range,
+    double tilt,
+  ) async {
+    if (!await _ensureConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await stopRegionalOrbit();
+      _isRegionalOrbiting = true;
+
+      // Launch the orbit loop (fire-and-forget; stopRegionalOrbit stops it).
+      _runRegionalOrbitLoop(lat, lon, range, tilt);
+
+      return const DataSuccess(null);
+    } catch (e) {
+      _isRegionalOrbiting = false;
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  /// Internal async loop that rotates the camera in increments.
+  /// Dynamically adjusts steps and delays based on range so that large regions
+  /// (like India) get enough time for GE to animate without glitching.
+  void _runRegionalOrbitLoop(
+    double lat,
+    double lon,
+    double range,
+    double tilt,
+  ) async {
+    double heading = 0.0;
+
+    // 6° step with 1s delay → smooth and medium speed (~60s revolution).
+    // This was the proven working config for India.
+    const double headingStep = 6.0;
+    const int delayMs = 1000;
+
+    while (_isRegionalOrbiting) {
+      heading = (heading + headingStep) % 360;
+
+      final query = KmlUtils.queryFlyTo(
+        lat: lat,
+        lon: lon,
+        altitude: 0,
+        heading: heading,
+        tilt: tilt,
+        range: range,
+      );
+
+      try {
+        await _sshService.execute(
+          'echo "$query" > ${LGConstants.queryFile}',
+        );
+      } catch (e) {
+        debugPrint('[LG] Regional orbit tick failed: $e');
+      }
+
+      if (!_isRegionalOrbiting) break;
+
+      await Future.delayed(Duration(milliseconds: delayMs));
+    }
+  }
+
+  /// Stops a regional orbit that was started with [startRegionalOrbit].
+  Future<DataState<void>> stopRegionalOrbit() async {
+    _isRegionalOrbiting = false;
+    return const DataSuccess(null);
+  }
+
   Future<void> startComparisonTour(String tourName) async {
     try {
       await Future.delayed(const Duration(milliseconds: 3000));

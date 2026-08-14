@@ -396,6 +396,44 @@ class KmlUtils {
         '<altitudeMode>relativeToGround</altitudeMode></LookAt>';
   }
 
+  /// Generates a KML gx:Tour for smoothly orbiting a region.
+  static String orbitTourKml({
+    required double lat,
+    required double lon,
+    required double range,
+    required double tilt,
+  }) {
+    int heading = 0;
+    String tags = "";
+    
+    for (var i = 0; i <= 36; i++) {
+      tags += '''
+      <gx:FlyTo>
+        <gx:duration>1.2</gx:duration>
+        <gx:flyToMode>smooth</gx:flyToMode>
+        <LookAt>
+          <longitude>$lon</longitude>
+          <latitude>$lat</latitude>
+          <heading>$heading</heading>
+          <tilt>$tilt</tilt>
+          <range>$range</range>
+          <gx:altitudeMode>relativeToGround</gx:altitudeMode>
+        </LookAt>
+      </gx:FlyTo>''';
+      heading += 10;
+    }
+    
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+  <gx:Tour>
+    <name>RegionOrbitTour</name>
+    <gx:Playlist>
+$tags
+    </gx:Playlist>
+  </gx:Tour>
+</kml>''';
+  }
+
   /// Regional dashboard balloon — fluid sizing via calc(px + vw) on the
   /// outer font-size, everything else in em so it scales as one unit.
   static String slaveScreenBalloon({
