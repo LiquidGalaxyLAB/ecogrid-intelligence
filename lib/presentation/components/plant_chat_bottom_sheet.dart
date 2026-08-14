@@ -6,6 +6,8 @@ import '../plant_detail/bloc/plant_detail_data.dart';
 import '../plant_detail/bloc/plant_detail_event.dart';
 import '../../core/resources/app_state.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
+import '../../di/di.dart';
+import '../../service/tts_service.dart';
 
 class PlantChatBottomSheet extends StatefulWidget {
   final String plantName;
@@ -17,8 +19,11 @@ class PlantChatBottomSheet extends StatefulWidget {
 class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  int? _speakingIndex;
+
   @override
   void dispose() {
+    sl<TTSService>().stop();
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -42,8 +47,10 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.75,
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -122,7 +129,7 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
                       return _buildTypingIndicator();
                     }
                     final message = messages[index];
-                    return _buildMessageBubble(message);
+                    return _buildMessageBubble(message, index);
                   },
                 );
               },
@@ -211,16 +218,18 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
           ),
         ],
       ),
+      ),
     );
   }
 
   Widget _buildEmptyState() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingXL),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spacingXL),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
             Container(
               width: 64,
               height: 64,
@@ -259,6 +268,7 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -283,7 +293,8 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
     );
   }
 
-  Widget _buildMessageBubble(ChatMessage message) {
+  Widget _buildMessageBubble(ChatMessage message, int index) {
+    bool isSpeaking = _speakingIndex == index;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -327,12 +338,46 @@ class _PlantChatBottomSheetState extends State<PlantChatBottomSheet> {
                       : AppTheme.cardBorder.withValues(alpha: 0.5),
                 ),
               ),
-              child: HtmlWidget(
-                message.text,
-                textStyle: AppTheme.bodySmall.copyWith(
-                  color: AppTheme.textPrimary,
-                  height: 1.5,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  HtmlWidget(
+                    message.text,
+                    textStyle: AppTheme.bodySmall.copyWith(
+                      color: AppTheme.textPrimary,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (!message.isUser) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: GestureDetector(
+                        onTap: () async {
+                          final tts = sl<TTSService>();
+                          if (isSpeaking) {
+                            await tts.stop();
+                            if (mounted) setState(() => _speakingIndex = null);
+                          } else {
+                            if (mounted) setState(() => _speakingIndex = index);
+                            final textToSpeak = message.text.replaceAll(RegExp(r'<[^>]*>'), '');
+                            await tts.speak(textToSpeak);
+                            if (mounted) {
+                              setState(() {
+                                if (_speakingIndex == index) _speakingIndex = null;
+                              });
+                            }
+                          }
+                        },
+                        child: Icon(
+                          isSpeaking ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                          size: 20,
+                          color: const Color(0xFF00C8FF),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),

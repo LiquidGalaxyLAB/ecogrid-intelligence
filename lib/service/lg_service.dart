@@ -258,7 +258,11 @@ class LGService {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      await _sendKmlToSlave(slaveNumber, KmlUtils.emptyBalloon());
+      if (_isLogoVisible && slaveNumber == _leftScreenIndex()) {
+        await _sendKmlToSlave(slaveNumber, KmlUtils.screenOverlayKml());
+      } else {
+        await _sendKmlToSlave(slaveNumber, KmlUtils.emptyBalloon());
+      }
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -281,8 +285,9 @@ class LGService {
     }
   }
 
-  Timer? _orbitTimer;
   bool _isOrbiting = false;
+  bool get isOrbiting => _isOrbiting;
+  Timer? _orbitTimer;
 
   Future<DataState<void>> startOrbit(
     double lat,
@@ -295,44 +300,49 @@ class LGService {
     }
     try {
       await stopOrbit();
-      await _exitTour();
       _isOrbiting = true;
-      final int steps = 360;
-      final double delta = 360.0 / steps;
+
       double heading = 0.0;
-      bool isOrbitStepBusy = false;
-      
-      _orbitTimer = Timer.periodic(const Duration(milliseconds: 120), (timer) async {
-        if (!_checkConnection(silent: true) || !_isOrbiting) {
+
+      // Adaptive orbit speed: large ranges need smaller steps & longer intervals
+      // to prevent Google Earth's camera from oscillating zoom levels.
+      final double headingStep = range > 3000000 ? 6.0 : 12.0;
+      final int intervalMs = range > 3000000 ? 2500 : 1800;
+
+      // Send initial flyto to position the camera
+      final initQuery = KmlUtils.queryFlyTo(
+        lat: lat,
+        lon: lon,
+        altitude: 0,
+        heading: heading,
+        tilt: tilt,
+        range: range,
+      );
+      await _sshService.execute('echo "$initQuery" > ${LGConstants.queryFile}');
+      await Future.delayed(const Duration(milliseconds: 2000));
+
+      // Start periodic orbit
+      _orbitTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) async {
+        if (!_isOrbiting) {
           timer.cancel();
           return;
         }
-        if (isOrbitStepBusy) return;
-        
-        isOrbitStepBusy = true;
-        heading = (heading + delta) % 360;
-        final lookat = '<gx:duration>0.15</gx:duration>'
-                       '<gx:flyToMode>smooth</gx:flyToMode>'
-                       '<LookAt>'
-                       '<longitude>$lon</longitude>'
-                       '<latitude>$lat</latitude>'
-                       '<altitude>0</altitude>'
-                       '<heading>$heading</heading>'
-                       '<tilt>$tilt</tilt>'
-                       '<range>$range</range>'
-                       '<gx:altitudeMode>relativeToGround</gx:altitudeMode>'
-                       '</LookAt>';
-        
+        heading = (heading + headingStep) % 360;
+        final query = KmlUtils.queryFlyTo(
+          lat: lat,
+          lon: lon,
+          altitude: 0,
+          heading: heading,
+          tilt: tilt,
+          range: range,
+        );
         try {
-          if (_isOrbiting) {
-            await _sshService.execute('echo "flytoview=$lookat" > ${LGConstants.queryFile}');
-          }
+          await _sshService.execute('echo "$query" > ${LGConstants.queryFile}');
         } catch (e) {
-          debugPrint('[LG] Orbit step failed: $e');
-        } finally {
-          isOrbitStepBusy = false;
+          debugPrint('[LG] Orbit tick failed: $e');
         }
       });
+
       return const DataSuccess(null);
     } catch (e) {
       return DataFailure(UnhandledException(message: e.toString()));
@@ -343,16 +353,86 @@ class LGService {
     _isOrbiting = false;
     _orbitTimer?.cancel();
     _orbitTimer = null;
-    if (!await _ensureConnection(silent: true)) {
+    return const DataSuccess(null);
+  }
+
+  bool _isRegionalOrbiting = false;
+  bool get isRegionalOrbiting => _isRegionalOrbiting;
+
+  /// Starts a smooth regional orbit using an async flyToView loop.
+  ///
+  /// This uses an async `while` loop that **awaits** each SSH command before
+  /// scheduling the next. This prevents command pileup — the #1 cause of
+  /// jerky/disordered regional orbits.
+  Future<DataState<void>> startRegionalOrbit(
+    double lat,
+    double lon,
+    double range,
+    double tilt,
+  ) async {
+    if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      await _exitTour();
-      await _sshService.execute('echo "exittour=true" > ${LGConstants.queryFile}');
+      await stopRegionalOrbit();
+      _isRegionalOrbiting = true;
+
+      // Launch the orbit loop (fire-and-forget; stopRegionalOrbit stops it).
+      _runRegionalOrbitLoop(lat, lon, range, tilt);
+
       return const DataSuccess(null);
     } catch (e) {
+      _isRegionalOrbiting = false;
       return DataFailure(UnhandledException(message: e.toString()));
     }
+  }
+
+  /// Internal async loop that rotates the camera in increments.
+  /// Dynamically adjusts steps and delays based on range so that large regions
+  /// (like India) get enough time for GE to animate without glitching.
+  void _runRegionalOrbitLoop(
+    double lat,
+    double lon,
+    double range,
+    double tilt,
+  ) async {
+    double heading = 0.0;
+
+    // 6° step with 1s delay → smooth and medium speed (~60s revolution).
+    // This was the proven working config for India.
+    const double headingStep = 6.0;
+    const int delayMs = 1000;
+
+    while (_isRegionalOrbiting) {
+      heading = (heading + headingStep) % 360;
+
+      final query = KmlUtils.queryFlyTo(
+        lat: lat,
+        lon: lon,
+        altitude: 0,
+        heading: heading,
+        tilt: tilt,
+        range: range,
+      );
+
+      try {
+        await _sshService.execute(
+          'echo "$query" > ${LGConstants.queryFile}',
+        );
+      } catch (e) {
+        debugPrint('[LG] Regional orbit tick failed: $e');
+      }
+
+      if (!_isRegionalOrbiting) break;
+
+      await Future.delayed(Duration(milliseconds: delayMs));
+    }
+  }
+
+  /// Stops a regional orbit that was started with [startRegionalOrbit].
+  Future<DataState<void>> stopRegionalOrbit() async {
+    _isRegionalOrbiting = false;
+    return const DataSuccess(null);
   }
 
   Future<void> startComparisonTour(String tourName) async {
@@ -565,6 +645,7 @@ class LGService {
 
   Future<void> _clearMaster() async {
     await _deployKml('master.kml', KmlUtils.emptyKml());
+    await _updateKmlsTxt('http://lg1:81/kml/master.kml');
   }
 
   Future<void> _sendKmlToSlave(int slaveNumber, String kml) async {
@@ -584,10 +665,11 @@ class LGService {
     await _updateKmlsTxt('');
     await _deployKml('master.kml', KmlUtils.emptyKml());
     for (var screen = 2; screen <= _screenCount; screen++) {
-      await _deployKml('slave_$screen.kml', KmlUtils.emptyBalloon());
-    }
-    if (_isLogoVisible) {
-      await _deployKml('slave_${_leftScreenIndex()}.kml', KmlUtils.screenOverlayKml());
+      if (_isLogoVisible && screen == _leftScreenIndex()) {
+        await _deployKml('slave_$screen.kml', KmlUtils.screenOverlayKml());
+      } else {
+        await _deployKml('slave_$screen.kml', KmlUtils.emptyBalloon());
+      }
     }
   }
 
@@ -664,6 +746,11 @@ class LGService {
     if (_checkConnection(silent: true) && _sshService.isConnected) {
       return true;
     }
+    if (_status == ConnectionStatus.connecting) {
+      // Prevent rapid concurrent reconnects by waiting a moment
+      await Future.delayed(const Duration(milliseconds: 1000));
+      return _checkConnection(silent: true) && _sshService.isConnected;
+    }
     try {
       final settings = await settingsDataSource.loadSettings();
       if (settings.isConfigured) {
@@ -687,7 +774,7 @@ class LGService {
   Future<void> _updateKmlsTxt(String url) async {
     final command = url.isEmpty
         ? 'echo "" > /var/www/html/kmls.txt'
-        : "echo '$url?t=\${DateTime.now().millisecondsSinceEpoch}' > /var/www/html/kmls.txt";
+        : "echo '$url?t=${DateTime.now().millisecondsSinceEpoch}' > /var/www/html/kmls.txt";
     await _withRetry(() => _sshService.execute(command));
   }
 }

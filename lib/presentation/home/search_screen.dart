@@ -286,10 +286,10 @@ class _SearchScreenState extends State<SearchScreen> {
         return isDark ? const Color(0xFF00C853) : const Color(0xFF81C784);
       case 'italy':
         return isDark ? const Color(0xFF4A90D9) : const Color(0xFF90CAF9);
-      case 'usa':
-        return isDark ? const Color(0xFFFF5252) : const Color(0xFFEF9A9A);
-      case 'china':
+      case 'germany':
         return isDark ? const Color(0xFFB388FF) : const Color(0xFFB39DDB);
+      case 'japan':
+        return isDark ? const Color(0xFFFF5252) : const Color(0xFFEF9A9A);
       case 'kenya':
         return isDark ? const Color(0xFFE8A44A) : const Color(0xFFFFCC80);
       case 'spain':
@@ -303,9 +303,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final isDark = ThemeController.instance.isDarkMode;
     final popularRegions = [
       'India',
-      'China',
+      'Germany',
       'Italy',
-      'USA',
+      'Japan',
       'Kenya',
       'Spain',
     ];

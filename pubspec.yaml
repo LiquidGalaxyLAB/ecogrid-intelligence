@@ -29,6 +29,7 @@ dependencies:
   drift: ^2.22.0
   sqlite3_flutter_libs: ^0.5.4
   path: ^1.9.0
+  flutter_secure_storage: ^9.2.4
 
   # SSH (Liquid Galaxy)
   dartssh2: ^2.9.0+2
@@ -109,6 +110,5 @@ flutter:
     - assets/maps/style/
     - assets/maps/theme/
     - assets/data/
-    - .env
 
 

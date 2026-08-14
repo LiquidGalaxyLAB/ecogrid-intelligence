@@ -71,6 +71,7 @@ class ComparisonKmlBuilder {
     const iconHref = 'http://maps.google.com/mapfiles/kml/paddle/wht-blank.png';
 
     // Crystal height scales with CVS score (higher = more vulnerable = taller)
+    // Scaled up for clear visibility at 4-5 meter Liquid Galaxy viewing distance
     final score = cvs?.score ?? 30;
     final crystalHeight = (200 + score * 5).clamp(200.0, 800.0);
     final midHeight = crystalHeight * 0.5;
@@ -202,14 +203,14 @@ class ComparisonKmlBuilder {
         final barPct   = (raw.clamp(0, 100)).toInt();
         return '''
                   <tr>
-                    <td style="font-size:21px;color:#CBD5E1;padding:4px 0;">$label</td>
-                    <td align="right" style="font-size:24px;font-weight:bold;color:$barColor;">${scaled.toStringAsFixed(1)}</td>
+                    <td style="font-size:24px;color:#CBD5E1;padding:6px 0;">$label</td>
+                    <td align="right" style="font-size:28px;font-weight:bold;color:$barColor;">${scaled.toStringAsFixed(1)}</td>
                   </tr>
                   <tr>
-                    <td colspan="2" style="padding-bottom:10px;">
+                    <td colspan="2" style="padding-bottom:14px;">
                       <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                        <td width="$barPct%" bgcolor="$barColor" height="14" style="border-radius:4px 0 0 4px;"></td>
-                        <td bgcolor="#1E293B" height="14"></td>
+                        <td width="$barPct%" bgcolor="$barColor" height="20" style="border-radius:6px 0 0 6px;"></td>
+                        <td bgcolor="#1E293B" height="20"></td>
                       </tr></table>
                     </td>
                   </tr>''';
@@ -231,25 +232,25 @@ class ComparisonKmlBuilder {
           <bgColor>00000000</bgColor>
           <textColor>ffffffff</textColor>
           <text><![CDATA[
-            <div style="font-family:Arial,sans-serif;width:75%;max-width:1000px;background:#0d1117;color:#fff;border-radius:12px;overflow:hidden;">
-              <div style="background:linear-gradient(135deg,$riskGradient 0%,#1b262c 100%);padding:22px 28px 18px;border-bottom:3px solid $riskColor;">
-                <p style="font-size:15px;color:$riskColor;margin:0 0 6px;letter-spacing:3px;text-transform:uppercase;">$typeIcon ${KmlUtils.escapeXml(plant.primaryFuel.displayName)}</p>
-                <p style="font-size:34px;font-weight:bold;color:#fff;margin:0;">${KmlUtils.escapeXml(plant.name)}</p>
-                <p style="font-size:19px;color:#94A3B8;margin:8px 0 0;">&#127758; ${KmlUtils.escapeXml(plant.countryLong ?? plant.country)} &nbsp;&nbsp; &#9889; $capacityStr</p>
+            <div style="font-family:Arial,sans-serif;width:850px;background:#0d1117;color:#fff;border-radius:20px;overflow:hidden;border:2px solid #1e293b;">
+              <div style="background:linear-gradient(135deg,$riskGradient 0%,#1b262c 100%);padding:28px 32px 20px;border-bottom:4px solid $riskColor;">
+                <p style="font-size:20px;color:$riskColor;margin:0 0 8px;letter-spacing:3px;text-transform:uppercase;">$typeIcon ${KmlUtils.escapeXml(plant.primaryFuel.displayName)}</p>
+                <p style="font-size:40px;font-weight:bold;color:#fff;margin:0;">${KmlUtils.escapeXml(plant.name)}</p>
+                <p style="font-size:24px;color:#94A3B8;margin:10px 0 0;">&#127758; ${KmlUtils.escapeXml(plant.countryLong ?? plant.country)} &nbsp;&nbsp; &#9889; $capacityStr</p>
               </div>
-              <div style="display:flex;align-items:center;padding:22px 28px;border-bottom:1px solid #1e293b;">
+              <div style="display:flex;align-items:center;padding:28px 32px;border-bottom:2px solid #1e293b;">
                 <div style="flex:1;">
-                  <p style="font-size:16px;color:#64748B;margin:0 0 4px;text-transform:uppercase;letter-spacing:2px;">Climate Vulnerability Score</p>
-                  <p style="font-size:72px;font-weight:bold;color:$riskColor;margin:0;line-height:1;">${cvs.score.toStringAsFixed(1)}</p>
-                  <p style="font-size:16px;color:#475569;margin:4px 0 0;">out of 100</p>
+                  <p style="font-size:22px;color:#64748B;margin:0 0 6px;text-transform:uppercase;letter-spacing:2px;">Climate Vulnerability Score</p>
+                  <p style="font-size:68px;font-weight:bold;color:$riskColor;margin:0;line-height:1;">${cvs.score.toStringAsFixed(1)}</p>
+                  <p style="font-size:22px;color:#475569;margin:6px 0 0;">out of 100</p>
                 </div>
-                <div style="text-align:center;padding:18px 32px;background:$riskColor;border-radius:10px;margin-left:20px;">
-                  <p style="font-size:28px;font-weight:bold;color:#fff;margin:0;">${cvs.riskLevel.label}</p>
-                  <p style="font-size:15px;color:rgba(255,255,255,0.8);margin:4px 0 0;">RISK</p>
+                <div style="text-align:center;padding:20px 32px;background:$riskColor;border-radius:14px;margin-left:24px;">
+                  <p style="font-size:36px;font-weight:bold;color:#fff;margin:0;">${cvs.riskLevel.label}</p>
+                  <p style="font-size:20px;color:rgba(255,255,255,0.8);margin:6px 0 0;">RISK</p>
                 </div>
               </div>
-              <div style="padding:20px 28px;border-bottom:1px solid #1e293b;">
-                <p style="font-size:22px;color:#F59E0B;font-weight:bold;margin:0 0 14px;">&#9888; Key Risk Drivers</p>
+              <div style="padding:24px 32px;border-bottom:2px solid #1e293b;">
+                <p style="font-size:28px;color:#F59E0B;font-weight:bold;margin:0 0 16px;">&#9888; Key Risk Drivers</p>
                 <table width="100%" cellpadding="0" cellspacing="0">
   $dimRows
                 </table>

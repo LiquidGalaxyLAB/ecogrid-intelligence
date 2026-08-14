@@ -6,6 +6,8 @@ import 'config/theme/app_theme.dart';
 import 'config/routes/app_routes.dart';
 import 'config/theme/theme_controller.dart';
 import 'config/localization/locale_controller.dart';
+import 'core/constants/api_constants.dart';
+import 'domain/repository/api_key_repository.dart';
 import 'l10n/app_localizations.dart';
 import 'di/di.dart';
 import 'core/network/api_client.dart';
@@ -29,11 +31,41 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  await dotenv.load(fileName: ".env");
+  // Load .env if present (existing users / local dev). New users can skip
+  // this entirely and configure API keys via Settings → General → API Keys.
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (_) {
+    // .env file doesn't exist — that's fine, keys come from secure storage.
+  }
   await initDependencies();
+
+  // Hydrate runtime API key cache from secure storage so that all services
+  // (GeminiRestApiService, AuthInterceptor, etc.) read the correct keys.
+  await _hydrateApiKeys();
+
   await ThemeController.instance.init();
   await LocaleController.instance.init();
   runApp(const EcoGridApp());
+}
+
+/// Reads API keys from secure storage and populates [ApiConstants]' runtime
+/// cache. Falls back to .env values if secure storage is empty (handled
+/// internally by [ApiKeyRepository]).
+Future<void> _hydrateApiKeys() async {
+  try {
+    final repo = sl<ApiKeyRepository>();
+    final geminiKey = await repo.getGeminiApiKey();
+    final mapsKey = await repo.getGoogleMapsApiKey();
+    if (geminiKey != null && geminiKey.isNotEmpty) {
+      ApiConstants.setGeminiApiKey(geminiKey);
+    }
+    if (mapsKey != null && mapsKey.isNotEmpty) {
+      ApiConstants.setGoogleMapsApiKey(mapsKey);
+    }
+  } catch (e) {
+    debugPrint('[EcoGrid] Failed to hydrate API keys: $e');
+  }
 }
 
 class EcoGridApp extends StatelessWidget {

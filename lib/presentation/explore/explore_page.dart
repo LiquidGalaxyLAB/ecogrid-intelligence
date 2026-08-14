@@ -158,6 +158,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     _tourService.currentPhase.removeListener(_onTourPhaseChanged);
     try {
       final lgService = sl<LGService>();
+      lgService.stopOrbit();
       lgService.clearKml();
       lgService.flyToDefault();
     } catch (_) {}
@@ -623,6 +624,60 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     ),
                   ],
                 ),
+              ),
+              const Spacer(),
+              // Hide orbit button ONLY for regions confirmed too large.
+              // Large regions (China, USA, Russia) cause camera distortion.
+              if (!(() {
+                if (state.region == null) return false; // no region = show button
+                final latDiff = state.region!.maxLat - state.region!.minLat;
+                final lonDiff = state.region!.maxLon - state.region!.minLon;
+                final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
+                return maxDiff > 30; // true = too large = hide
+              })())
+              GestureDetector(
+                onTap: state.isOrbitReady ? () {
+                  if (state.isOrbiting) {
+                    context.read<ExploreBloc>().add(const ExploreStopOrbit());
+                  } else {
+                    context.read<ExploreBloc>().add(const ExploreStartOrbit());
+                  }
+                } : null,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 300),
+                  opacity: state.isOrbitReady ? 1.0 : 0.4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: state.isOrbiting 
+                          ? (isDark ? Colors.red.withValues(alpha: 0.1) : Colors.red.shade50)
+                          : (isDark ? AppTheme.primary.withValues(alpha: 0.1) : AppTheme.primary.withValues(alpha: 0.05)),
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(
+                        color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                        width: 1,
+                      ),
+                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        state.isOrbiting ? Icons.stop_circle_outlined : Icons.threesixty,
+                        color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: state.isOrbiting ? Colors.red : AppTheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               ),
             ],
           ),
@@ -1094,6 +1149,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                   if (_isCompareMode) {
                     _togglePlantSelection(plant);
                   } else {
+                    context.read<ExploreBloc>().add(const ExploreStopOrbit());
                     Navigator.pushNamed(
                       context,
                       AppRoutes.plantDetail,
@@ -1108,6 +1164,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     if (_isCompareMode) {
                       _togglePlantSelection(plant);
                     } else {
+                      context.read<ExploreBloc>().add(const ExploreStopOrbit());
                       Navigator.pushNamed(
                         context,
                         AppRoutes.plantDetail,
@@ -1130,6 +1187,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                     _tourService.advancePhase();
                     Future.delayed(const Duration(milliseconds: 300), () {
                       if (mounted) {
+                        context.read<ExploreBloc>().add(const ExploreStopOrbit());
                         Navigator.pushNamed(
                           context,
                           AppRoutes.plantDetail,

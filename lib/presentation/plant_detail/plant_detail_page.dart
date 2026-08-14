@@ -210,7 +210,9 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
                       value: context.read<PlantDetailBloc>(),
                       child: PlantChatBottomSheet(plantName: data.plant.name),
                     ),
-                  );
+                  ).whenComplete(() {
+                    context.read<PlantDetailBloc>().add(const PlantDetailChatEnded());
+                  });
                 },
                 backgroundColor: AppTheme.secondary,
                 child: const Icon(Icons.chat, color: Colors.white),

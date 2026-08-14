@@ -19,6 +19,8 @@ class ExploreData extends Equatable {
   final String searchQuery;
   final bool isScanning;
   final double scanProgress;
+  final bool isOrbiting;
+  final bool isOrbitReady;
   const ExploreData({
     this.region,
     required this.plants,
@@ -33,6 +35,8 @@ class ExploreData extends Equatable {
     this.searchQuery = '',
     this.isScanning = false,
     this.scanProgress = 0.0,
+    this.isOrbiting = false,
+    this.isOrbitReady = false,
   });
   @override
   List<Object?> get props => [
@@ -49,6 +53,8 @@ class ExploreData extends Equatable {
     searchQuery,
     isScanning,
     scanProgress,
+    isOrbiting,
+    isOrbitReady,
   ];
   ExploreData copyWith({
     Region? region,
@@ -64,7 +70,9 @@ class ExploreData extends Equatable {
     String? searchQuery,
     bool? isScanning,
     double? scanProgress,
+    bool? isOrbiting,
     bool clearAiInsight = false,
+    bool? isOrbitReady,
   }) {
     return ExploreData(
       region: region ?? this.region,
@@ -86,6 +94,8 @@ class ExploreData extends Equatable {
       searchQuery: searchQuery ?? this.searchQuery,
       isScanning: isScanning ?? this.isScanning,
       scanProgress: scanProgress ?? this.scanProgress,
+      isOrbiting: isOrbiting ?? this.isOrbiting,
+      isOrbitReady: isOrbitReady ?? this.isOrbitReady,
     );
   }
 }

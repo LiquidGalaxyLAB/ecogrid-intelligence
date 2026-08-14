@@ -1,5 +1,6 @@
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/resources/app_state.dart';
 import '../../../domain/model/region.dart';
 import '../../../service/lg_service.dart';
@@ -63,6 +64,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     on<ExploreRiskFilterChanged>(_onRiskFilterChanged);
     on<ExploreGenerateRegionalInsight>(_onGenerateRegionalInsight);
     on<ExploreLGRestoreRequested>(_onLGRestoreRequested, transformer: restartable());
+    on<ExploreStartOrbit>(_onStartOrbit);
+    on<ExploreStopOrbit>(_onStopOrbit);
+    on<ExploreSetOrbitReady>(_onSetOrbitReady);
     on<ExploreDismissInsight>((event, emit) async {
       if (state is AppSuccess<ExploreData>) {
         final data = (state as AppSuccess<ExploreData>).data!;
@@ -130,10 +134,20 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       }
     });
   }
+
+  @override
+  Future<void> close() {
+    lgService.stopRegionalOrbit();
+    return super.close();
+  }
+
   Future<void> _onRegionLoaded(
     ExploreRegionLoaded event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
+    // Auto-stop any running regional orbit when switching regions.
+    await lgService.stopRegionalOrbit();
+
     emit(const AppLoading<ExploreData>());
     initCvsBlocUseCase();
     lgService.setCurrentRegion(event.region.name);
@@ -152,9 +166,18 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         event.region.centerLon,
         0,
         0,
-        55,
+        45, // Use 45 tilt for regions to avoid looking into the sky
         optimalRange,
       );
+
+      // We wait 6 seconds for the initial flyTo animation to finish before
+      // enabling the orbit button, ensuring the camera has arrived.
+      Future.delayed(const Duration(seconds: 6), () {
+        if (!isClosed) {
+          add(const ExploreSetOrbitReady());
+        }
+      });
+
       // Fetch real country boundary polygon from OpenStreetMap (Nominatim) in the background
       // so it doesn't block the UI from immediately loading the power plant list.
       final currentContext = 'explore_region_';
@@ -601,5 +624,62 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     // Disabled background warmer as per user request to stop continuous API polling.
     // The data will be fetched on-demand when the user views a plant.
     return;
+  }
+
+  Future<void> _onStartOrbit(
+    ExploreStartOrbit event,
+    Emitter<AppState<ExploreData>> emit,
+  ) async {
+    if (state is AppSuccess<ExploreData>) {
+      final data = (state as AppSuccess<ExploreData>).data!;
+      emit(AppSuccess(data.copyWith(isOrbiting: true)));
+      
+      if (data.region != null) {
+        final latDiff = data.region!.maxLat - data.region!.minLat;
+        final lonDiff = data.region!.maxLon - data.region!.minLon;
+        final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
+        // EXACT same range as _onRegionLoaded flyTo — no position change.
+        double optimalRange = maxDiff * 111000.0 * 1.5;
+        if (optimalRange < 500000) optimalRange = 500000;
+        if (optimalRange > 12000000) optimalRange = 12000000;
+
+        const double orbitTilt = 45.0;
+        
+        try {
+          // Just start orbiting from the current camera position.
+          // NO flyTo, NO zoom change — heading rotates, everything else stays.
+          await lgService.startRegionalOrbit(
+            data.region!.centerLat,
+            data.region!.centerLon,
+            optimalRange,
+            orbitTilt,
+          );
+        } catch (e) {
+          debugPrint('[LG] Failed to start region orbit: $e');
+          emit(AppSuccess(data.copyWith(isOrbiting: false)));
+        }
+      }
+    }
+  }
+
+  Future<void> _onStopOrbit(
+    ExploreStopOrbit event,
+    Emitter<AppState<ExploreData>> emit,
+  ) async {
+    await lgService.stopRegionalOrbit();
+    if (state is AppSuccess<ExploreData>) {
+      final data = (state as AppSuccess<ExploreData>).data!;
+      emit(AppSuccess(data.copyWith(isOrbiting: false)));
+    }
+  }
+
+  Future<void> _onSetOrbitReady(
+    ExploreSetOrbitReady event,
+    Emitter<AppState<ExploreData>> emit,
+  ) async {
+    if (state is AppSuccess<ExploreData>) {
+      final data = (state as AppSuccess<ExploreData>).data!;
+      emit(AppSuccess(data.copyWith(isOrbitReady: true)));
+    }
   }
 }

@@ -4,9 +4,11 @@ import '../../config/theme/app_theme.dart';
 import '../../config/theme/theme_controller.dart';
 import '../../core/enums/connection_status.dart';
 import '../../domain/model/lg_settings.dart';
+import '../../domain/repository/api_key_repository.dart';
 import '../../di/di.dart';
 import '../../service/tour_service.dart';
 import '../components/eco_showcase.dart';
+import 'bloc/api_keys_cubit.dart';
 import 'bloc/lg_connection_bloc.dart';
 
 import '../components/atmospheric_globe_painter.dart';
@@ -20,7 +22,6 @@ import '../../l10n/app_localizations.dart';
 import '../../service/lg_service.dart';
 import '../../core/resources/data_state.dart';
 import 'package:showcaseview/showcaseview.dart';
-import '../../service/tour_service.dart';
 import '../../core/enums/tour_phase.dart';
 import '../../core/constants/tour_keys.dart';
 
@@ -259,7 +260,12 @@ class _LgSettingsBodyState extends State<_LgSettingsBody>
                           return TabBarView(
                             controller: _tabController,
                             children: [
-                              _GeneralTab(mode: mode, isDark: isDark),
+                              BlocProvider(
+                                create: (_) => ApiKeysCubit(
+                                  repository: sl<ApiKeyRepository>(),
+                                )..loadKeys(),
+                                child: _GeneralTab(mode: mode, isDark: isDark),
+                              ),
                               _ConnectionTab(state: state, isDark: isDark),
                               _LiquidGalaxyTab(isDark: isDark),
                             ],
@@ -506,6 +512,10 @@ class _GeneralTabState extends State<_GeneralTab> {
           _buildSectionLabel('PREFERENCES'),
           const SizedBox(height: 12),
           _buildLanguageCard(widget.isDark),
+          const SizedBox(height: 32),
+          _buildSectionLabel('API KEYS'),
+          const SizedBox(height: 12),
+          _ApiKeysCard(isDark: widget.isDark),
           const SizedBox(height: 32),
           _buildSectionLabel('ABOUT'),
           const SizedBox(height: 12),
@@ -1478,8 +1488,18 @@ class _LiquidGalaxyTab extends StatelessWidget {
                   icon: Icons.refresh,
                   color: const Color(0xFF4A90D9),
                   onTap: () {
-                    context.read<LGConnectionBloc>().add(
-                      const LGRelaunchRequested(),
+                    _showConfirmationDialog(
+                      context: context,
+                      title: 'Confirm Relaunch',
+                      message:
+                          'Are you sure you want to relaunch the Liquid Galaxy software across all display nodes?',
+                      confirmText: 'Relaunch',
+                      confirmColor: const Color(0xFF4A90D9),
+                      onConfirm: () {
+                        context.read<LGConnectionBloc>().add(
+                          const LGRelaunchRequested(),
+                        );
+                      },
                     );
                   },
                 ),
@@ -1492,8 +1512,17 @@ class _LiquidGalaxyTab extends StatelessWidget {
                   icon: Icons.restart_alt,
                   color: const Color(0xFFFF9800),
                   onTap: () {
-                    context.read<LGConnectionBloc>().add(
-                      const LGRebootRequested(),
+                    _showConfirmationDialog(
+                      context: context,
+                      title: 'Confirm Reboot',
+                      message: 'Are you sure you want to reboot?',
+                      confirmText: 'Reboot',
+                      confirmColor: const Color(0xFFFF9800),
+                      onConfirm: () {
+                        context.read<LGConnectionBloc>().add(
+                          const LGRebootRequested(),
+                        );
+                      },
                     );
                   },
                 ),
@@ -1509,7 +1538,19 @@ class _LiquidGalaxyTab extends StatelessWidget {
             isDestructive: true,
             isHorizontal: true,
             onTap: () {
-              context.read<LGConnectionBloc>().add(const LGPowerOffRequested());
+              _showConfirmationDialog(
+                context: context,
+                title: 'Confirm Shut Down',
+                message:
+                    'Are you sure you want to power off all Liquid Galaxy machines? You will need to manually turn them back on.',
+                confirmText: 'Shut Down',
+                confirmColor: AppTheme.riskCritical,
+                onConfirm: () {
+                  context.read<LGConnectionBloc>().add(
+                    const LGPowerOffRequested(),
+                  );
+                },
+              );
             },
           ),
           const SizedBox(height: 32),
@@ -1559,6 +1600,118 @@ class _LiquidGalaxyTab extends StatelessWidget {
           ),
           const SizedBox(height: 48),
         ],
+      ),
+    );
+  }
+
+  void _showConfirmationDialog({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required String confirmText,
+    required Color confirmColor,
+    required VoidCallback onConfirm,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+          side: BorderSide(
+            color: confirmColor.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spacingLG),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: confirmColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                    ),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: confirmColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: AppTheme.headingSmall,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: AppTheme.bodyMedium.copyWith(
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: AppTheme.labelLarge.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      onConfirm();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: confirmColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      confirmText,
+                      style: AppTheme.labelLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1762,6 +1915,567 @@ class _MapPreviewCardState extends State<_MapPreviewCard> {
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── API Keys Card ──────────────────────────────────────────────────────────
+
+class _ApiKeysCard extends StatefulWidget {
+  final bool isDark;
+  const _ApiKeysCard({required this.isDark});
+  @override
+  State<_ApiKeysCard> createState() => _ApiKeysCardState();
+}
+
+class _ApiKeysCardState extends State<_ApiKeysCard> {
+  final _geminiController = TextEditingController();
+  final _mapsController = TextEditingController();
+  bool _obscureGemini = true;
+  bool _obscureMaps = true;
+  bool _didPopulate = false;
+
+  @override
+  void dispose() {
+    _geminiController.dispose();
+    _mapsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<ApiKeysCubit, ApiKeysState>(
+      listenWhen: (prev, curr) => prev.message != curr.message,
+      listener: (context, state) {
+        if (state.message != null && state.message!.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message!),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: state.message!.contains('invalid') ||
+                      state.message!.contains('Failed') ||
+                      state.message!.contains('fix')
+                  ? AppTheme.riskCritical
+                  : AppTheme.success,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        // Populate fields once when keys are loaded from storage.
+        if (!_didPopulate &&
+            (state.geminiKey.isNotEmpty || state.mapsKey.isNotEmpty)) {
+          _didPopulate = true;
+          _geminiController.text = state.geminiKey;
+          _mapsController.text = state.mapsKey;
+        }
+        // Also sync after clear.
+        if (state.geminiKey.isEmpty && state.mapsKey.isEmpty && _didPopulate) {
+          _geminiController.clear();
+          _mapsController.clear();
+          _didPopulate = false;
+        }
+
+        final cubit = context.read<ApiKeysCubit>();
+
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTheme.cardBackground,
+            borderRadius: BorderRadius.circular(16),
+            border: widget.isDark
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: 0.15), width: 1)
+                : null,
+            boxShadow: widget.isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      blurRadius: 20,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 0),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 15,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
+            color: Colors.transparent,
+            child: Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                iconColor: AppTheme.textPrimary,
+                collapsedIconColor: AppTheme.textMuted,
+                tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                childrenPadding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                title: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: widget.isDark
+                            ? const Color(0xFF00BFA5).withValues(alpha: 0.1)
+                            : const Color(0xFFE8F5E9),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.vpn_key_rounded,
+                        color: widget.isDark
+                            ? const Color(0xFF00BFA5)
+                            : const Color(0xFF2E7D32),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'API Keys',
+                            style: AppTheme.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Configure Google API credentials',
+                            style: AppTheme.bodySmall.copyWith(
+                              color: AppTheme.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                children: [
+
+                // ── Gemini API Key ────────────────────────────────────────
+                _buildKeyField(
+                  label: 'Google Gemini API Key',
+                  controller: _geminiController,
+                  obscure: _obscureGemini,
+                  onToggle: () =>
+                      setState(() => _obscureGemini = !_obscureGemini),
+                  onChanged: cubit.updateGeminiKey,
+                  status: state.geminiStatus,
+                  onValidate: cubit.validateGeminiKey,
+                  isDark: widget.isDark,
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── Google Maps API Key ───────────────────────────────────
+                _buildKeyField(
+                  label: 'Google Maps API Key',
+                  controller: _mapsController,
+                  obscure: _obscureMaps,
+                  onToggle: () =>
+                      setState(() => _obscureMaps = !_obscureMaps),
+                  onChanged: cubit.updateMapsKey,
+                  status: state.mapsStatus,
+                  onValidate: cubit.validateMapsKey,
+                  isDark: widget.isDark,
+                ),
+
+                const SizedBox(height: 24),
+
+                // ── Action buttons ────────────────────────────────────────
+                Row(
+                  children: [
+                    // Save button
+                    Expanded(
+                      child: _ActionButton(
+                        label: 'Save Keys',
+                        icon: Icons.save_rounded,
+                        isLoading: state.isSaving,
+                        enabled: !state.isValidating &&
+                            !state.isSaving &&
+                            !state.isClearing,
+                        isPrimary: true,
+                        isDark: widget.isDark,
+                        onPressed: cubit.saveKeys,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Clear button
+                    Expanded(
+                      child: _ActionButton(
+                        label: 'Clear Keys',
+                        icon: Icons.delete_outline_rounded,
+                        isLoading: state.isClearing,
+                        enabled: !state.isValidating &&
+                            !state.isSaving &&
+                            !state.isClearing &&
+                            (state.geminiKey.isNotEmpty ||
+                                state.mapsKey.isNotEmpty),
+                        isPrimary: false,
+                        isDark: widget.isDark,
+                        onPressed: () => _showClearConfirmation(context, cubit),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildKeyField({
+    required String label,
+    required TextEditingController controller,
+    required bool obscure,
+    required VoidCallback onToggle,
+    required ValueChanged<String> onChanged,
+    required KeyValidationStatus status,
+    required Future<void> Function() onValidate,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: AppTheme.bodyMedium.copyWith(
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildStatusChip(status, isDark),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                obscureText: obscure,
+                onChanged: onChanged,
+                style: AppTheme.bodyMedium.copyWith(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Enter API key…',
+                  hintStyle: AppTheme.bodySmall.copyWith(
+                    color: AppTheme.textMuted,
+                  ),
+                  filled: true,
+                  fillColor: isDark
+                      ? AppTheme.surfaceLight
+                      : const Color(0xFFF3F4F6),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _borderColorForStatus(status, isDark),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppTheme.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                      size: 20,
+                      color: AppTheme.textMuted,
+                    ),
+                    onPressed: onToggle,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Per-key validate button
+            SizedBox(
+              height: 48,
+              child: TextButton(
+                onPressed:
+                    status == KeyValidationStatus.validating ? null : onValidate,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.15)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                ),
+                child: status == KeyValidationStatus.validating
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.primary,
+                        ),
+                      )
+                    : Text(
+                        'Validate',
+                        style: AppTheme.bodySmall.copyWith(
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(KeyValidationStatus status, bool isDark) {
+    switch (status) {
+      case KeyValidationStatus.idle:
+        return const SizedBox.shrink();
+      case KeyValidationStatus.validating:
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: AppTheme.primary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Checking…',
+              style: AppTheme.bodySmall.copyWith(
+                color: AppTheme.textMuted,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        );
+      case KeyValidationStatus.valid:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: AppTheme.success.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, size: 14, color: AppTheme.success),
+              const SizedBox(width: 4),
+              Text(
+                'Valid',
+                style: AppTheme.bodySmall.copyWith(
+                  color: AppTheme.success,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      case KeyValidationStatus.invalid:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: AppTheme.riskCritical.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error, size: 14, color: AppTheme.riskCritical),
+              const SizedBox(width: 4),
+              Text(
+                'Invalid',
+                style: AppTheme.bodySmall.copyWith(
+                  color: AppTheme.riskCritical,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+    }
+  }
+
+  Color _borderColorForStatus(KeyValidationStatus status, bool isDark) {
+    switch (status) {
+      case KeyValidationStatus.valid:
+        return AppTheme.success.withValues(alpha: 0.6);
+      case KeyValidationStatus.invalid:
+        return AppTheme.riskCritical.withValues(alpha: 0.6);
+      default:
+        return isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : const Color(0xFFE2E8F0);
+    }
+  }
+
+  void _showClearConfirmation(BuildContext context, ApiKeysCubit cubit) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppTheme.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Clear API Keys?',
+          style: AppTheme.headingSmall,
+        ),
+        content: Text(
+          'This will remove both stored API keys. Features that require them will stop working until new keys are configured.',
+          style: AppTheme.bodyMedium.copyWith(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Cancel',
+              style: AppTheme.bodyMedium.copyWith(color: AppTheme.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              cubit.clearKeys();
+            },
+            child: Text(
+              'Clear',
+              style: AppTheme.bodyMedium.copyWith(
+                color: AppTheme.riskCritical,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Reusable Action Button ─────────────────────────────────────────────────
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isLoading;
+  final bool enabled;
+  final bool isPrimary;
+  final bool isDark;
+  final VoidCallback onPressed;
+
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.isLoading,
+    required this.enabled,
+    required this.isPrimary,
+    required this.isDark,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      height: 48,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: isPrimary
+            ? (enabled ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.4))
+            : Colors.transparent,
+        border: isPrimary
+            ? null
+            : Border.all(
+                color: enabled
+                    ? (isDark
+                        ? Colors.white.withValues(alpha: 0.20)
+                        : const Color(0xFFE2E8F0))
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : const Color(0xFFF1F5F9)),
+              ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: isLoading
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isPrimary ? Colors.white : AppTheme.primary,
+                    ),
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 18,
+                        color: isPrimary
+                            ? Colors.white
+                            : (enabled
+                                ? AppTheme.textPrimary
+                                : AppTheme.textMuted),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        style: AppTheme.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isPrimary
+                              ? Colors.white
+                              : (enabled
+                                  ? AppTheme.textPrimary
+                                  : AppTheme.textMuted),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),
