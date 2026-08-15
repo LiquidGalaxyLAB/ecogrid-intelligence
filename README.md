@@ -124,7 +124,9 @@ cp .env.example .env
 flutter run
 ```
 
-> **Note:** The Google Maps API key **must** be added to the `.env` file before running the app due to native SDK requirements. The **Gemini API key**, however, can be configured directly in the app at runtime by going to **Settings → General → API Keys**.
+> [!IMPORTANT]
+> **API Keys Configuration**
+> The **Google Maps API key** must be added directly to the `.env` file before running the app due to Android's native SDK requirements. The **Gemini API key**, however, can be configured later directly inside the app at runtime by going to **Settings → General → API Keys**.
 
 ### Connecting to Liquid Galaxy
 

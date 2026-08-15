@@ -2080,19 +2080,19 @@ class _ApiKeysCardState extends State<_ApiKeysCard> {
                 const SizedBox(height: 16),
 
                 // ── Google Maps API Key ───────────────────────────────────
-                _buildKeyField(
-                  label: 'Google Maps API Key',
-                  controller: _mapsController,
-                  obscure: _obscureMaps,
-                  onToggle: () =>
-                      setState(() => _obscureMaps = !_obscureMaps),
-                  onChanged: cubit.updateMapsKey,
-                  status: state.mapsStatus,
-                  onValidate: cubit.validateMapsKey,
-                  isDark: widget.isDark,
-                ),
-
-                const SizedBox(height: 24),
+                // _buildKeyField(
+                //   label: 'Google Maps API Key',
+                //   controller: _mapsController,
+                //   obscure: _obscureMaps,
+                //   onToggle: () =>
+                //       setState(() => _obscureMaps = !_obscureMaps),
+                //   onChanged: cubit.updateMapsKey,
+                //   status: state.mapsStatus,
+                //   onValidate: cubit.validateMapsKey,
+                //   isDark: widget.isDark,
+                // ),
+                //
+                // const SizedBox(height: 24),
 
                 // ── Action buttons ────────────────────────────────────────
                 Row(
