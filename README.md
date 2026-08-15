@@ -116,15 +116,11 @@ cd ecogrid-intelligence
 # 2. Install dependencies
 flutter pub get
 
-# 3. (Optional) Configure API keys via .env
-cp .env.example .env
-# Edit .env with your keys — OR configure them later in-app via Settings → API Keys
-
-# 4. Run the app
+# 3. Run the app
 flutter run
 ```
 
-> **Note:** API keys can also be configured at runtime through **Settings → General → API Keys** — no `.env` file required.
+> **Note:** Upon running the app, you must enter your API keys (Gemini and Google Maps). You can configure them directly in the app by going to **Settings → General → API Keys**.
 
 ### Connecting to Liquid Galaxy
 
