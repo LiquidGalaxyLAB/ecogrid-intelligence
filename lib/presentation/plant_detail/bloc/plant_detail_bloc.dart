@@ -25,6 +25,7 @@ import '../../../core/enums/connection_status.dart';
 import '../../../core/enums/lg_display_mode.dart';
 import '../../../core/enums/historical_data_mode.dart';
 import '../../../core/utils/kml_utils.dart';
+import '../../../service/power_plant_orbit_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'plant_detail_event.dart';
 import 'plant_detail_data.dart';
@@ -78,11 +79,20 @@ class PlantDetailBloc
     });
     on<PlantDetailStartOrbitRequested>(_onStartOrbitRequested);
     on<PlantDetailStopOrbitRequested>(_onStopOrbitRequested);
+    on<PlantDetailSetOrbitReady>(_onSetOrbitReady);
+
+    // Auto-reset orbiting state when the plant orbit tour finishes naturally.
+    lgService.onPlantOrbitComplete = () {
+      if (!isClosed && state is AppSuccess<PlantDetailData>) {
+        add(const PlantDetailStopOrbitRequested());
+      }
+    };
   }
 
   @override
   Future<void> close() {
-    lgService.stopOrbit();
+    lgService.onPlantOrbitComplete = null;
+    lgService.stopPlantOrbit();
     return super.close();
   }
   PlantContextPayload? _buildContext() {
@@ -190,13 +200,21 @@ class PlantDetailBloc
       );
       debugPrint('[LG] clearKml + flyTo done');
 
-      // 2. Send concentric ring KML.
+      // 2. Send concentric ring KML with embedded orbit tour.
+      final optimalRange = _calculateOptimalRange(plant);
+      final orbitTour = PowerPlantOrbitService.buildPlantOrbitTour(
+        latitude: plant.latitude,
+        longitude: plant.longitude,
+        range: optimalRange,
+        tilt: 60,
+      );
       final pinKml = KmlUtils.plantPinKml(
         plant: plant,
         riskLevel: cvs.riskLevel,
+        orbitTour: orbitTour,
       );
       await lgService.sendKmlToMaster(pinKml);
-      debugPrint('[LG] pinKml sent');
+      debugPrint('[LG] pinKml sent (with orbit tour)');
 
       // 3. Load settings once to position the balloon on the correct screen.
       final settingsResult = await lgService.loadSettings();
@@ -228,6 +246,15 @@ class PlantDetailBloc
       await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
       lgService.setCurrentMode(LGDisplayMode.plantDetail);
       debugPrint('[LG] Plant detail sequence complete for ${plant.name}');
+
+      // Wait 3 seconds for the flyTo animation to finish before enabling
+      // the orbit button. Since plant-to-plant or region-to-plant flights
+      // are typically shorter than global-to-region flights, 3 seconds is usually enough.
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!isClosed) {
+          add(const PlantDetailSetOrbitReady());
+        }
+      });
     } catch (e, st) {
       debugPrint('[LG] Plant detail sequence FAILED for ${plant.name}: $e\n$st');
     }
@@ -748,15 +775,17 @@ class PlantDetailBloc
   ) async {
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
+    
     emit(AppSuccess(currentData.copyWith(isOrbiting: true)));
+
     try {
-      final optimalRange = _calculateOptimalRange(currentData.plant);
-      await lgService.startOrbit(
-        currentData.plant.latitude,
-        currentData.plant.longitude,
-        optimalRange,
-        60,
-      );
+      final result = await lgService.startPlantOrbit();
+      if (result is DataFailure<void>) {
+        if (state is AppSuccess<PlantDetailData>) {
+          final d = (state as AppSuccess<PlantDetailData>).data!;
+          emit(AppSuccess(d.copyWith(isOrbiting: false)));
+        }
+      }
     } catch (e) {
       debugPrint('[LG] Failed to start orbit: $e');
       if (state is AppSuccess<PlantDetailData>) {
@@ -773,7 +802,17 @@ class PlantDetailBloc
     if (state is! AppSuccess<PlantDetailData>) return;
     final currentData = (state as AppSuccess<PlantDetailData>).data!;
     emit(AppSuccess(currentData.copyWith(isOrbiting: false)));
-    await lgService.stopOrbit();
+    await lgService.stopPlantOrbit();
+  }
+
+  void _onSetOrbitReady(
+    PlantDetailSetOrbitReady event,
+    Emitter<AppState<PlantDetailData>> emit,
+  ) {
+    if (state is AppSuccess<PlantDetailData>) {
+      final data = (state as AppSuccess<PlantDetailData>).data!;
+      emit(AppSuccess(data.copyWith(isOrbitReady: true)));
+    }
   }
 
   double _calculateOptimalRange(PowerPlant plant) {

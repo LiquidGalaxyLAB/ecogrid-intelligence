@@ -341,10 +341,52 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
   ) async {
     if (state is! AppSuccess<ExploreData>) return;
     final data = (state as AppSuccess<ExploreData>).data!;
-    if (data.region == null) return;
+    final region = data.region;
+    if (region == null) return;
+
+    lgService.setCurrentRegion(region.name);
     lgService.setCurrentMode(LGDisplayMode.regionOverview);
+
+    if (lgService.connectionStatus == ConnectionStatus.connected) {
+      await lgService.clearKml();
+      
+      final latDiff = region.maxLat - region.minLat;
+      final lonDiff = region.maxLon - region.minLon;
+      final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
+      double optimalRange = maxDiff * 111000.0 * 1.5;
+      if (optimalRange < 500000) optimalRange = 500000;
+      if (optimalRange > 12000000) optimalRange = 12000000;
+
+      await lgService.flyTo(
+        region.centerLat,
+        region.centerLon,
+        0,
+        0,
+        45,
+        optimalRange,
+      );
+
+      final currentContext = 'explore_region_';
+      lgService.setKmlContext(currentContext);
+      Future.microtask(() async {
+        final regionKml = await RegionBoundaryService.fetchBoundaryKml(
+          regionName: region.nominatimQuery ?? region.name,
+          displayName: region.displayName ?? region.name,
+          minLat: region.minLat,
+          minLon: region.minLon,
+          maxLat: region.maxLat,
+          maxLon: region.maxLon,
+          countries: region.countries,
+          preFetchedGeoJson: region.geoJson,
+        );
+        if (lgService.connectionStatus == ConnectionStatus.connected && lgService.kmlContext == currentContext) {
+          await lgService.sendKmlToMaster(regionKml);
+        }
+      });
+    }
+
     await _updateRightScreenOverlay(
-      data.region!,
+      region,
       data.plants,
     );
   }

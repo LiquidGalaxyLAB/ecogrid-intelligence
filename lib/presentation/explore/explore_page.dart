@@ -1154,7 +1154,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       context,
                       AppRoutes.plantDetail,
                       arguments: {'plant': plant},
-                    );
+                    ).then((_) {
+                      if (mounted) {
+                        context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+                      }
+                    });
                   }
                 },
                 child: _PlantListTile(
@@ -1169,7 +1173,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                         context,
                         AppRoutes.plantDetail,
                         arguments: {'plant': plant},
-                      );
+                      ).then((_) {
+                        if (mounted) {
+                          context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+                        }
+                      });
                     }
                   },
                 ),
@@ -1192,7 +1200,11 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                           context,
                           AppRoutes.plantDetail,
                           arguments: {'plant': plant},
-                        );
+                        ).then((_) {
+                          if (mounted) {
+                            context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+                          }
+                        });
                       }
                     });
                   },

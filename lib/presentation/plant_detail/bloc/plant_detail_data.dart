@@ -32,6 +32,7 @@ class PlantDetailData extends Equatable {
   final bool isChatLoading;
   final bool isChatActive;
   final bool isOrbiting;
+  final bool isOrbitReady;
   final String? lgError;
   const PlantDetailData({
     required this.plant,
@@ -52,6 +53,7 @@ class PlantDetailData extends Equatable {
     this.isChatLoading = false,
     this.isChatActive = false,
     this.isOrbiting = false,
+    this.isOrbitReady = false,
     this.lgError,
   });
   @override
@@ -74,6 +76,7 @@ class PlantDetailData extends Equatable {
     isChatLoading,
     isChatActive,
     isOrbiting,
+    isOrbitReady,
     lgError,
   ];
   PlantDetailData copyWith({
@@ -95,6 +98,7 @@ class PlantDetailData extends Equatable {
     bool? isChatLoading,
     bool? isChatActive,
     bool? isOrbiting,
+    bool? isOrbitReady,
     bool clearInsightError = false,
     String? lgError,
     bool clearLgError = false,
@@ -124,6 +128,7 @@ class PlantDetailData extends Equatable {
       isChatLoading: isChatLoading ?? this.isChatLoading,
       isChatActive: isChatActive ?? this.isChatActive,
       isOrbiting: isOrbiting ?? this.isOrbiting,
+      isOrbitReady: isOrbitReady ?? this.isOrbitReady,
       lgError: clearLgError ? null : (lgError ?? this.lgError),
     );
   }

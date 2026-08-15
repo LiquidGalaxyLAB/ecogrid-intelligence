@@ -12,6 +12,7 @@ import '../core/enums/lg_display_mode.dart';
 import '../domain/model/lg_settings.dart';
 import '../core/constants/lg_constants.dart';
 import 'ssh_service.dart';
+import 'power_plant_orbit_service.dart';
 
 class LGService {
   String _currentKmlContext = '';
@@ -397,6 +398,60 @@ class LGService {
     _isRegionalOrbiting = false;
     _regionalOrbitTimer?.cancel();
     _regionalOrbitTimer = null;
+    if (!_checkConnection(silent: true)) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _exitTour();
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+    return const DataSuccess(null);
+  }
+
+  // ── Plant-level orbit (gx:Tour approach, same as regional orbit) ──
+
+  bool _isPlantOrbiting = false;
+  bool get isPlantOrbiting => _isPlantOrbiting;
+  Timer? _plantOrbitTimer;
+
+  /// Called when the plant orbit tour finishes on its own (not user-stopped).
+  VoidCallback? onPlantOrbitComplete;
+
+  /// Plays the Orbit tour embedded in the plant pin KML.
+  /// A completion timer fires [onPlantOrbitComplete] after the tour's
+  /// natural duration ([PowerPlantOrbitService.plantOrbitDurationMs]).
+  Future<DataState<void>> startPlantOrbit() async {
+    if (!await _ensureConnection()) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      _isPlantOrbiting = true;
+      await _playTour('Orbit');
+
+      // Schedule the completion callback for when the tour naturally ends.
+      _plantOrbitTimer?.cancel();
+      _plantOrbitTimer = Timer(
+        const Duration(milliseconds: PowerPlantOrbitService.plantOrbitDurationMs),
+        () {
+          _isPlantOrbiting = false;
+          _plantOrbitTimer = null;
+          onPlantOrbitComplete?.call();
+        },
+      );
+
+      return const DataSuccess(null);
+    } catch (e) {
+      _isPlantOrbiting = false;
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
+  }
+
+  /// Stops a plant orbit that was started with [startPlantOrbit].
+  Future<DataState<void>> stopPlantOrbit() async {
+    _isPlantOrbiting = false;
+    _plantOrbitTimer?.cancel();
+    _plantOrbitTimer = null;
     if (!_checkConnection(silent: true)) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }

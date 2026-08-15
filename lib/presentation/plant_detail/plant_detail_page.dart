@@ -348,42 +348,47 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
                       SizedBox(
                         width: double.infinity,
                         height: 44,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            if (state.isOrbiting) {
-                              context.read<PlantDetailBloc>().add(
-                                const PlantDetailStopOrbitRequested(),
-                              );
-                            } else {
-                              context.read<PlantDetailBloc>().add(
-                                const PlantDetailStartOrbitRequested(),
-                              );
-                            }
-                          },
-                          icon: Icon(
-                            state.isOrbiting
-                                ? Icons.stop_circle_outlined
-                                : Icons.threesixty,
-                            size: 18,
-                          ),
-                          label: Text(
-                            state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                        child: Opacity(
+                          opacity: state.isOrbitReady ? 1.0 : 0.4,
+                          child: ElevatedButton.icon(
+                            onPressed: state.isOrbitReady ? () {
+                              if (state.isOrbiting) {
+                                context.read<PlantDetailBloc>().add(
+                                  const PlantDetailStopOrbitRequested(),
+                                );
+                              } else {
+                                context.read<PlantDetailBloc>().add(
+                                  const PlantDetailStartOrbitRequested(),
+                                );
+                              }
+                            } : null,
+                            icon: Icon(
+                              state.isOrbiting
+                                  ? Icons.stop_circle_outlined
+                                  : Icons.threesixty,
+                              size: 18,
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: state.isOrbiting
-                                ? AppTheme.surfaceLight
-                                : AppTheme.secondary,
-                            foregroundColor: state.isOrbiting
-                                ? AppTheme.textPrimary
-                                : Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusMedium,
+                            label: Text(
+                              state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: state.isOrbiting
+                                  ? AppTheme.surfaceLight
+                                  : AppTheme.secondary,
+                              foregroundColor: state.isOrbiting
+                                  ? AppTheme.textPrimary
+                                  : Colors.white,
+                              disabledBackgroundColor: AppTheme.secondary,
+                              disabledForegroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusMedium,
+                                ),
                               ),
                             ),
                           ),

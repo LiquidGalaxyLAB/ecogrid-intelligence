@@ -658,9 +658,12 @@ $tour
   static String plantPinKml({
     required PowerPlant plant,
     required RiskLevel riskLevel,
+    String? orbitTour,
   }) {
+    final pinContent = _plantPinContent(plant: plant, riskLevel: riskLevel, cvs: null, includeLookAt: true);
+    final content = orbitTour != null ? '$pinContent\n$orbitTour' : pinContent;
     return wrapInKmlDocument(
-      _plantPinContent(plant: plant, riskLevel: riskLevel, cvs: null, includeLookAt: true),
+      content,
       name: plant.name,
     );
   }
