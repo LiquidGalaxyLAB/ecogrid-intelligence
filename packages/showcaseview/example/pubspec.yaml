@@ -1,0 +1,24 @@
+name: example
+description: An example application to demonstrate showcaseview package.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+publish_to: none
+
+dependencies:
+  flutter:
+    sdk: flutter
+  showcaseview:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: 2.0.2
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

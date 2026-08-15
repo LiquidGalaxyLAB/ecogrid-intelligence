@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../../config/theme/app_theme.dart';
+import '../../di/di.dart';
+import '../../service/tour_service.dart';
 
 class EcoShowcase extends StatelessWidget {
   final GlobalKey showcaseKey;
@@ -30,16 +32,21 @@ class EcoShowcase extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Showcase.withWidget(
-      key: showcaseKey,
-      targetBorderRadius: targetBorderRadius,
-      targetPadding: targetPadding,
-      disposeOnTap: disposeOnTap,
-      onTargetClick: onTargetClick,
-      blurValue: 3,
-      overlayColor: isDark ? Colors.black : const Color(0xFF101828),
-      overlayOpacity: 0.85,
+    return ValueListenableBuilder<bool>(
+      valueListenable: sl<TourService>().isTourActive,
+      builder: (context, isActive, childWidget) {
+        if (!isActive) return child;
+        
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Showcase.withWidget(
+          key: showcaseKey,
+          targetBorderRadius: targetBorderRadius,
+          targetPadding: targetPadding,
+          disposeOnTap: disposeOnTap,
+          onTargetClick: onTargetClick,
+          blurValue: 3,
+          overlayColor: isDark ? Colors.black : const Color(0xFF101828),
+          overlayOpacity: 0.85,
       container: Container(
         width: 320,
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -139,6 +146,8 @@ class EcoShowcase extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+      },
     );
   }
 }

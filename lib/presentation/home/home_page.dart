@@ -54,19 +54,41 @@ class _HomePageBodyState extends State<_HomePageBody> {
   @override
   void initState() {
     super.initState();
+    // Listen for both tour activation AND phase changes.
+    // checkAndStartTour() is async (SharedPreferences), so isTourActive
+    // may flip to true at any point after the home page is built.
+    _tourService.isTourActive.addListener(_onTourStateChanged);
     _tourService.currentPhase.addListener(_onTourPhaseChanged);
-    // Check if we should show a tour step right away (e.g. after splash).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onTourPhaseChanged());
+    // Fire once after first frame in case the tour is already active
+    // (e.g. returning to home mid-tour).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onTourStateChanged();
+    });
   }
 
   @override
   void dispose() {
+    _tourService.isTourActive.removeListener(_onTourStateChanged);
     _tourService.currentPhase.removeListener(_onTourPhaseChanged);
     super.dispose();
   }
 
+  /// Called when [isTourActive] changes. Triggers the current phase.
+  void _onTourStateChanged() {
+    if (!mounted || !_tourService.isTourActive.value) return;
+    _triggerCurrentPhase();
+  }
+
+  /// Called when [currentPhase] changes. Triggers the new phase.
   void _onTourPhaseChanged() {
     if (!mounted || !_tourService.isTourActive.value) return;
+    _triggerCurrentPhase();
+  }
+
+  /// Triggers the showcase for the current tour phase on the home screen.
+  /// Waits for the route animation to complete + an extra frame to ensure
+  /// all widgets are laid out.
+  void _triggerCurrentPhase() {
     final phase = _tourService.currentPhase.value;
     
     void trigger() {
@@ -86,21 +108,27 @@ class _HomePageBodyState extends State<_HomePageBody> {
       }
     }
 
+    // Wait for route animation + two extra frames to ensure layout is settled.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final route = ModalRoute.of(context);
-      if (route != null && route.animation != null) {
-        if (route.animation!.isCompleted) {
-          trigger();
-        } else {
-          route.animation!.addStatusListener((status) {
-            if (status == AnimationStatus.completed) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
-            }
-          });
-        }
+      if (route != null && route.animation != null && !route.animation!.isCompleted) {
+        route.animation!.addStatusListener((status) {
+          if (status == AnimationStatus.completed) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) trigger();
+                });
+              }
+            });
+          }
+        });
       } else {
-        trigger();
+        // Animation already complete — wait one more frame to be safe.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) trigger();
+        });
       }
     });
   }

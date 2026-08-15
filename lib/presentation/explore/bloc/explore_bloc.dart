@@ -134,7 +134,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
           dominantRisk: dominantRisk,
           top3Plants: top3,
         );
-        await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+        if (lgService.kmlContext == 'explore_region_') {
+          await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+        }
       }
     });
   }
@@ -319,7 +321,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       top3Plants: top3,
     );
     if (lgService.connectionStatus != ConnectionStatus.connected) return;
-    await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+    if (lgService.kmlContext == 'explore_region_') {
+      await lgService.showBalloonOnSlave(rightmostScreen, balloonKml);
+    }
     if (updateMaster) {
       final masterRegionKml = await RegionBoundaryService.fetchBoundaryKml(
         regionName: region.nominatimQuery ?? region.name,
@@ -330,7 +334,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         maxLon: region.maxLon,
         countries: region.countries,
       );
-      await lgService.sendKmlToMaster(masterRegionKml);
+      if (lgService.kmlContext == 'explore_region_') {
+        await lgService.sendKmlToMaster(masterRegionKml);
+      }
     }
   }
 
@@ -343,6 +349,8 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     final data = (state as AppSuccess<ExploreData>).data!;
     final region = data.region;
     if (region == null) return;
+
+    emit(AppSuccess(data.copyWith(isOrbitReady: false)));
 
     lgService.setCurrentRegion(region.name);
     lgService.setCurrentMode(LGDisplayMode.regionOverview);
@@ -365,6 +373,12 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         45,
         optimalRange,
       );
+
+      Future.delayed(const Duration(seconds: 6), () {
+        if (!isClosed) {
+          add(const ExploreSetOrbitReady());
+        }
+      });
 
       final currentContext = 'explore_region_';
       lgService.setKmlContext(currentContext);
@@ -568,7 +582,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
         lon: data.region!.centerLon,
       );
       if (lgService.connectionStatus == ConnectionStatus.connected) {
-        await lgService.showBalloonOnSlave(rightmostScreen, loadingKml);
+        if (lgService.kmlContext == 'explore_region_') {
+          await lgService.showBalloonOnSlave(rightmostScreen, loadingKml);
+        }
       }
     }
 
@@ -606,7 +622,9 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
             lon: currentData.region!.centerLon,
           );
           if (lgService.connectionStatus == ConnectionStatus.connected) {
-            await lgService.showBalloonOnSlave(rightmostScreen, insightKml);
+            if (lgService.kmlContext == 'explore_region_') {
+              await lgService.showBalloonOnSlave(rightmostScreen, insightKml);
+            }
           }
         }
       }

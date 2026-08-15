@@ -70,7 +70,8 @@ dependencies:
   screenshot: ^3.0.0
   flutter_widget_from_html: ^0.17.2
   permission_handler: ^12.0.3
-  showcaseview: ^5.1.0
+  showcaseview:
+    path: packages/showcaseview
   google_maps_flutter_android: ^2.19.12
 dev_dependencies:
   flutter_test:

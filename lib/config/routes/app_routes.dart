@@ -92,25 +92,37 @@ class AppRoutes {
   static PageRouteBuilder _buildRoute(Widget page, RouteSettings settings) {
     return PageRouteBuilder(
       settings: settings,
-      pageBuilder: (context, animation, secondaryAnimation) => ShowCaseWidget(
-            disableBarrierInteraction: true,
-            blurValue: 1.5,
-            globalFloatingActionWidget: (ctx) => FloatingActionWidget(
-              bottom: 40,
-              left: 16,
-              right: 16,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: TourSkipPill(
-                  onTap: () {
-                    ShowCaseWidget.of(ctx).dismiss();
-                    sl<TourService>().skipTour();
-                  },
-                ),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        // Always keep ShowCaseWidget in the tree — conditionally
+        // inserting/removing it during page transitions caused the
+        // NEEDS-LAYOUT crash because the overlay tried to measure
+        // widgets before layout completed.
+        return ShowCaseWidget(
+          disableBarrierInteraction: true,
+          blurValue: 1.5,
+          globalFloatingActionWidget: (ctx) => FloatingActionWidget(
+            bottom: 40,
+            left: 16,
+            right: 16,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: sl<TourService>().isTourActive,
+                builder: (_, isActive, __) {
+                  if (!isActive) return const SizedBox.shrink();
+                  return TourSkipPill(
+                    onTap: () {
+                      ShowCaseWidget.of(ctx).dismiss();
+                      sl<TourService>().skipTour();
+                    },
+                  );
+                },
               ),
             ),
-            builder: (context) => _ThemeRefreshBoundary(child: page),
           ),
+          builder: (context) => _ThemeRefreshBoundary(child: page),
+        );
+      },
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;

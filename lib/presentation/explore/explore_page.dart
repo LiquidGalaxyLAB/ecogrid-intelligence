@@ -137,7 +137,15 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
         },
         transitionDuration: const Duration(milliseconds: 400),
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _isCompareMode = false;
+          _selectedPlants.clear();
+        });
+        context.read<ExploreBloc>().add(const ExploreLGRestoreRequested());
+      }
+    });
   }
   // ──────────────────────────────────────────────────────────────────────────
 

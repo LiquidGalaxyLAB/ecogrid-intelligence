@@ -108,6 +108,7 @@ class _PlantComparisonScreenState extends State<PlantComparisonScreen> {
 
   Future<void> _startComparisonTour() async {
     final lgService = sl<LGService>();
+    lgService.setKmlContext('compare_tour');
     final kml = ComparisonTourBuilder.build(plants: widget.plants);
     
     // Calculate unified scores for accurate risk colors

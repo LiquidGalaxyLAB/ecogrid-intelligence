@@ -98,31 +98,34 @@ class _PlantDetailBody extends StatefulWidget {
 class _PlantDetailBodyState extends State<_PlantDetailBody> {
   final TourService _tourService = sl<TourService>();
 
-  @override
-  void initState() {
-    super.initState();
-    
-    void trigger() {
-      if (mounted) {
+  void _triggerTour() {
+    if (mounted && sl<TourService>().isTourActive.value) {
+      final state = context.read<PlantDetailBloc>().state;
+      if (state is AppSuccess<PlantDetailData> && state.data!.cvsResult != null) {
         _tourService.showIfPhase(context, TourPhase.plantInsightFab, [TourKeys.plantInsightFab]);
       }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final route = ModalRoute.of(context);
       if (route != null && route.animation != null) {
         if (route.animation!.isCompleted) {
-          trigger();
+          _triggerTour();
         } else {
           route.animation!.addStatusListener((status) {
             if (status == AnimationStatus.completed) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => trigger());
+              WidgetsBinding.instance.addPostFrameCallback((_) => _triggerTour());
             }
           });
         }
       } else {
-        trigger();
+        _triggerTour();
       }
     });
   }
@@ -166,6 +169,11 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
                   child: FloatingActionButton(
                     heroTag: 'ai_fab',
                     onPressed: () {
+                      if (_tourService.isTourActive.value &&
+                          _tourService.currentPhase.value == TourPhase.plantInsightFab) {
+                        ShowCaseWidget.of(context).dismiss();
+                        _tourService.advancePhase();
+                      }
                       final bloc = context.read<PlantDetailBloc>();
                       if (data.aiInsight == null && !data.isLoadingInsight) {
                         bloc.add(const PlantDetailGenerateInsightRequested());
@@ -241,7 +249,20 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
               ),
             ),
           SafeArea(
-            child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
+            child: BlocConsumer<PlantDetailBloc, AppState<PlantDetailData>>(
+              listenWhen: (prev, curr) {
+                if (curr is AppSuccess<PlantDetailData> && curr.data!.cvsResult != null) {
+                  if (prev is! AppSuccess<PlantDetailData> || prev.data!.cvsResult == null) {
+                    return true;
+                  }
+                }
+                return false;
+              },
+              listener: (context, state) {
+                if (state is AppSuccess<PlantDetailData> && state.data!.cvsResult != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) => _triggerTour());
+                }
+              },
               builder: (context, state) {
                 if (state is AppLoading) {
                   return Center(

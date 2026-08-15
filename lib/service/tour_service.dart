@@ -24,10 +24,12 @@ class TourService {
 
   /// Checks [SharedPreferences] and starts the tour if this is the first
   /// launch (i.e. [_prefKey] is false or absent).
+  ///
+  /// Directly sets [isTourActive] = true so that listeners (e.g. the home
+  /// page) are notified immediately.
   Future<void> checkAndStartTour() async {
     final prefs = await SharedPreferences.getInstance();
-    // final completed = prefs.getBool(_prefKey) ?? false;
-    final completed = false; // FORCED FALSE FOR TESTING
+    final completed = prefs.getBool(_prefKey) ?? false;
     if (!completed) {
       currentPhase.value = TourPhase.homeSettings;
       isTourActive.value = true;
