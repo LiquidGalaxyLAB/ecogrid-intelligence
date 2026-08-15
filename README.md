@@ -117,8 +117,8 @@ cd ecogrid-intelligence
 flutter pub get
 
 # 3. Configure Google Maps API Key
-Open `android/app/src/main/AndroidManifest.xml` and locate line ~40.
-Replace `\${googleMapsApiKey}` with your actual Google Maps API key.
+# Open `android/app/src/main/AndroidManifest.xml` and locate line ~40.
+# Replace `YOUR_MAPS_API_KEY` with your actual Google Maps API key.
 
 # 4. Run the app
 flutter run
