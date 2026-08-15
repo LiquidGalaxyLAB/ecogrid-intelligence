@@ -116,9 +116,9 @@ cd ecogrid-intelligence
 # 2. Install dependencies
 flutter pub get
 
-# 3. Configure Google Maps API Key via .env
-cp .env.example .env
-# Edit .env and add your GOOGLE_MAPS_API_KEY (required for the map to load)
+# 3. Configure Google Maps API Key
+# Open `android/app/src/main/AndroidManifest.xml` and locate line ~40.
+# Replace `YOUR_MAPS_API_KEY` with your actual Google Maps API key.
 
 # 4. Run the app
 flutter run
@@ -126,7 +126,7 @@ flutter run
 
 > [!IMPORTANT]
 > **API Keys Configuration**
-> The **Google Maps API key** must be added directly to the `.env` file before running the app due to Android's native SDK requirements. The **Gemini API key**, however, can be configured later directly inside the app at runtime by going to **Settings → General → API Keys**.
+> The **Google Maps API key** must be added directly into the `AndroidManifest.xml` file before running the app due to Android's native SDK requirements. The **Gemini API key**, however, can be configured later directly inside the app at runtime by going to **Settings → General → API Keys**.
 
 ### Connecting to Liquid Galaxy
 
