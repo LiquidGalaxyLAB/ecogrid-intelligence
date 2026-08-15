@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../domain/model/region.dart';
 import 'kml_utils.dart';
 
@@ -35,7 +36,9 @@ class RegionBoundaryService {
     ),
   );
 
-  static const double _extrusionHeight = 150000;
+  static double _getExtrusionHeight(String label) {
+    return label.toLowerCase() == 'india' ? 250000 : 150000;
+  }
 
   static DateTime _lastNominatimRequest = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -297,9 +300,11 @@ class RegionBoundaryService {
     // ── Shared style definitions ──────────────────────────────────────────
     buf.writeln(_sharedStyles());
 
+    final extHeight = _getExtrusionHeight(label);
+
     if (type == 'Polygon') {
       final kml = _polygonToKml(
-          coordinates as List<dynamic>, label);
+          coordinates as List<dynamic>, label, extHeight);
       if (kml != null) buf.write(kml);
     } else if (type == 'MultiPolygon') {
       // Render all sub-polygons, largest first (by coordinate count).
@@ -308,7 +313,7 @@ class RegionBoundaryService {
           .toList()
         ..sort((a, b) => _ringCoordCount(b).compareTo(_ringCoordCount(a)));
       for (final poly in polys) {
-        final kml = _polygonToKml(poly, '');
+        final kml = _polygonToKml(poly, '', extHeight);
         if (kml != null) buf.writeln(kml);
       }
     } else {
@@ -333,6 +338,14 @@ class RegionBoundaryService {
       range: camRange,
     );
     buf.writeln(lookAt);
+    buf.writeln(
+      KmlUtils.orbitAround(
+        LatLng(centerLat, centerLon),
+        tilt: 55,
+        range: camRange,
+        standalone: false,
+      ),
+    );
 
     return KmlUtils.wrapInKmlDocument(buf.toString(), name: label);
   }
@@ -379,18 +392,18 @@ class RegionBoundaryService {
   /// `<Placemark>` elements. Creates TWO placemarks:
   /// 1. The main extruded polygon with semi-transparent fill
   /// 2. A ground-clamped outline for a "glow" effect at the base
-  static String? _polygonToKml(List<dynamic> rings, String name) {
+  static String? _polygonToKml(List<dynamic> rings, String name, double extrusionHeight) {
     if (rings.isEmpty) return null;
 
     // ── Extruded polygon (3D wall) ────────────────────────────────────────
     final outerCoords3d =
-        _ringToKmlCoords(rings[0] as List<dynamic>, altitude: _extrusionHeight);
+        _ringToKmlCoords(rings[0] as List<dynamic>, altitude: extrusionHeight);
     if (outerCoords3d == null) return null;
 
     final holeParts3d = <String>[];
     for (int i = 1; i < rings.length; i++) {
       final hc = _ringToKmlCoords(rings[i] as List<dynamic>,
-          altitude: _extrusionHeight);
+          altitude: extrusionHeight);
       if (hc != null) {
         holeParts3d.add(
           '<innerBoundaryIs>'
@@ -487,7 +500,7 @@ class RegionBoundaryService {
     required double maxLat,
     required double maxLon,
   }) {
-    final h = _extrusionHeight;
+    final h = _getExtrusionHeight(name);
     final coordStr =
         '$minLon,$minLat,$h $maxLon,$minLat,$h '
         '$maxLon,$maxLat,$h $minLon,$maxLat,$h $minLon,$minLat,$h';
@@ -512,11 +525,17 @@ class RegionBoundaryService {
       tilt: 55,
       range: camRange,
     );
+    final orbitTour = KmlUtils.orbitAround(
+      LatLng(centerLat, centerLon),
+      tilt: 55,
+      range: camRange,
+      standalone: false,
+    );
 
     // If the region is massive (e.g. a continent like Europe or huge country),
     // a giant rectangle looks terrible on Google Earth. Just move the camera!
     if (maxSpan > 500) {
-      return KmlUtils.wrapInKmlDocument(lookAtStr, name: name);
+      return KmlUtils.wrapInKmlDocument('$lookAtStr\n$orbitTour', name: name);
     }
 
     final content = '''
@@ -542,7 +561,8 @@ class RegionBoundaryService {
         </outerBoundaryIs>
       </Polygon>
     </Placemark>
-    $lookAtStr''';
+    $lookAtStr
+    $orbitTour''';
     return KmlUtils.wrapInKmlDocument(content, name: name);
   }
 

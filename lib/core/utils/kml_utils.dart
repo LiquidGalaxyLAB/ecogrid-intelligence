@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../enums/risk_level.dart';
 import '../../domain/model/power_plant.dart';
 import '../../domain/model/cvs_result.dart';
@@ -396,41 +397,57 @@ class KmlUtils {
         '<altitudeMode>relativeToGround</altitudeMode></LookAt>';
   }
 
-  /// Generates a KML gx:Tour for smoothly orbiting a region.
-  static String orbitTourKml({
-    required double lat,
-    required double lon,
-    required double range,
-    required double tilt,
+  /// Number of FlyTo steps in the orbit tour (i = 0..36 inclusive → 37 steps).
+  static const int orbitStepCount = 37;
+  /// Duration of each FlyTo step in the orbit tour, in seconds.
+  static const double orbitStepDurationSec = 1.2;
+  /// Total duration of a single orbit tour, derived from the step parameters.
+  static const int orbitTourDurationMs = 44400; // orbitStepCount * orbitStepDurationSec * 1000
+
+  static String orbitAround(
+    LatLng latLng, {
+    double zoom = 17,
+    double tilt = 60,
+    double range = 2000,
+    bool standalone = true,
   }) {
     int heading = 0;
-    String tags = "";
-    
+    final tags = StringBuffer();
+    final altitude =
+        156543.03392 *
+        math.cos(latLng.latitude * math.pi / 180) /
+        math.pow(2.0, zoom) *
+        1000;
+
     for (var i = 0; i <= 36; i++) {
-      tags += '''
+      heading += 10;
+      tags.write('''
       <gx:FlyTo>
-        <gx:duration>1.2</gx:duration>
+        <gx:duration>$orbitStepDurationSec</gx:duration>
         <gx:flyToMode>smooth</gx:flyToMode>
         <LookAt>
-          <longitude>$lon</longitude>
-          <latitude>$lat</latitude>
+          <longitude>${latLng.longitude}</longitude>
+          <latitude>${latLng.latitude}</latitude>
           <heading>$heading</heading>
           <tilt>$tilt</tilt>
           <range>$range</range>
-          <gx:altitudeMode>relativeToGround</gx:altitudeMode>
+          <gx:fovy>60</gx:fovy>
+          <altitude>$altitude</altitude>
+          <gx:altitudeMode>absolute</gx:altitudeMode>
         </LookAt>
-      </gx:FlyTo>''';
-      heading += 10;
+      </gx:FlyTo>''');
     }
-    
+
+    final tour = '''
+    <gx:Tour>
+      <name>Orbit</name>
+      <gx:Playlist>${tags.toString()}</gx:Playlist>
+    </gx:Tour>''';
+    if (!standalone) return tour;
+
     return '''<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
-  <gx:Tour>
-    <name>RegionOrbitTour</name>
-    <gx:Playlist>
-$tags
-    </gx:Playlist>
-  </gx:Tour>
+$tour
 </kml>''';
   }
 

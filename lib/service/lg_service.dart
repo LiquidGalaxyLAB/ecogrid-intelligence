@@ -358,27 +358,32 @@ class LGService {
 
   bool _isRegionalOrbiting = false;
   bool get isRegionalOrbiting => _isRegionalOrbiting;
+  Timer? _regionalOrbitTimer;
 
-  /// Starts a smooth regional orbit using an async flyToView loop.
-  ///
-  /// This uses an async `while` loop that **awaits** each SSH command before
-  /// scheduling the next. This prevents command pileup — the #1 cause of
-  /// jerky/disordered regional orbits.
-  Future<DataState<void>> startRegionalOrbit(
-    double lat,
-    double lon,
-    double range,
-    double tilt,
-  ) async {
+  /// Called when the regional orbit tour finishes on its own (not user-stopped).
+  VoidCallback? onRegionalOrbitComplete;
+
+  /// Plays the Orbit tour embedded in the current 3D region KML.
+  /// A completion timer fires [onRegionalOrbitComplete] after the tour's
+  /// natural duration ([KmlUtils.orbitTourDurationMs]).
+  Future<DataState<void>> startRegionalOrbit() async {
     if (!await _ensureConnection()) {
       return DataFailure(UnhandledException(message: 'LG not connected'));
     }
     try {
-      await stopRegionalOrbit();
       _isRegionalOrbiting = true;
+      await _playTour('Orbit');
 
-      // Launch the orbit loop (fire-and-forget; stopRegionalOrbit stops it).
-      _runRegionalOrbitLoop(lat, lon, range, tilt);
+      // Schedule the completion callback for when the tour naturally ends.
+      _regionalOrbitTimer?.cancel();
+      _regionalOrbitTimer = Timer(
+        const Duration(milliseconds: KmlUtils.orbitTourDurationMs),
+        () {
+          _isRegionalOrbiting = false;
+          _regionalOrbitTimer = null;
+          onRegionalOrbitComplete?.call();
+        },
+      );
 
       return const DataSuccess(null);
     } catch (e) {
@@ -387,51 +392,19 @@ class LGService {
     }
   }
 
-  /// Internal async loop that rotates the camera in increments.
-  /// Dynamically adjusts steps and delays based on range so that large regions
-  /// (like India) get enough time for GE to animate without glitching.
-  void _runRegionalOrbitLoop(
-    double lat,
-    double lon,
-    double range,
-    double tilt,
-  ) async {
-    double heading = 0.0;
-
-    // 6° step with 1s delay → smooth and medium speed (~60s revolution).
-    // This was the proven working config for India.
-    const double headingStep = 6.0;
-    const int delayMs = 1000;
-
-    while (_isRegionalOrbiting) {
-      heading = (heading + headingStep) % 360;
-
-      final query = KmlUtils.queryFlyTo(
-        lat: lat,
-        lon: lon,
-        altitude: 0,
-        heading: heading,
-        tilt: tilt,
-        range: range,
-      );
-
-      try {
-        await _sshService.execute(
-          'echo "$query" > ${LGConstants.queryFile}',
-        );
-      } catch (e) {
-        debugPrint('[LG] Regional orbit tick failed: $e');
-      }
-
-      if (!_isRegionalOrbiting) break;
-
-      await Future.delayed(Duration(milliseconds: delayMs));
-    }
-  }
-
   /// Stops a regional orbit that was started with [startRegionalOrbit].
   Future<DataState<void>> stopRegionalOrbit() async {
     _isRegionalOrbiting = false;
+    _regionalOrbitTimer?.cancel();
+    _regionalOrbitTimer = null;
+    if (!_checkConnection(silent: true)) {
+      return DataFailure(UnhandledException(message: 'LG not connected'));
+    }
+    try {
+      await _exitTour();
+    } catch (e) {
+      return DataFailure(UnhandledException(message: e.toString()));
+    }
     return const DataSuccess(null);
   }
 
@@ -640,6 +613,29 @@ class LGService {
 
   Future<void> _sendKmlToMaster(String kml) async {
     await _deployKml('master.kml', kml);
+
+    const tourStartTag = '<gx:Tour>';
+    const tourEndTag = '</gx:Tour>';
+    final tourStart = kml.indexOf(tourStartTag);
+    final tourEnd = tourStart < 0 ? -1 : kml.indexOf(tourEndTag, tourStart);
+    final hasOrbit = tourStart >= 0 &&
+        tourEnd >= 0 &&
+        kml.substring(tourStart, tourEnd).contains('<name>Orbit</name>');
+
+    if (hasOrbit) {
+      final tour = kml.substring(tourStart, tourEnd + tourEndTag.length);
+      final orbitKml = '''<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+$tour
+</kml>''';
+      await _deployKml('orbit.kml', orbitKml);
+      await _updateKmlsTxt(
+        'http://lg1:81/kml/master.kml',
+        additionalUrls: const ['http://lg1:81/kml/orbit.kml'],
+      );
+      return;
+    }
+
     await _updateKmlsTxt('http://lg1:81/kml/master.kml');
   }
 
@@ -771,10 +767,18 @@ class LGService {
     );
   }
 
-  Future<void> _updateKmlsTxt(String url) async {
+  Future<void> _updateKmlsTxt(
+    String url, {
+    List<String> additionalUrls = const [],
+  }) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final urls = [url, ...additionalUrls]
+        .where((item) => item.isNotEmpty)
+        .map((item) => "'$item?t=$timestamp'")
+        .join(' ');
     final command = url.isEmpty
         ? 'echo "" > /var/www/html/kmls.txt'
-        : "echo '$url?t=${DateTime.now().millisecondsSinceEpoch}' > /var/www/html/kmls.txt";
+        : "printf '%s\\n' $urls > /var/www/html/kmls.txt";
     await _withRetry(() => _sshService.execute(command));
   }
 }

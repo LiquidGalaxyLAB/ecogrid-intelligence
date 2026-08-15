@@ -51,6 +51,10 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     required this.getCachedCvsUsecase,
     required this.getCvsForPlantUsecase,
   }) : super(const AppLoading()) {
+    // When LGService detects the tour ended (via SSH polling), flip the button.
+    lgService.onRegionalOrbitComplete = () {
+      add(ExploreStopOrbit());
+    };
     // restartable() cancels the previous handler (including its emit.forEach)
     // when a new event of the same type arrives. Without this, switching
     // regions while a plant stream is still open causes the new region event
@@ -137,6 +141,7 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
 
   @override
   Future<void> close() {
+    lgService.onRegionalOrbitComplete = null;
     lgService.stopRegionalOrbit();
     return super.close();
   }
@@ -635,25 +640,12 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
       emit(AppSuccess(data.copyWith(isOrbiting: true)));
       
       if (data.region != null) {
-        final latDiff = data.region!.maxLat - data.region!.minLat;
-        final lonDiff = data.region!.maxLon - data.region!.minLon;
-        final maxDiff = latDiff > lonDiff ? latDiff : lonDiff;
-        // EXACT same range as _onRegionLoaded flyTo — no position change.
-        double optimalRange = maxDiff * 111000.0 * 1.5;
-        if (optimalRange < 500000) optimalRange = 500000;
-        if (optimalRange > 12000000) optimalRange = 12000000;
-
-        const double orbitTilt = 45.0;
-        
         try {
-          // Just start orbiting from the current camera position.
-          // NO flyTo, NO zoom change — heading rotates, everything else stays.
-          await lgService.startRegionalOrbit(
-            data.region!.centerLat,
-            data.region!.centerLon,
-            optimalRange,
-            orbitTilt,
-          );
+          final result = await lgService.startRegionalOrbit();
+          if (result is DataFailure<void>) {
+            emit(AppSuccess(data.copyWith(isOrbiting: false)));
+          }
+          // Completion is now handled by lgService.onRegionalOrbitComplete.
         } catch (e) {
           debugPrint('[LG] Failed to start region orbit: $e');
           emit(AppSuccess(data.copyWith(isOrbiting: false)));
@@ -666,12 +658,13 @@ class ExploreBloc extends Bloc<ExploreEvent, AppState<ExploreData>> {
     ExploreStopOrbit event,
     Emitter<AppState<ExploreData>> emit,
   ) async {
-    await lgService.stopRegionalOrbit();
     if (state is AppSuccess<ExploreData>) {
       final data = (state as AppSuccess<ExploreData>).data!;
       emit(AppSuccess(data.copyWith(isOrbiting: false)));
     }
+    await lgService.stopRegionalOrbit();
   }
+
 
   Future<void> _onSetOrbitReady(
     ExploreSetOrbitReady event,

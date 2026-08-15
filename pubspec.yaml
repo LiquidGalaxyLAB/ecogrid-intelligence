@@ -110,5 +110,6 @@ flutter:
     - assets/maps/style/
     - assets/maps/theme/
     - assets/data/
+    - .env
 
 
