@@ -1933,15 +1933,12 @@ class _ApiKeysCard extends StatefulWidget {
 
 class _ApiKeysCardState extends State<_ApiKeysCard> {
   final _geminiController = TextEditingController();
-  final _mapsController = TextEditingController();
   bool _obscureGemini = true;
-  bool _obscureMaps = true;
   bool _didPopulate = false;
 
   @override
   void dispose() {
     _geminiController.dispose();
-    _mapsController.dispose();
     super.dispose();
   }
 
@@ -1970,15 +1967,14 @@ class _ApiKeysCardState extends State<_ApiKeysCard> {
       builder: (context, state) {
         // Populate fields once when keys are loaded from storage.
         if (!_didPopulate &&
-            (state.geminiKey.isNotEmpty || state.mapsKey.isNotEmpty)) {
+            (state.geminiKey.isNotEmpty)) {
           _didPopulate = true;
           _geminiController.text = state.geminiKey;
-          _mapsController.text = state.mapsKey;
+
         }
         // Also sync after clear.
-        if (state.geminiKey.isEmpty && state.mapsKey.isEmpty && _didPopulate) {
+        if (state.geminiKey.isEmpty && _didPopulate) {
           _geminiController.clear();
-          _mapsController.clear();
           _didPopulate = false;
         }
 
@@ -2079,21 +2075,6 @@ class _ApiKeysCardState extends State<_ApiKeysCard> {
 
                 const SizedBox(height: 16),
 
-                // ── Google Maps API Key ───────────────────────────────────
-                // _buildKeyField(
-                //   label: 'Google Maps API Key',
-                //   controller: _mapsController,
-                //   obscure: _obscureMaps,
-                //   onToggle: () =>
-                //       setState(() => _obscureMaps = !_obscureMaps),
-                //   onChanged: cubit.updateMapsKey,
-                //   status: state.mapsStatus,
-                //   onValidate: cubit.validateMapsKey,
-                //   isDark: widget.isDark,
-                // ),
-                //
-                // const SizedBox(height: 24),
-
                 // ── Action buttons ────────────────────────────────────────
                 Row(
                   children: [
@@ -2121,8 +2102,7 @@ class _ApiKeysCardState extends State<_ApiKeysCard> {
                         enabled: !state.isValidating &&
                             !state.isSaving &&
                             !state.isClearing &&
-                            (state.geminiKey.isNotEmpty ||
-                                state.mapsKey.isNotEmpty),
+                            (state.geminiKey.isNotEmpty),
                         isPrimary: false,
                         isDark: widget.isDark,
                         onPressed: () => _showClearConfirmation(context, cubit),

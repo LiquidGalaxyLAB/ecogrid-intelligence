@@ -75,13 +75,10 @@ Future<void> _hydrateApiKeys() async {
   try {
     final repo = sl<ApiKeyRepository>();
     final geminiKey = await repo.getGeminiApiKey();
-    final mapsKey = await repo.getGoogleMapsApiKey();
     if (geminiKey != null && geminiKey.isNotEmpty) {
       ApiConstants.setGeminiApiKey(geminiKey);
     }
-    if (mapsKey != null && mapsKey.isNotEmpty) {
-      ApiConstants.setGoogleMapsApiKey(mapsKey);
-    }
+
   } catch (e) {
     debugPrint('[EcoGrid] Failed to hydrate API keys: $e');
   }
