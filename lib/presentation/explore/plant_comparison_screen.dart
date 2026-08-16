@@ -648,6 +648,7 @@ class _PlantCardState extends State<_PlantCard>
     final hasCvs = cvs != null;
     final risk = cvs.riskLevel ?? RiskLevel.low;
     final riskColor = _riskColor(risk);
+    final isDark = ThemeController.instance.isDarkMode;
 
     return Container(
       width: MediaQuery.of(context).size.width * 0.85,
@@ -658,25 +659,32 @@ class _PlantCardState extends State<_PlantCard>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            riskColor.withValues(alpha: hasCvs ? 0.25 : 0.08),
-            AppTheme.surface,
-            const Color(0xFF0F172A),
-          ],
+          colors: isDark
+              ? [
+                  riskColor.withValues(alpha: hasCvs ? 0.25 : 0.08),
+                  AppTheme.surface,
+                  const Color(0xFF0F172A),
+                ]
+              : [
+                  riskColor.withValues(alpha: 0.1),
+                  Colors.white,
+                  const Color(0xFFF1F5F9),
+                ],
           stops: const [0.0, 0.6, 1.0],
         ),
         border: Border.all(
-          color: riskColor.withValues(alpha: 0.25),
+          color: riskColor.withValues(alpha: isDark ? 0.25 : 0.15),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: (isDark ? Colors.black : Colors.grey.shade300)
+                .withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
           BoxShadow(
-            color: riskColor.withValues(alpha: 0.25),
+            color: riskColor.withValues(alpha: isDark ? 0.25 : 0.1),
             blurRadius: 32,
             spreadRadius: -2,
             offset: const Offset(0, 12),
@@ -714,10 +722,12 @@ class _PlantCardState extends State<_PlantCard>
                     children: [
                       Text(
                         widget.plant.name.toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
-                          color: Colors.white,
+                          color: ThemeController.instance.isDarkMode
+                              ? Colors.white
+                              : Colors.black87,
                           height: 1.15,
                           letterSpacing: 0.5,
                         ),
@@ -880,11 +890,13 @@ class _PlantCardState extends State<_PlantCard>
                       Text(
                         '${widget.plant.latitude.toStringAsFixed(4)}° N, '
                         '${widget.plant.longitude.toStringAsFixed(4)}° E',
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: ThemeController.instance.isDarkMode
+                              ? Colors.white70
+                              : Colors.black54,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          fontFeatures: [FontFeature.tabularFigures()],
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
@@ -929,11 +941,13 @@ class _PlantCardState extends State<_PlantCard>
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'AI INSIGHT',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: ThemeController.instance.isDarkMode
+                          ? Colors.white
+                          : Colors.black87,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.0,
@@ -1023,12 +1037,14 @@ class _PlantCardState extends State<_PlantCard>
 class _PendingScoreBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(
+            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
@@ -1044,7 +1060,9 @@ class _PendingScoreBanner extends StatelessWidget {
           Flexible(
             child: Text(
               'CVS score computing…',
-              style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+              style: TextStyle(
+                  color: isDark ? AppTheme.textMuted : Colors.black54,
+                  fontSize: 13),
             ),
           ),
         ],
@@ -1115,10 +1133,11 @@ class _AiInsightBody extends StatelessWidget {
         ),
       );
     }
+    final isDark = ThemeController.instance.isDarkMode;
     return HtmlWidget(
       insight!,
-      textStyle: const TextStyle(
-        color: Color(0xFFCBD5E1),
+      textStyle: TextStyle(
+        color: isDark ? const Color(0xFFCBD5E1) : Colors.black87,
         fontSize: 13,
         height: 1.6,
         fontWeight: FontWeight.w500,
@@ -1126,10 +1145,15 @@ class _AiInsightBody extends StatelessWidget {
     );
   }
 
-  Widget _muted(String text) => Text(
-    text,
-    style: const TextStyle(color: Color(0xFF475569), fontSize: 12),
-  );
+  Widget _muted(String text) {
+    final isDark = ThemeController.instance.isDarkMode;
+    return Text(
+      text,
+      style: TextStyle(
+          color: isDark ? const Color(0xFF475569) : Colors.black45,
+          fontSize: 12),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1147,6 +1171,7 @@ class _ComparisonGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Padding(
       padding: const EdgeInsets.all(14),
       child: GridView.builder(
@@ -1166,12 +1191,21 @@ class _ComparisonGridView extends StatelessWidget {
 
           return Container(
             decoration: BoxDecoration(
-              color: AppTheme.surface,
+              color: isDark ? AppTheme.surface : Colors.white,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: riskColor.withValues(alpha: 0.35),
+                color: riskColor.withValues(alpha: isDark ? 0.35 : 0.2),
                 width: 1.5,
               ),
+              boxShadow: isDark
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
             ),
             padding: const EdgeInsets.all(12),
             child: SingleChildScrollView(
@@ -1205,8 +1239,8 @@ class _ComparisonGridView extends StatelessWidget {
                         height: 34,
                         child: Text(
                           plant.name,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                             height: 1.2,
@@ -1311,14 +1345,16 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Row(
       children: [
-        Icon(icon, size: 12, color: const Color(0xFF64748B)),
+        Icon(icon,
+            size: 12, color: isDark ? const Color(0xFF64748B) : Colors.black45),
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white70,
+          style: TextStyle(
+            color: isDark ? Colors.white70 : Colors.black54,
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
@@ -1331,11 +1367,14 @@ class _SectionHeader extends StatelessWidget {
 
 class _CardDivider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Divider(
-    height: 1,
-    thickness: 0.5,
-    color: Colors.white.withValues(alpha: 0.08),
-  );
+  Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
+    return Divider(
+      height: 1,
+      thickness: 0.5,
+      color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
+    );
+  }
 }
 
 class _StressRow extends StatelessWidget {
@@ -1355,6 +1394,7 @@ class _StressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Row(
       children: [
         Text(icon, style: const TextStyle(fontSize: 14)),
@@ -1363,8 +1403,8 @@ class _StressRow extends StatelessWidget {
           width: 40,
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black54,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
@@ -1378,13 +1418,15 @@ class _StressRow extends StatelessWidget {
                 ? LinearProgressIndicator(
                     value: (value / 100).clamp(0.0, 1.0),
                     minHeight: 14,
-                    backgroundColor: Colors.white.withValues(alpha: 0.07),
+                    backgroundColor: (isDark ? Colors.white : Colors.black)
+                        .withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(color),
                   )
                 : LinearProgressIndicator(
                     value: null,
                     minHeight: 14,
-                    backgroundColor: Colors.white.withValues(alpha: 0.07),
+                    backgroundColor: (isDark ? Colors.white : Colors.black)
+                        .withValues(alpha: 0.07),
                     valueColor: AlwaysStoppedAnimation(
                       color.withValues(alpha: 0.3),
                     ),
@@ -1492,13 +1534,14 @@ class _ShimmerLineState extends State<_ShimmerLine>
   @override
   Widget build(BuildContext context) {
     _ensureInitialized();
+    final isDark = ThemeController.instance.isDarkMode;
     return AnimatedBuilder(
       animation: _anim!,
       builder: (context, _) => Container(
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: _anim!.value),
+          color: (isDark ? Colors.white : Colors.black).withValues(alpha: _anim!.value),
           borderRadius: BorderRadius.circular(widget.height / 2),
         ),
       ),
@@ -1528,6 +1571,7 @@ class _MetaItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeController.instance.isDarkMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1536,13 +1580,14 @@ class _MetaItem extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
-              Icon(icon, size: 20, color: Colors.white70),
+              Icon(icon,
+                  size: 20, color: isDark ? Colors.white70 : Colors.black45),
               const SizedBox(width: 2),
               Text(
                 label.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: Colors.white70,
+                  color: isDark ? Colors.white70 : Colors.black,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
                 ),
@@ -1556,9 +1601,9 @@ class _MetaItem extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
-              color: Colors.white,
+              color: isDark ? Colors.white : Colors.black87,
               fontWeight: FontWeight.w600,
             ),
             maxLines: 1,
