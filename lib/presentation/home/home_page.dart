@@ -248,7 +248,7 @@ class _HomePageBodyState extends State<_HomePageBody> {
                       right: -screenWidth * 0.15,
                       height: screenWidth * 1.15,
                       child: Image.asset(
-                        'assets/images/hero_globe_light.png',
+                        'assets/images/hero_globe_light.webp',
                         fit: BoxFit.cover,
                         alignment: Alignment.bottomCenter,
                       ),

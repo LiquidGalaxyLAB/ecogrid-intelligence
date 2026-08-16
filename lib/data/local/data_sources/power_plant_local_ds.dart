@@ -5,6 +5,8 @@ import '../../../core/exception/invalid_response_exception.dart';
 import '../../../core/resources/ingestion_report.dart';
 import '../../../core/utils/geo_utils.dart';
 import '../../../core/utils/region_boundary_service.dart';
+import 'dart:io';
+import 'dart:convert';
 import '../../../domain/model/power_plant.dart';
 import '../../../domain/model/region.dart';
 
@@ -232,10 +234,10 @@ class PowerPlantLocalDataSource {
 
   Future<_IngestionResult> _parseAndIngest() async {
     try {
-      final csvString = await rootBundle.loadString(
-        'assets/data/global_powerplant_dataset_1 - Sheet1.csv',
+      final byteData = await rootBundle.load(
+        'assets/data/global_powerplant_dataset_1 - Sheet1.csv.gz',
       );
-      final result = await compute(_parseCsvIsolate, csvString);
+      final result = await compute(_parseCsvIsolate, byteData.buffer.asUint8List());
       return result;
     } catch (e, stackTrace) {
       debugPrint('[EcoGrid] CSV parsing error: $e');
@@ -244,8 +246,9 @@ class PowerPlantLocalDataSource {
     }
   }
 
-  static _IngestionResult _parseCsvIsolate(String csvString) {
+  static _IngestionResult _parseCsvIsolate(Uint8List compressedBytes) {
     final stopwatch = Stopwatch()..start();
+    final csvString = utf8.decode(GZipCodec().decode(compressedBytes));
     int totalRows = 0;
     int skippedCoords = 0;
     int skippedName = 0;

@@ -85,9 +85,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/images/app_logo_padded.png"
+  image_path: "assets/images/app_logo_padded.webp"
   adaptive_icon_background: "#090C0F"
-  adaptive_icon_foreground: "assets/images/app_logo_padded.png"
+  adaptive_icon_foreground: "assets/images/app_logo_padded.webp"
   min_sdk_android: 21
 
 flutter:
@@ -96,18 +96,18 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/images/regions/dark/india.png
-    - assets/images/regions/dark/italy.png
-    - assets/images/regions/dark/usa.png
-    - assets/images/regions/dark/china.png
-    - assets/images/regions/dark/kenya.png
-    - assets/images/regions/dark/spain.png
-    - assets/images/regions/light/india.png
-    - assets/images/regions/light/italy.png
-    - assets/images/regions/light/usa.png
-    - assets/images/regions/light/china.png
-    - assets/images/regions/light/kenya.png
-    - assets/images/regions/light/spain.png
+    - assets/images/regions/dark/india.webp
+    - assets/images/regions/dark/italy.webp
+    - assets/images/regions/dark/usa.webp
+    - assets/images/regions/dark/china.webp
+    - assets/images/regions/dark/kenya.webp
+    - assets/images/regions/dark/spain.webp
+    - assets/images/regions/light/india.webp
+    - assets/images/regions/light/italy.webp
+    - assets/images/regions/light/usa.webp
+    - assets/images/regions/light/china.webp
+    - assets/images/regions/light/kenya.webp
+    - assets/images/regions/light/spain.webp
     - assets/maps/style/
     - assets/maps/theme/
     - assets/data/

@@ -28,6 +28,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
+        // ndk abi filters removed to allow split-per-abi
+
         val envFile = rootProject.file("../.env")
         val envProperties = Properties()
         if (envFile.exists()) {
@@ -38,6 +40,12 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")

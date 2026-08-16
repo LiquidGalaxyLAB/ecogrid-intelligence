@@ -132,7 +132,7 @@ class _AboutScreenState extends State<AboutScreen> {
                     const SizedBox(height: 12),
                     Center(
                       child: Image.asset(
-                        'assets/images/logos.png',
+                        'assets/images/logos.webp',
                         height: 180,
                         errorBuilder: (_, _, _) =>
                             Icon(Icons.public, size: 80, color: cs.primary),
@@ -389,7 +389,7 @@ class _HeroSection extends StatelessWidget {
                       ),
                     ),
                     child: Image.asset(
-                      'assets/images/logo.png',
+                      'assets/images/logo.webp',
                       errorBuilder: (_, _, _) => Icon(
                         Icons.energy_savings_leaf_rounded,
                         color: isDark

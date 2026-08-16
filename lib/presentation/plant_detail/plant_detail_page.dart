@@ -459,7 +459,7 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
           Row(
             children: [
               Image.asset(
-                'assets/images/logo.png',
+                'assets/images/logo.webp',
                 height: 32,
                 errorBuilder: (context, error, stackTrace) =>
                     Icon(Icons.public, color: AppTheme.primary, size: 32),
@@ -1060,11 +1060,35 @@ Widget _buildHistoricalCard(BuildContext context, PlantDetailData state) {
             value: context.read<PlantDetailBloc>(),
             child: BlocBuilder<PlantDetailBloc, AppState<PlantDetailData>>(
               builder: (context, blocState) {
-                if (blocState is AppSuccess<PlantDetailData> &&
-                    blocState.data!.trendData.isNotEmpty) {
-                  return HistoricalTrendsSheet(
-                    historicalData: blocState.data!.trendData,
-                  );
+                if (blocState is AppSuccess<PlantDetailData>) {
+                  if (blocState.data!.trendData.isNotEmpty) {
+                    return HistoricalTrendsSheet(
+                      historicalData: blocState.data!.trendData,
+                    );
+                  } else if (!blocState.data!.isLoadingTrend) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: AppTheme.surface,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.error_outline, color: AppTheme.error, size: 48),
+                              const SizedBox(height: 16),
+                              Text('Failed to load historical trend.', style: AppTheme.bodyMedium),
+                              const SizedBox(height: 8),
+                              Text('API rate limit may have been reached.', style: AppTheme.bodySmall, textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
                 }
                 return Padding(
                   padding: const EdgeInsets.all(16.0),

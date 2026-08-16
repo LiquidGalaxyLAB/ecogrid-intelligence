@@ -13,6 +13,6 @@ class RegionAssetResolver {
                       Brightness.dark))
         : ThemeController.instance.isDarkMode;
     final folder = isDark ? 'dark' : 'light';
-    return 'assets/images/regions/$folder/$regionId.png';
+    return 'assets/images/regions/$folder/$regionId.webp';
   }
 }

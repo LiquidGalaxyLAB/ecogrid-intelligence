@@ -79,7 +79,7 @@ class LGService {
       );
       try {
         await _sshService.uploadAsset(
-          'assets/images/logos.png',
+          'assets/images/logos.webp',
           '/var/www/html/logos.png',
         );
       } catch (e) {

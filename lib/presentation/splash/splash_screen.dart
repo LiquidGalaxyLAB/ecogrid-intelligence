@@ -125,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen>
                           width: MediaQuery.of(context).size.width,
                           height: MediaQuery.of(context).size.height,
                           child: Image.asset(
-                            'assets/images/splash_screen.png',
+                            'assets/images/splash_screen.webp',
                             fit: BoxFit.fill,
                           ),
                         ),
@@ -172,7 +172,7 @@ class _SplashScreenState extends State<SplashScreen>
                                     child: Transform.scale(
                                       scale: 1.45,
                                       child: Image.asset(
-                                        'assets/images/app_logo.png',
+                                        'assets/images/app_logo.webp',
                                         fit: BoxFit.cover,
                                       ),
                                     ),

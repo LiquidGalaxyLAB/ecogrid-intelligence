@@ -531,22 +531,22 @@ class _GeneralTabState extends State<_GeneralTab> {
       {
         'title': 'Normal',
         'type': MapType.normal,
-        'image': 'assets/maps/style/normal.png',
+        'image': 'assets/maps/style/normal.webp',
       },
       {
         'title': 'Terrain',
         'type': MapType.terrain,
-        'image': 'assets/maps/style/terrain.png',
+        'image': 'assets/maps/style/terrain.webp',
       },
       {
         'title': 'Satellite',
         'type': MapType.satellite,
-        'image': 'assets/maps/style/satellite.png',
+        'image': 'assets/maps/style/satellite.webp',
       },
       {
         'title': 'Hybrid',
         'type': MapType.hybrid,
-        'image': 'assets/maps/style/hybrid.png',
+        'image': 'assets/maps/style/hybrid.webp',
       },
     ];
     return SizedBox(
@@ -576,42 +576,42 @@ class _GeneralTabState extends State<_GeneralTab> {
       {
         'name': 'Default',
         'json': MapThemes.mapsThemeNone,
-        'image': 'assets/maps/theme/none.png',
+        'image': 'assets/maps/theme/none.webp',
       },
       {
         'name': 'Red',
         'json': MapThemes.mapsThemeRed,
-        'image': 'assets/maps/theme/red.png',
+        'image': 'assets/maps/theme/red.webp',
       },
       {
         'name': 'Yellow',
         'json': MapThemes.mapsThemeYellow,
-        'image': 'assets/maps/theme/yellow.png',
+        'image': 'assets/maps/theme/yellow.webp',
       },
       {
         'name': 'Green',
         'json': MapThemes.mapsThemeGreen,
-        'image': 'assets/maps/theme/green.png',
+        'image': 'assets/maps/theme/green.webp',
       },
       {
         'name': 'Blue',
         'json': MapThemes.mapsThemeBlue,
-        'image': 'assets/maps/theme/blue.png',
+        'image': 'assets/maps/theme/blue.webp',
       },
       {
         'name': 'Indigo',
         'json': MapThemes.mapsThemeIndigo,
-        'image': 'assets/maps/theme/indigo.png',
+        'image': 'assets/maps/theme/indigo.webp',
       },
       {
         'name': 'Purple',
         'json': MapThemes.mapsThemePurple,
-        'image': 'assets/maps/theme/purple.png',
+        'image': 'assets/maps/theme/purple.webp',
       },
       {
         'name': 'Pink',
         'json': MapThemes.mapsThemePink,
-        'image': 'assets/maps/theme/pink.png',
+        'image': 'assets/maps/theme/pink.webp',
       },
     ];
     return SizedBox(
