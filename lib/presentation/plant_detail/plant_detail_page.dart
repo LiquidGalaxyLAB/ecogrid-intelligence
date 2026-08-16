@@ -298,149 +298,192 @@ class _PlantDetailBodyState extends State<_PlantDetailBody> {
         _buildTopHeader(),
         _buildBreadcrumb(context, plant),
         Expanded(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (isNarrow)
-                  Column(
-                    children: [
-                      _buildOverviewCard(plant),
-                      SizedBox(height: AppTheme.spacingMD),
-                      state.isLoadingCvs
-                          ? _buildCvsLoadingCard()
-                          : (cvs != null
-                                ? _buildCVSCard(context, cvs)
-                                : _buildCvsUnavailableCard()),
-                    ],
-                  )
-                else
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _buildOverviewCard(plant)),
-                        SizedBox(width: AppTheme.spacingMD),
-                        Expanded(
-                          child: state.isLoadingCvs
-                              ? _buildCvsLoadingCard()
-                              : (cvs != null
-                                    ? _buildCVSCard(context, cvs)
-                                    : _buildCvsUnavailableCard()),
-                        ),
-                      ],
-                    ),
+          child: LayoutBuilder(
+            builder: (context, viewportConstraints) {
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingMD,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: viewportConstraints.maxHeight,
                   ),
-                SizedBox(height: AppTheme.spacingMD),
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spacingMD),
-                  decoration: AppTheme.cardDecoration,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '3. Orbit',
-                              style: AppTheme.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isNarrow)
+                          Column(
+                            children: [
+                              _buildOverviewCard(plant),
+                              SizedBox(height: AppTheme.spacingMD),
+                              state.isLoadingCvs
+                                  ? _buildCvsLoadingCard()
+                                  : (cvs != null
+                                        ? _buildCVSCard(context, cvs)
+                                        : _buildCvsUnavailableCard()),
+                            ],
+                          )
+                        else
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(child: _buildOverviewCard(plant)),
+                                SizedBox(width: AppTheme.spacingMD),
+                                Expanded(
+                                  child: state.isLoadingCvs
+                                      ? _buildCvsLoadingCard()
+                                      : (cvs != null
+                                            ? _buildCVSCard(context, cvs)
+                                            : _buildCvsUnavailableCard()),
+                                ),
+                              ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: AppTheme.secondary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                            ),
-                            child: Icon(
-                              Icons.threesixty,
-                              color: AppTheme.secondary,
-                              size: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: Opacity(
-                          opacity: state.isOrbitReady ? 1.0 : 0.4,
-                          child: ElevatedButton.icon(
-                            onPressed: state.isOrbitReady ? () {
-                              if (state.isOrbiting) {
-                                context.read<PlantDetailBloc>().add(
-                                  const PlantDetailStopOrbitRequested(),
-                                );
-                              } else {
-                                context.read<PlantDetailBloc>().add(
-                                  const PlantDetailStartOrbitRequested(),
-                                );
-                              }
-                            } : null,
-                            icon: Icon(
-                              state.isOrbiting
-                                  ? Icons.stop_circle_outlined
-                                  : Icons.threesixty,
-                              size: 18,
-                            ),
-                            label: Text(
-                              state.isOrbiting ? 'Stop Orbit' : 'Start Orbit',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
+                        SizedBox(height: AppTheme.spacingMD),
+                        Container(
+                          padding: const EdgeInsets.all(AppTheme.spacingMD),
+                          decoration: AppTheme.cardDecoration,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '3. Orbit',
+                                      style: AppTheme.bodyMedium.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.secondary.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusSmall,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.threesixty,
+                                      color: AppTheme.secondary,
+                                      size: 16,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: state.isOrbiting
-                                  ? AppTheme.surfaceLight
-                                  : AppTheme.secondary,
-                              foregroundColor: state.isOrbiting
-                                  ? AppTheme.textPrimary
-                                  : Colors.white,
-                              disabledBackgroundColor: AppTheme.secondary,
-                              disabledForegroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.radiusMedium,
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: Opacity(
+                                  opacity: state.isOrbitReady ? 1.0 : 0.4,
+                                  child: ElevatedButton.icon(
+                                    onPressed: state.isOrbitReady
+                                        ? () {
+                                            if (state.isOrbiting) {
+                                              context
+                                                  .read<PlantDetailBloc>()
+                                                  .add(
+                                                    const PlantDetailStopOrbitRequested(),
+                                                  );
+                                            } else {
+                                              context
+                                                  .read<PlantDetailBloc>()
+                                                  .add(
+                                                    const PlantDetailStartOrbitRequested(),
+                                                  );
+                                            }
+                                          }
+                                        : null,
+                                    icon: Icon(
+                                      state.isOrbiting
+                                          ? Icons.stop_circle_outlined
+                                          : Icons.threesixty,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      state.isOrbiting
+                                          ? 'Stop Orbit'
+                                          : 'Start Orbit',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: state.isOrbiting
+                                          ? AppTheme.surfaceLight
+                                          : AppTheme.secondary,
+                                      foregroundColor: state.isOrbiting
+                                          ? AppTheme.textPrimary
+                                          : Colors.white,
+                                      disabledBackgroundColor:
+                                          AppTheme.secondary,
+                                      disabledForegroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          AppTheme.radiusMedium,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppTheme.spacingMD),
-                if (isNarrow)
-                  Column(
-                    children: [
-                      _buildHistoricalCard(context, state),
-                      SizedBox(height: AppTheme.spacingMD),
-                      _buildScenarioCard(context, state),
-                    ],
-                  )
-                else
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _buildHistoricalCard(context, state)),
-                        SizedBox(width: AppTheme.spacingMD),
-                        Expanded(child: _buildScenarioCard(context, state)),
+                        SizedBox(height: AppTheme.spacingMD),
+                        Expanded(
+                          child: isNarrow
+                              ? Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: _buildHistoricalCard(
+                                        context,
+                                        state,
+                                      ),
+                                    ),
+                                    SizedBox(height: AppTheme.spacingMD),
+                                    Expanded(
+                                      child: _buildScenarioCard(context, state),
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: _buildHistoricalCard(
+                                        context,
+                                        state,
+                                      ),
+                                    ),
+                                    SizedBox(width: AppTheme.spacingMD),
+                                    Expanded(
+                                      child: _buildScenarioCard(context, state),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        SizedBox(height: AppTheme.spacingXXL),
                       ],
                     ),
                   ),
-                SizedBox(height: AppTheme.spacingXXL),
-              ],
-            ),
+                ),
+              );
+            },
           ),
         ),
       ],

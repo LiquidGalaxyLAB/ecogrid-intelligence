@@ -214,15 +214,24 @@ class _GlobePainter extends CustomPainter {
       ),
     ];
     for (final c in continents) {
+      final bounds = Rect.fromCenter(
+        center: Offset(c.x, c.y),
+        width: c.w * 2,
+        height: c.h * 2,
+      );
       canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(c.x, c.y),
-          width: c.w * 2,
-          height: c.h * 2,
-        ),
+        bounds,
         Paint()
-          ..color = c.color.withValues(alpha: c.opacity)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+          // A gradient gives the same soft edge without MaskFilter. Large
+          // blurred ovals can disappear on older Android Vulkan drivers.
+          ..shader = RadialGradient(
+            colors: [
+              c.color.withValues(alpha: c.opacity),
+              c.color.withValues(alpha: c.opacity * 0.55),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.65, 1.0],
+          ).createShader(bounds),
       );
     }
   }
@@ -347,7 +356,9 @@ class _GlobePainter extends CustomPainter {
           ],
           stops: const [0.0, 0.3, 0.6, 0.8, 1.0],
         ).createShader(Rect.fromLTWH(x - 6, 0, 12, size.height))
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+        // Avoid MaskFilter here: the narrow gradient is already soft, and
+        // blurred shader rectangles are unreliable on some Android 11 GPUs.
+        ..isAntiAlias = true;
       canvas.drawRect(
         Rect.fromLTWH(x - 6, size.height * 0.3, 12, size.height * 0.7),
         beamPaint,
