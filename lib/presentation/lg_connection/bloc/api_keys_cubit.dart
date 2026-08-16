@@ -13,36 +13,29 @@ enum KeyValidationStatus { idle, validating, valid, invalid }
 
 class ApiKeysState extends Equatable {
   final String geminiKey;
-  final String mapsKey;
   final KeyValidationStatus geminiStatus;
-  final KeyValidationStatus mapsStatus;
   final bool isSaving;
   final bool isClearing;
   final String? message; // transient feedback (success / error text)
 
   const ApiKeysState({
     this.geminiKey = '',
-    this.mapsKey = '',
     this.geminiStatus = KeyValidationStatus.idle,
-    this.mapsStatus = KeyValidationStatus.idle,
     this.isSaving = false,
     this.isClearing = false,
     this.message,
   });
 
   /// Whether both keys have been validated successfully.
-  bool get bothValid =>
-      geminiStatus == KeyValidationStatus.valid &&
-      mapsStatus == KeyValidationStatus.valid;
+  bool get isValid =>
+      geminiStatus == KeyValidationStatus.valid;
 
   /// Whether any validation is currently in-progress.
   bool get isValidating =>
-      geminiStatus == KeyValidationStatus.validating ||
-      mapsStatus == KeyValidationStatus.validating;
+      geminiStatus == KeyValidationStatus.validating;
 
   ApiKeysState copyWith({
     String? geminiKey,
-    String? mapsKey,
     KeyValidationStatus? geminiStatus,
     KeyValidationStatus? mapsStatus,
     bool? isSaving,
@@ -52,9 +45,7 @@ class ApiKeysState extends Equatable {
   }) {
     return ApiKeysState(
       geminiKey: geminiKey ?? this.geminiKey,
-      mapsKey: mapsKey ?? this.mapsKey,
       geminiStatus: geminiStatus ?? this.geminiStatus,
-      mapsStatus: mapsStatus ?? this.mapsStatus,
       isSaving: isSaving ?? this.isSaving,
       isClearing: isClearing ?? this.isClearing,
       message: clearMessage ? null : (message ?? this.message),
@@ -64,9 +55,7 @@ class ApiKeysState extends Equatable {
   @override
   List<Object?> get props => [
         geminiKey,
-        mapsKey,
         geminiStatus,
-        mapsStatus,
         isSaving,
         isClearing,
         message,
@@ -87,8 +76,7 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
   Future<void> loadKeys() async {
     try {
       final gemini = await _repository.getGeminiApiKey() ?? '';
-      final maps = await _repository.getGoogleMapsApiKey() ?? '';
-      emit(state.copyWith(geminiKey: gemini, mapsKey: maps));
+      emit(state.copyWith(geminiKey: gemini));
     } catch (e) {
       debugPrint('[EcoGrid] Failed to load API keys: $e');
     }
@@ -100,14 +88,6 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
     emit(state.copyWith(
       geminiKey: value,
       geminiStatus: KeyValidationStatus.idle,
-      clearMessage: true,
-    ));
-  }
-
-  void updateMapsKey(String value) {
-    emit(state.copyWith(
-      mapsKey: value,
-      mapsStatus: KeyValidationStatus.idle,
       clearMessage: true,
     ));
   }
@@ -134,25 +114,6 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
     ));
   }
 
-  Future<void> validateMapsKey() async {
-    if (state.mapsKey.trim().isEmpty) {
-      emit(state.copyWith(
-        mapsStatus: KeyValidationStatus.invalid,
-        message: 'Google Maps API key cannot be empty.',
-      ));
-      return;
-    }
-    emit(state.copyWith(
-      mapsStatus: KeyValidationStatus.validating,
-      clearMessage: true,
-    ));
-    final result = await _repository.validateGoogleMapsApiKey(state.mapsKey);
-    emit(state.copyWith(
-      mapsStatus:
-          result.isValid ? KeyValidationStatus.valid : KeyValidationStatus.invalid,
-      message: result.message,
-    ));
-  }
 
   // ── Save (validates first, only saves valid keys) ───────────────────────
 
@@ -166,7 +127,7 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
     }
 
     // Block save if either key is invalid.
-    if (!state.bothValid) {
+    if (!state.isValid) {
       emit(state.copyWith(
         message: 'Please fix invalid keys before saving.',
       ));
@@ -176,21 +137,17 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
     emit(state.copyWith(isSaving: true, clearMessage: true));
     try {
       await _repository.saveGeminiApiKey(state.geminiKey.trim());
-      await _repository.saveGoogleMapsApiKey(state.mapsKey.trim());
-
       // Update the runtime cache so services pick up new keys immediately.
       ApiConstants.setGeminiApiKey(state.geminiKey.trim());
-      ApiConstants.setGoogleMapsApiKey(state.mapsKey.trim());
-
       emit(state.copyWith(
         isSaving: false,
-        message: 'API keys saved successfully.',
+        message: 'API key saved successfully.',
       ));
     } catch (e) {
-      debugPrint('[EcoGrid] Failed to save API keys: $e');
+      debugPrint('[EcoGrid] Failed to save API key: $e');
       emit(state.copyWith(
         isSaving: false,
-        message: 'Failed to save keys. Please try again.',
+        message: 'Failed to save key. Please try again.',
       ));
     }
   }
@@ -204,8 +161,6 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
 
       // Clear runtime cache as well.
       ApiConstants.setGeminiApiKey('');
-      ApiConstants.setGoogleMapsApiKey('');
-
       emit(const ApiKeysState(message: 'API keys cleared.'));
     } catch (e) {
       debugPrint('[EcoGrid] Failed to clear API keys: $e');
