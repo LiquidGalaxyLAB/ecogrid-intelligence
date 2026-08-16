@@ -122,14 +122,11 @@ class ApiKeysCubit extends Cubit<ApiKeysState> {
     if (state.geminiStatus != KeyValidationStatus.valid) {
       await validateGeminiKey();
     }
-    if (state.mapsStatus != KeyValidationStatus.valid) {
-      await validateMapsKey();
-    }
 
     // Block save if either key is invalid.
     if (!state.isValid) {
       emit(state.copyWith(
-        message: 'Please fix invalid keys before saving.',
+        message: 'Please fix invalid key before saving.',
       ));
       return;
     }
