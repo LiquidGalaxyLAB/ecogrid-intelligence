@@ -233,7 +233,7 @@ class _AboutScreenState extends State<AboutScreen> {
                           const SizedBox(height: 12),
                           _CreditRow(
                             icon: Icons.school_rounded,
-                            name: 'Siddhart Mudgil',
+                            name: 'Sidharth Mudgil',
                             role: 'Mentor — Liquid Galaxy',
                           ),
                           const SizedBox(height: 12),
