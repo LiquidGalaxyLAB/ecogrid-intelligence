@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/images/app_logo.png" alt="EcoGrid Intelligence" height="180" />
+  <img src="assets/images/app_logo.png" alt="EcoGrid Intelligence" height="280" />
 
   # EcoGrid Intelligence
 
