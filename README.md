@@ -83,37 +83,41 @@ It combines **34,000+ power plants** from the Global Power Plant Database with *
 <div align="center">
 <table>
   <tr>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/1.png" alt="Home Screen" width="250" /><br/>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/1.png" alt="Home Screen" width="280" /><br/><br/>
       <b>🏠 Home — Quick Explore</b><br/>
-      <sub>Browse regions at a glance with voice search & LG status</sub>
+      <sub>Browse regions with voice search & LG status</sub>
     </td>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/2.png" alt="Region Explorer" width="250" /><br/>
-      <b>🔍 Region Explorer</b><br/>
-      <sub>Filter plants by fuel type & risk level within any region</sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/3.png" alt="Plant Dashboard" width="250" /><br/>
-      <b>📊 Plant Dashboard</b><br/>
-      <sub>CVS score, climate trends, orbit controls & AI insights</sub>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/6.png" alt="Infrastructure Map" width="280" /><br/><br/>
+      <b>🗺️ Infrastructure Map</b><br/>
+      <sub>Interactive map with fuel-type markers & risk rings</sub>
     </td>
   </tr>
+  <tr><td colspan="2"><br/></td></tr>
   <tr>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/4.png" alt="Settings & LG Controls" width="250" /><br/>
-      <b>⚙️ Settings — LG Controls</b><br/>
-      <sub>System controls, display management & KML operations</sub>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/2.png" alt="Region Explorer" width="280" /><br/><br/>
+      <b>🔍 Region Explorer</b><br/>
+      <sub>Filter plants by fuel type & risk level</sub>
     </td>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/5.png" alt="Plant Comparison" width="250" /><br/>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/3.png" alt="Plant Dashboard" width="280" /><br/><br/>
+      <b>📊 Plant Dashboard</b><br/>
+      <sub>CVS score, climate trends, orbit & AI insights</sub>
+    </td>
+  </tr>
+  <tr><td colspan="2"><br/></td></tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/5.png" alt="Plant Comparison" width="280" /><br/><br/>
       <b>⚖️ Plant Comparison</b><br/>
-      <sub>Side-by-side swipeable cards with climate stress breakdown</sub>
+      <sub>Swipeable cards with climate stress breakdown</sub>
     </td>
-    <td align="center" width="33%">
-      <img src="assets/images/screenshots/6.png" alt="Infrastructure Map" width="250" /><br/>
-      <b>🗺️ Infrastructure Map</b><br/>
-      <sub>Interactive map with fuel-type markers & risk-colored rings</sub>
+    <td align="center" width="50%">
+      <img src="assets/images/screenshots/4.png" alt="Settings & LG Controls" width="280" /><br/><br/>
+      <b>⚙️ Settings — LG Controls</b><br/>
+      <sub>System controls, display & KML management</sub>
     </td>
   </tr>
 </table>
